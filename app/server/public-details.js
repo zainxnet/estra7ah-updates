@@ -1,0 +1,24 @@
+(()=>{
+ const style=document.createElement('style');style.textContent=`.btn.add-btn{display:none!important}.btns .btn.zain-wide,.explor-btn .btn{width:auto!important;max-width:none!important;min-width:max-content!important;white-space:nowrap!important;display:inline-flex!important;align-items:center;gap:5px;padding:5px 16px!important;border-radius:24px!important;font-size:14px!important;line-height:1.5!important}.cast .castp{display:inline-flex!important;vertical-align:top;margin:8px!important}.cast .castp .name{display:flex!important;align-items:center;justify-content:center;width:82px!important;height:82px!important;box-sizing:border-box;border-radius:50%;border:1px solid #444;background:#202638;color:white;text-align:center;padding:9px;font-size:12px!important;cursor:pointer;white-space:normal!important;overflow-wrap:anywhere}.cast .name:hover,.cast .name:focus{border-color:#f33;background:#343044}.btns .btn.zain-report{width:auto!important;min-width:0!important;height:24px!important;min-height:0!important;max-height:24px!important;box-sizing:border-box!important;align-self:center!important;padding:3px 10px!important;font-size:12px!important;line-height:18px!important;display:inline-flex!important;align-items:center!important}.btns .btn.zain-series-folder{font-size:16px!important;padding:10px 22px!important;min-height:40px!important;box-sizing:border-box}.cast .castp .name{position:relative;overflow:hidden;isolation:isolate;text-shadow:0 1px 3px #000}.zain-actor-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-1;filter:brightness(.55)}`;document.head.appendChild(style);
+ function update(){
+ document.querySelectorAll('.btns .btn,.explor-btn .btn').forEach(b=>{const label=b.textContent.trim();if(/اضافة.*قائمة|إضافة.*قائمة/.test(label)){b.style.setProperty('display','none','important');return;}if(label.includes('تبليغ'))b.classList.add('zain-report');else b.classList.add('zain-wide');if(location.pathname.includes('/series/')&&label.includes('المجلد'))b.classList.add('zain-series-folder');if(label==='تصفح'||label.startsWith('فتح المجلد'))for(const n of b.childNodes)if(n.nodeType===3&&n.textContent.trim()&&n.textContent!==' فتح المجلد وتصفحه')n.textContent=' فتح المجلد وتصفحه';});
+ document.querySelectorAll('.cast .castp .name').forEach(n=>{if(n.dataset.zainActor)return;n.dataset.zainActor='1';n.tabIndex=0;n.setAttribute('role','link');const name=n.textContent.trim(),type=location.pathname.includes('/series/')||location.pathname.includes('/season/')?'series':'movie';n.title='عرض '+(type==='series'?'مسلسلات ':'أفلام ')+name;const img=document.createElement('img');img.src='/zain/actor-image?name='+encodeURIComponent(name);img.alt='';img.className='zain-actor-photo';img.addEventListener('error',()=>{img.style.display='none'});n.prepend(img);const open=()=>location.assign('/zain/actor?type='+type+'&name='+encodeURIComponent(name));n.addEventListener('click',open);n.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();open();}});});
+ }update();new MutationObserver(update).observe(document.body,{childList:true,subtree:true});
+})();
+
+// Detail covers must use the current host and recover after a transient failure.
+(()=>{'use strict';
+ const css=document.createElement('style');css.textContent=`.zain-detail-cover>img:not(.zain-detail-poster),.zain-detail-cover>.image-loading{display:none!important}.zain-detail-cover>.zain-detail-poster{display:block!important;visibility:visible!important;width:100%;height:100%;object-fit:cover}`;document.head.append(css);
+ let scheduled=false;
+ function update(){scheduled=false;const match=/^\/itemView\/[^/]+\/([\w.-]+)/.exec(location.pathname);if(!match)return;const id=match[1],src='/ItemImage/'+encodeURIComponent(id);
+  for(const holder of document.querySelectorAll('.desc-img-cont>.img,.movie-cont-desc-mobile>.img')){
+   holder.classList.add('zain-detail-cover');let image=holder.querySelector('.zain-detail-poster');if(image?.dataset.itemId===id)continue;
+   if(image)image.remove();image=document.createElement('img');image.className='zain-detail-poster';image.dataset.itemId=id;image.alt='صورة الفيلم أو المسلسل';image.loading='eager';image.decoding='async';let failures=0;
+   image.addEventListener('error',()=>{if(failures>=2)return;const delay=++failures*1500;setTimeout(()=>{if(image.isConnected&&image.dataset.itemId===id&&location.pathname.split('/')[3]===id)image.src=src+'?detailRetry='+failures;},delay);});
+   image.src=src;holder.append(image);
+  }
+  for(const background of document.querySelectorAll('.movie-cont-desc>.bg-img')){if(background.dataset.zainCover===id)continue;background.dataset.zainCover=id;background.style.backgroundImage='url("'+src+'")';}
+ }
+ function schedule(){if(!scheduled){scheduled=true;requestAnimationFrame(update);}}
+ new MutationObserver(schedule).observe(document.body,{childList:true,subtree:true});addEventListener('popstate',schedule);schedule();
+})();

@@ -1,0 +1,63 @@
+'use strict';
+module.exports=[
+  {
+    "route": "/static/js/main.8cecda91.chunk.js",
+    "sha256": "1fc9e202bb969ddb946d9e93f1c3b236a1f4902af5b332abb4e7ada008ac92f8",
+    "calls": 10
+  },
+  {
+    "route": "/static/js/13.991a757b.chunk.js",
+    "sha256": "1a1a2825439f3dd62aa779348521c53cdb53019a15897112194f3ecd0985a453",
+    "calls": 4
+  },
+  {
+    "route": "/static/js/14.e8d1ed38.chunk.js",
+    "sha256": "06ff1a3c8fbfff7791572e3b9dd07d5688167aec4cbe53cd18cd487fd6c5aa85",
+    "calls": 2
+  },
+  {
+    "route": "/static/js/16.cfd464c3.chunk.js",
+    "sha256": "8908846201710a1571ac2e81412b9e967156b683f4f81210e7cf39c84fb9112a",
+    "calls": 3
+  },
+  {
+    "route": "/static/js/22.027a0b1e.chunk.js",
+    "sha256": "12c5a1278eee5395f426a8419fa457a052014711a7d30947918eb699aac404b2",
+    "calls": 3
+  },
+  {
+    "route": "/static/js/24.29325e4a.chunk.js",
+    "sha256": "3c2ba3af98bf73797d2c6cfc680d95400afc4766dd5a16d3c97f0daeed317dd8",
+    "calls": 2
+  },
+  {
+    "route": "/static/js/28.a67b8ec4.chunk.js",
+    "sha256": "42f593d354b35953a674727bbd4460eb1a648f4e5401f049054bd5f771ca5fa8",
+    "calls": 4
+  },
+  {
+    "route": "/static/js/31.a677ebb8.chunk.js",
+    "sha256": "f51c1eae685b82f4661095a3d69892e8be14724b55e981d437f22504816f0af0",
+    "calls": 2
+  },
+  {
+    "route": "/static/js/42.69b679d5.chunk.js",
+    "sha256": "e47c190a957096b5993be25f237ed0e0b65b9924dc4722ba85a682cb73180373",
+    "calls": 2
+  },
+  {
+    "route": "/static/js/45.2c8cb718.chunk.js",
+    "sha256": "4381c8985b51b5b8f2d9b0af4aa1d6eed10edc070aeafa3924a54b16c7a4e26b",
+    "calls": 2
+  },
+  {
+    "route": "/static/js/53.1f4647d4.chunk.js",
+    "sha256": "75a5545fe4b2bd1f10ffbd7eaa11c285d2c83a1133adba368cbe3534d9d8fb02",
+    "calls": 6
+  },
+  {
+    "route": "/static/js/55.724318cc.chunk.js",
+    "sha256": "888c36d8f55cbe6c6dfbb669fadc2efc1e673a87b02ff27fe9732f6d933e78d4",
+    "calls": 2
+  }
+];

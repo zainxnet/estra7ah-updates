@@ -1,0 +1,13 @@
+/*!
+ * Chart.js v2.9.4
+ * https://www.chartjs.org
+ * (c) 2020 Chart.js Contributors
+ * Released under the MIT License
+ */
+
+/*!
+ * chartjs-plugin-streaming v1.9.0
+ * https://nagix.github.io/chartjs-plugin-streaming
+ * (c) 2017-2021 Akihiko Kusanagi
+ * Released under the MIT license
+ */

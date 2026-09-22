@@ -1,0 +1,555 @@
+.itemView-cont {
+    margin-top: 120px
+}
+
+@media only screen and (max-width: 768px) {
+    .itemView-cont {
+        margin-top:65px
+    }
+}
+
+.movie-cont-desc {
+    padding-right: 1%
+}
+
+.movie-cont-desc .img {
+    border-radius: 20px;
+    overflow: hidden;
+    max-width: 300px;
+    min-width: 300px;
+    float: right
+}
+
+.movie-cont-desc .vip {
+    float: left;
+    padding-right: 10px;
+    padding-left: 10px;
+    margin-right: 10px;
+    background: #00f;
+    border-radius: 13px;
+    font-size: 14px;
+    top: 12px
+}
+
+.movie-cont-desc .desc-img-cont {
+    display: flex;
+    justify-content: center;
+    align-items: center
+}
+
+.movie-cont-desc .img img {
+    width: 100%
+}
+
+.movie-cont-desc .desc {
+    padding: 6% 10px 10px
+}
+
+.movie-cont-desc .desc .head {
+    font-size: 32px;
+    font-family: "Estra7ahBold"
+}
+
+.movie-cont-desc .desc .year {
+    color: hsla(0,0%,100%,.5607843137254902);
+    font-family: "Estra7ahBold"
+}
+
+.movie-cont-desc .tags {
+    padding-top: 10px;
+    padding-bottom: 0
+}
+
+.movie-cont-desc .tags .tag {
+    display: inline-block;
+    border: 1px solid hsla(0,0%,100%,.25882352941176473);
+    border-radius: 6px;
+    text-align: center;
+    padding: 1px 7px;
+    margin-left: 3px;
+    font-size: 11px;
+    font-family: "Estra7ahBold"
+}
+
+.movie-cont-desc .desc-txt {
+    font-size: 23px;
+    font-family: Estra7ahLight;
+    width: 85%;
+    margin-top: 10px;
+    margin-bottom: 16px
+}
+
+.movie-cont-desc .bg-img {
+    width: 97%;
+    height: 150%;
+    position: absolute;
+    background: rgb(15 15 15/81%);
+    -webkit-filter: blur(12px);
+    filter: blur(12px);
+    box-shadow: inset 0 -60px 100px 80px #0d0c11;
+    background-size: cover;
+    background-position: 50%;
+    background-blend-mode: soft-light
+}
+
+.movie-cont-desc .btns {
+    margin-top: 30px;
+    font-size: 16px;
+    display: flex
+}
+
+.movie-cont-desc .btns .btn {
+    width: -webkit-max-content;
+    width: max-content;
+    display: inline;
+    font-family: "Estra7ahBold";
+    padding: 5px 16px;
+    border-radius: 23px;
+    cursor: pointer
+}
+
+.movie-cont-desc .btns .btn.play-btn {
+    background: red;
+    box-shadow: 0 0 40px 3px #e62e2d
+}
+
+.movie-cont-desc .btns .btn.add-btn {
+    background: #000;
+    margin-right: 10px
+}
+
+.movie-cont-desc .rate-bdg .imdb {
+    float: right;
+    padding-top: 12px;
+    padding-left: 5px;
+    color: #f2c010;
+    font-family: "Estra7ahBold"
+}
+
+.movie-cont-desc .rate-bdg .imdb span {
+    color: #fff;
+    font-size: 12px
+}
+
+.movie-cont-desc .cast {
+    margin-top: 3%
+}
+
+.movie-cont-desc .cast .head {
+    margin-bottom: 10px;
+    font-size: 30px;
+    font-family: "Estra7ahBold"
+}
+
+.movie-cont-desc .cast .castp {
+    float: right;
+    text-align: center;
+    margin: auto 15px auto auto
+}
+
+.movie-cont-desc .cast .castp .p {
+    width: 80px;
+    float: right;
+    overflow: hidden;
+    border-radius: 50%;
+    margin: 5px
+}
+
+.movie-cont-desc .cast .castp .name {
+    font-size: 12px
+}
+
+.movie-cont-desc .cast .castp .p img {
+    width: 100%
+}
+
+.movie-cont-desc-mobile {
+    margin-top: -70px
+}
+
+.movie-cont-desc-mobile .img .boxShadow {
+    background: linear-gradient(0deg,#0d0c11,hsla(0,0%,100%,0) 50%,rgba(13,12,17,.8274509803921568));
+    position: absolute;
+    z-index: 99;
+    top: 0;
+    width: 100%;
+    height: 100%
+}
+
+.movie-cont-desc-mobile .img {
+    height: 500px;
+    overflow: hidden
+}
+
+.movie-cont-desc-mobile .img img {
+    width: 100%
+}
+
+.movie-cont-desc-mobile .desc {
+    margin-top: -170px;
+    margin-bottom: 54px
+}
+
+.movie-cont-desc-mobile .desc .head {
+    font-size: 30px;
+    font-family: "Estra7ahBold";
+    text-align: center
+}
+
+.movie-cont-desc-mobile .desc .year-cont {
+    margin: 10px 20px 0;
+    justify-content: space-between;
+    display: flex
+}
+
+.movie-cont-desc-mobile .desc .long,.movie-cont-desc-mobile .desc .year {
+    color: hsla(0,0%,100%,.7215686274509804);
+    font-family: "Estra7ahBold"
+}
+
+.movie-cont-desc-mobile .rate-bdg .imdb {
+    float: right;
+    color: #f2c010;
+    font-family: "Estra7ahBold"
+}
+
+.movie-cont-desc-mobile .rate-bdg img {
+    width: 40px;
+    margin-top: -13px;
+    margin-right: 5px
+}
+
+.movie-cont-desc-mobile .rate-bdg .imdb span {
+    color: hsla(0,0%,100%,.7215686274509804);
+    font-size: 12px
+}
+
+.movie-cont-desc-mobile .desc-txt {
+    text-align: center;
+    margin: -5px 20px 0
+}
+
+.movie-cont-desc-mobile .tags {
+    padding-top: 10px;
+    padding-bottom: 0;
+    text-align: center
+}
+
+.movie-cont-desc-mobile .tags .tag {
+    display: inline-block;
+    border: 1px solid hsla(0,0%,100%,.25882352941176473);
+    border-radius: 6px;
+    text-align: center;
+    padding: 1px 7px;
+    margin-left: 3px;
+    font-size: 11px;
+    font-family: "Estra7ahBold"
+}
+
+.movie-cont-desc-mobile .btns {
+    margin-top: 30px;
+    font-size: 16px;
+    text-align: center
+}
+
+.movie-cont-desc-mobile .btns .btn {
+    width: -webkit-max-content;
+    width: max-content;
+    display: inline;
+    font-family: "Estra7ahBold";
+    padding: 5px 16px;
+    border-radius: 23px;
+    cursor: pointer
+}
+
+.movie-cont-desc-mobile .btns .btn.play-btn {
+    background: red;
+    box-shadow: 0 0 40px 3px #e62e2d
+}
+
+.movie-cont-desc-mobile .btns .btn.add-btn {
+    background: #000;
+    margin-right: 10px
+}
+
+@media only screen and (min-width: 100px) {
+    .movie-cont-desc {
+        display:none
+    }
+}
+
+@media only screen and (min-width: 750px) {
+    .movie-cont-desc .desc {
+        padding:10px
+    }
+
+    .movie-cont-desc .desc-txt {
+        font-size: 23px;
+        width: 85%
+    }
+
+    .movie-cont-desc .img {
+        display: block
+    }
+
+    .movie-cont-desc-mobile {
+        display: none
+    }
+
+    .movie-cont-desc {
+        display: block
+    }
+}
+
+.season-cont {
+    padding-right: 1%;
+    padding-top: 1%;
+    padding-bottom: 1%
+}
+
+.season-cont .img {
+    border-radius: 20px;
+    overflow: hidden;
+    float: right
+}
+
+.season-cont .desc-img-cont {
+    display: flex;
+    justify-content: center;
+    align-items: center
+}
+
+.season-cont .img img {
+    width: 100%
+}
+
+.season-cont .desc {
+    padding: 6% 10px 10px
+}
+
+.season-cont .desc .head {
+    font-size: 32px;
+    font-family: "Estra7ahBold"
+}
+
+.season-cont .desc .year {
+    color: hsla(0,0%,100%,.5607843137254902);
+    font-family: "Estra7ahBold"
+}
+
+.season-cont .tags {
+    padding-top: 10px;
+    padding-bottom: 0
+}
+
+.season-cont .tags .tag {
+    display: inline-block;
+    border: 1px solid hsla(0,0%,100%,.25882352941176473);
+    border-radius: 6px;
+    text-align: center;
+    padding: 1px 7px;
+    margin-left: 3px;
+    font-size: 11px;
+    font-family: "Estra7ahBold"
+}
+
+.season-cont .desc-txt {
+    font-size: 23px;
+    font-family: Estra7ahLight;
+    width: 85%;
+    margin-top: 10px;
+    margin-bottom: 16px
+}
+
+.season-cont .bg-img {
+    width: 97%;
+    height: 250%;
+    position: absolute;
+    background: rgb(15 15 15/81%);
+    -webkit-filter: blur(12px);
+    filter: blur(12px);
+    box-shadow: inset 0 -60px 100px 80px #0d0c11;
+    background-size: cover;
+    background-position: 50%;
+    background-blend-mode: soft-light
+}
+
+.season-cont .btns {
+    margin-top: 30px;
+    font-size: 16px
+}
+
+.season-cont .btns .btn {
+    width: -webkit-max-content;
+    width: max-content;
+    display: inline;
+    font-family: "Estra7ahBold";
+    padding: 5px 16px;
+    border-radius: 24px;
+    cursor: pointer
+}
+
+.season-cont-desc .btns .btn.play-btn {
+    background: red;
+    box-shadow: 0 0 40px 3px #e62e2d
+}
+
+.season-cont-desc .btns .btn.add-btn {
+    background: #000;
+    margin-right: 10px
+}
+
+.season-cont .rate-bdg .imdb {
+    float: right;
+    padding-top: 12px;
+    padding-left: 5px;
+    color: #f2c010;
+    font-family: "Estra7ahBold"
+}
+
+.season-cont .rate-bdg .imdb span {
+    color: #fff;
+    font-size: 12px
+}
+
+.season-cont .cast {
+    margin-top: 3%
+}
+
+.season-cont .cast .head {
+    margin-bottom: 10px;
+    font-size: 30px;
+    font-family: "Estra7ahBold"
+}
+
+.season-cont .cast .p {
+    width: 80px;
+    float: right;
+    height: 80px;
+    overflow: hidden;
+    border-radius: 50%;
+    margin: 5px
+}
+
+.season-cont .cast .p img {
+    width: 100%
+}
+
+@media only screen and (min-width: 100px) {
+    .season-cont .desc {
+        padding:13% 10px 10px;
+        margin-right: 1%
+    }
+
+    .season-cont .img {
+        display: none
+    }
+
+    .season-cont .desc-txt {
+        font-size: 18px;
+        width: 100%
+    }
+
+    .season-cont .cast .head {
+        margin-top: 30px
+    }
+}
+
+@media only screen and (min-width: 750px) {
+    .season-cont .desc {
+        padding:6% 10px 10px
+    }
+
+    .season-cont .desc-txt {
+        font-size: 23px;
+        width: 85%
+    }
+
+    .season-cont .img {
+        display: block
+    }
+}
+
+.audio-cont {
+    margin-top: 120px
+}
+
+.audio-cont .head {
+    font-size: 27px;
+    font-family: Estra7ahBold;
+    margin-bottom: 10px
+}
+
+.audio-cont .box {
+    width: 100px;
+    height: 100px;
+    border-radius: 20px;
+    overflow: hidden;
+    display: block;
+    margin: 10px
+}
+
+.audio-cont .box img {
+    width: 100%
+}
+
+.audio-cont .list {
+    font-family: "Estra7ahLight"
+}
+
+.audio-cont .list .item {
+    background: #1a1820;
+    margin: 1px;
+    cursor: pointer
+}
+
+.audio-cont .list .item.selected {
+    background: #2a2733
+}
+
+.audio-cont .list .item.album {
+    text-align: center;
+    font-weight: 700;
+    font-size: 20px;
+    color: #fff
+}
+
+.audio-cont select {
+    width: 95%;
+    margin: 10px;
+    padding: 15px;
+    background: #3b3b3b;
+    border: none;
+    color: #fff
+}
+
+.audio-cont .list .item.song {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 10px;
+    border-radius: 10px;
+    padding: 10px
+}
+
+.audio-cont .list .item .icon {
+    padding: 10px;
+    background: red;
+    border-radius: 100%;
+    line-height: 1px
+}
+
+
+
+
+/* 🎨 تخصيص زر "فتح المجلد وتصفحه1" - نسخة مصغرة */
+.btn.play-btn.open-folder {
+    background: red !important;
+    box-shadow: 0 0 40px 3px #e62e2d !important;
+    border-radius: 24px !important;
+    font-family: "Estra7ahBold" !important;
+    padding: 6px 14px !important;   /* تصغير الحواف الداخلية */
+    cursor: pointer;
+    width: auto !important;         /* عرض تلقائي حسب النص */
+    display: inline-block !important; /* يمنع التمدد */
+}

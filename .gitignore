@@ -1,0 +1,13 @@
+**/data/
+**/db/
+**/backups/
+**/local-backups/
+**/logs/
+**/runtime/
+**/node_modules/
+*.sqlite*
+*.db
+*.bak
+*.log
+.env*
+*private*.pem
