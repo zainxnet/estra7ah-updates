@@ -255,7 +255,7 @@ const server = http.createServer(async (req, res) => {
       updateClosing=true;
       const reason=require('./update-gate.cjs')({ready,syncJobs:services?.syncJobs()||[],metadataJobs:metadata?.jobs()||[],isBusy:backups?.isBusy()||activeUpdateRequests>0,pendingRestore:fs.existsSync(path.join(data,'pending-restore.json'))});
       if(reason){updateClosing=false;return respond(res,{error:reason},409);}
-      respond(res,{ok:true});shutdown();return;
+      respond(res,{ok:true});setTimeout(shutdown,100);return;
     }
     if(updateClosing)return respond(res,{error:'جارٍ تحديث البرنامج؛ أعد المحاولة بعد قليل'},503);
     if(route.startsWith('/admin/api/')||route.startsWith('/api/')){
