@@ -32,7 +32,7 @@ function updateItems(rows) {
     const x=catalogItems.display(input);
     if (!x.id) continue;
     const old = items.get(x.id);
-    if (old) { if (old.inItem) children.get(old.inItem)?.delete(old.id); else sectionItems.get(old.sectionId)?.delete(old.id); for (const f of old.files || []) files.delete(f.id); }
+    if (old) { if (old.inItem) children.get(old.inItem)?.delete(old.id); else sectionItems.get(old.sectionId)?.delete(old.id); for (const f of old.files || []) if(files.get(f.id)?.itemId===old.id)files.delete(f.id); }
     items.set(x.id, x);
     if (mediaKey(x)) byMediaPath.set(mediaKey(x), x.id);
     const map = x.inItem ? children : sectionItems, key = x.inItem || x.sectionId;
@@ -43,28 +43,32 @@ function updateItems(rows) {
 function removeCatalogItem(id) {
  catalogRevision++;
  const item=items.get(id);if(!item)return;
+ if(byMediaPath.get(mediaKey(item))===id)byMediaPath.delete(mediaKey(item));
  if(item.inItem)children.get(item.inItem)?.delete(id);else sectionItems.get(item.sectionId)?.delete(id);
- for(const file of item.files||[])files.delete(file.id);
+ for(const file of item.files||[]){if(files.get(file.id)?.itemId===id)files.delete(file.id);const key=String(item.sectionId)+'|'+path.normalize(file.path||'').toLowerCase();if(byFilePath.get(key)===id)byFilePath.delete(key);}
  items.delete(id);children.delete(id);
 }
 function mergeScanned(rows, automatic=true) {
+  const observed=[];
   for (const record of rows) {
     const fileOwner = (record.files || []).map(f => byFilePath.get(String(record.sectionId) + '|' + path.normalize(f.path || '').toLowerCase())).find(Boolean);
     // Stable scanner IDs take precedence: virtual seasons can share one folder.
     let old = items.get(scannedAliases.get(record.id) || record.id);
+    if(record.scanRoot&&old&&mediaKey(old)!==mediaKey(record)){old=null;scannedAliases.delete(record.id);}
     if(record.recordKind==='folder'&&old&&catalogItems.videoFile(old))old=null;
     if (!old) {
-      const candidate = items.get(fileOwner || byMediaPath.get(mediaKey(record)));
-      if (candidate && !(record.recordKind==='folder'&&catalogItems.videoFile(candidate)) && !(record.type === 'season' && candidate.id.startsWith('sync-') && candidate.id !== record.id)) old = candidate;
+      const candidate = items.get(record.scanRoot?byMediaPath.get(mediaKey(record)):(fileOwner || byMediaPath.get(mediaKey(record))));
+      if (candidate && (!record.scanRoot||mediaKey(candidate)===mediaKey(record)) && !(record.recordKind==='folder'&&catalogItems.videoFile(candidate)) && !(record.type === 'season' && candidate.id.startsWith('sync-') && candidate.id !== record.id)) old = candidate;
     }
-    if(record.type==='movie'){
+    if(record.type==='movie'&&!record.scanRoot){
       let parent=path.dirname(record.path||'');
       while(parent&&parent!==path.dirname(parent)){
         const owner=items.get(byMediaPath.get(String(record.sectionId)+'|movie|'+path.normalize(parent).toLowerCase().replace(/[\\/]+$/, '')));
         if(owner&&owner.id!==record.id){old=owner;break;}parent=path.dirname(parent);
       }
     }
-    const id = old?.id || record.id;
+    const id = old?.id || (record.scanRoot?scannedAliases.get(record.id):null) || record.id;
+    observed.push(id);
     scannedAliases.set(record.id, id);
     const x = { ...old, ...record, ...(old&&record.type==='movie'?{path:old.path}:{}), id, inItem: scannedAliases.get(record.inItem) || record.inItem };
     if (old) { x.name = old.name || record.name; x.content = old.content || record.content; x.views = old.views; x.downloads = old.downloads; x.createdAt = old.createdAt; }
@@ -78,9 +82,22 @@ function mergeScanned(rows, automatic=true) {
       children.delete(record.id);
     }
   }
+  if(automatic)itemAdmin?.observe(observed);
   itemAdmin?.apply();
   // The scanner publishes immediately; metadata and cover downloads use their own queue.
   if(automatic)metadata?.enqueueMissing(rows.map(x=>scannedAliases.get(x.id)||x.id));
+}
+function reconcileMovieScan(scope){
+ if(itemAdmin.scanApplied(scope))return;
+ const records=services.movieScanRecords(scope),active=[],wanted=new Set(),all=new Set(),queue=[...(sectionItems.get(scope.sectionId)||[])];
+ // Correct records might have been hidden by an older successful scan.
+ mergeScanned(records,false);itemAdmin.observe(records.map(row=>scannedAliases.get(row.id)||row.id));
+ mergeScanned(records,false);
+ for(const record of records){const id=scannedAliases.get(record.id)||record.id,item=items.get(id);if(!item)continue;wanted.add(id);const paths=new Set(record.files.map(file=>path.normalize(file.path).toLowerCase()));active.push({id,files:(item.files||[]).filter(file=>paths.has(path.normalize(file.path).toLowerCase())),pathSize:record.pathSize});}
+ while(queue.length){const id=queue.pop();if(all.has(id))continue;all.add(id);queue.push(...(children.get(id)||[]));}
+ const removed=[...all].filter(id=>{const item=items.get(id);return item&&item.path&&item.sectionId===scope.sectionId&&require('./movie-scan-state.cjs').contains(scope.root,item.path)&&!wanted.has(id);});
+ itemAdmin.reconcileScan(scope,removed,active);
+ admin?.recordEvent('اكتملت مطابقة مجلدات القسم؛ أزيل '+removed.length+' عنصر قديم أو غير موجود من الفهرس','success');
 }
 const childRows = id => [...(children.get(id) || [])].map(k => items.get(k));
 const sectionRow = id => sections.find(s => s.id === id);
@@ -354,12 +371,13 @@ server.listen(port, config.bind, async () => {
     sections = source.sectionsData;
     settings = { ...pick(source.settings || {}, ['isApprove', 'main_name', 'main_desc', 'main_phone', 'main_facebook', 'mubasher_port', 'is_stop_constraction', 'is_only_app', 'estra7ah_type', 'show_movies', 'show_series', 'show_tvs', 'show_s_r', 'show_anime', 'show_kids', 'show_m_d', 'show_sports', 'show_learn']), main_name: 'استراحة زين' };
     const bootStarted=Date.now(),startupCache=require('./startup-cache.cjs')(base);
-    services = require('./services.cjs')({ dir: data, sections, onItems: mergeScanned });
+    services = require('./services.cjs')({ dir: data, sections, onItems: mergeScanned,onMovieScan:reconcileMovieScan });
     const cachedCatalog=await startupCache.read();
     if(cachedCatalog){({items,children,sectionItems,files,byMediaPath,byFilePath,scannedAliases}=cachedCatalog);catalogRevision++;mergeScanned(cachedCatalog.sourceChanges,false);startupInfo={mode:cachedCatalog.sourceChanges.length?'incremental':'cached',changedRecords:cachedCatalog.sourceChanges.length};}
     else{startupMessage=startupCache.reason+'؛ جار قراءة العناصر المحفوظة';startupInfo={mode:'rebuild',reason:startupCache.reason};updateItems(JSON.parse(await fs.promises.readFile(path.join(base,'assets/db/estra7ah.items.json'),'utf8')).itemsData);startupMessage='جار تجهيز العناصر الجديدة وربط المجلدات';mergeScanned(await services.getStoredItems(),false);catalogItems.repairMovieFiles(items,updateItems);}
     content = require('./content-services.cjs')({ dir: data, source: { ...source, getItem: id => { const item = items.get(id); return item ? { ...safeItem(item), section: safeSection(sectionRow(item.sectionId)) } : null; } } });
     itemAdmin = require('./item-admin.cjs')({dir:data,items,safeItem,updateItems,removeItem:removeCatalogItem,prepareExclusive:item=>exclusiveArtwork.prepare(item)});
+    for(const scope of services.movieScans())reconcileMovieScan(scope);
     speed=require('./speed.cjs')({dir:data});
     backups=require('./backups.cjs')({base,isSyncing:()=>services.syncJobs().some(j=>['running','queued'].includes(j.status)),onEvent:(...args)=>admin?.recordEvent(...args)});
     gemini=require('./gemini-search.cjs')({dir:data});

@@ -63,7 +63,7 @@ process.once('message', async configuration => {
     let sequence = 0;
     let lastProgress = 0;
     const containers = new Map();
-    const movieOwners = new Map();
+    const discoveredIds = new Set();
     const isSeries = section.type.startsWith('serieses');
     const seriesType = seriesTypes[section.type.split('.')[1]] || 'series';
 
@@ -91,6 +91,7 @@ process.once('message', async configuration => {
       lastProgress = Date.now();
     }
     async function addRecord(record) {
+      discoveredIds.add(record.id);
       batch.push(record);
       if (batch.length >= 50) await flush();
     }
@@ -109,15 +110,29 @@ process.once('message', async configuration => {
       series.createdAt = Math.min(series.createdAt, createdAt);
       const seasonSegment = folders.length >= 2 ? folders[1] : null;
       const seasonPath = seasonSegment ? path.join(seriesPath, seasonSegment) : seriesPath;
-      const fileSeason = path.basename(filePath).match(/(?:^|[^a-z])s(\d{1,3})e\d/i);
-      const seasonKind = seasonSegment ? 'season' : 'season:' + (fileSeason ? Number(fileSeason[1]) : 1);
+      if(!seasonSegment)return seriesId;
+      const seasonKind = 'season';
       const seasonId = idFor(section.id, seasonPath, seasonKind);
       if (!containers.has(seasonId)) containers.set(seasonId,
-        baseRecord(seasonPath, seasonSegment || 'الموسم ' + (fileSeason ? Number(fileSeason[1]) : 1), 'season', seriesId, seasonKind, createdAt));
+        baseRecord(seasonPath, seasonSegment, 'season', seriesId, seasonKind, createdAt));
       const season = containers.get(seasonId);
       season.pathSize += size;
       season.createdAt = Math.min(season.createdAt, createdAt);
       return seasonId;
+    }
+    async function addFolder(directory){
+      const segments=path.relative(root,directory).split(path.sep);
+      if(!(section.type==='movies'&&segments.length===1||isSeries&&segments.length<=2))return;
+      let stat;try{stat=await fs.stat(directory);}catch{progress.warnings++;return;}
+      const createdAt=Math.floor((stat.birthtimeMs>0?stat.birthtimeMs:stat.mtimeMs)/1000);
+      if(section.type==='movies'){
+        const id=idFor(section.id,directory,'movie-folder');
+        if(!containers.has(id))containers.set(id,{...baseRecord(directory,path.basename(directory),'movie',null,'movie-folder',createdAt),scanRoot:root});
+      }else{
+        const parent=path.join(root,segments[0]),seriesId=idFor(section.id,parent,'series');
+        if(!containers.has(seriesId))containers.set(seriesId,baseRecord(parent,segments[0],seriesType,null,'series',createdAt));
+        if(segments.length===2){const id=idFor(section.id,directory,'season');if(!containers.has(id))containers.set(id,baseRecord(directory,segments[1],'season',seriesId,'season',createdAt));}
+      }
     }
 
     const directories = [root];
@@ -144,11 +159,12 @@ process.once('message', async configuration => {
         for await (const entry of handle) {
           const fullPath = path.join(directory, entry.name);
           if (entry.isSymbolicLink()) { progress.warnings++; continue; }
-          if (entry.isDirectory()) { directories.push(fullPath); await emitProgress(); continue; }
+          if (entry.isDirectory()) { await addFolder(fullPath);directories.push(fullPath); await emitProgress(); continue; }
           if (!entry.isFile()) continue;
           const extension = path.extname(entry.name).slice(1).toLowerCase();
           const mime = types[extension];
           if (!mime || !allowed(section.type, mime, extension)) { await emitProgress(); continue; }
+          if((section.type==='movies'||isSeries)&&directory===root)continue;
           progress.currentPath = fullPath;
           let stat;
           try { stat = await fs.stat(fullPath); }
@@ -164,12 +180,11 @@ process.once('message', async configuration => {
           record.files.push({ id: idFor(section.id, fullPath, 'file'), filename: entry.name, path: fullPath,
             itemId: record.id, type: { name: extension, mime_type: mime } });
           if(section.type==='movies'){
-            let movieDirectory=directory;for(let ancestor=directory;ancestor!==root&&ancestor!==path.dirname(ancestor);ancestor=path.dirname(ancestor)){if(movieOwners.has(canonical(ancestor)))movieDirectory=movieOwners.get(canonical(ancestor));}
-            movieOwners.set(canonical(directory),movieDirectory);
-            movieDirectory=require('./movie-folder.cjs')({type:'movie',name:path.basename(movieDirectory),path:movieDirectory},{main_path:[root]}).path;
+            const relative=path.relative(root,directory);
+            const movieDirectory=relative?path.join(root,relative.split(path.sep)[0]):root;
             const movieId=idFor(section.id,movieDirectory,'movie-folder');
             if(!containers.has(movieId))containers.set(movieId,baseRecord(movieDirectory,path.basename(movieDirectory),'movie',null,'movie-folder',createdAt));
-            const movie=containers.get(movieId);movie.createdAt=Math.max(movie.createdAt,createdAt);movie.pathSize+=stat.size;movie.files.push(...record.files.map(f=>({...f,itemId:movieId})));
+            const movie=containers.get(movieId);movie.scanRoot=root;movie.createdAt=Math.max(movie.createdAt,createdAt);movie.pathSize+=stat.size;movie.files.push(...record.files.map(f=>({...f,itemId:movieId})));
           }else await addRecord(record);
           await emitProgress();
         }
@@ -182,8 +197,14 @@ process.once('message', async configuration => {
     for (const record of containers.values()) await addRecord(record);
     await flush();
     await emitProgress(true);
+    let scope;
+    if((section.type==='movies'||isSeries)&&successfulRoot&&!progress.warnings){
+      // Recheck accessibility before reconciling; interrupted/partial scans never prune.
+      const handle=await fs.opendir(root);await handle.close();
+      scope=require('./movie-scan-state.cjs').complete(db,section.id,root,[...discoveredIds]);
+    }
     db.close(); db = null;
-    await send({ type: 'done', status: successfulRoot && !progress.warnings ? 'completed' : 'partial', progress });
+    await send({ type: 'done', status: successfulRoot && !progress.warnings ? 'completed' : 'partial', progress,scope });
   } catch (error) {
     if (db) { try { db.close(); } catch {} }
     await send({ type: 'done', status: 'failed', error: error.message, errorCode: error.code || 'SCAN_FAILED', progress }).catch(() => {});

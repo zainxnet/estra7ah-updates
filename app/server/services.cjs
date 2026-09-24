@@ -33,7 +33,7 @@ function sectionPaths(section) {
 }
 
 module.exports = function createServices(options) {
-  const { dir, sections, onItems = () => {} } = options;
+  const { dir, sections, onItems = () => {}, onMovieScan = () => {} } = options;
   if (!Array.isArray(sections)) throw new TypeError('sections must be an array');
   const idleTimeoutMs = options.idleTimeoutMs ?? 20000;
   const maxPathMs = options.maxPathMs ?? 30 * 60 * 1000;
@@ -191,7 +191,14 @@ module.exports = function createServices(options) {
           }
         }).catch(error => finish('failed', `تعذر تحديث الفهرس: ${error.message}`, 'PUBLISH_FAILED'));
       } else if (message?.type === 'done') {
-        published.then(() => finish(message.status || 'completed', message.error, message.errorCode));
+        published.then(async () => {
+          if(finished)return;
+          if(message.status==='completed'&&message.scope&&(section.type==='movies'||section.type.startsWith('serieses'))){
+            if(message.scope.sectionId!==String(section.id)||path.resolve(message.scope.root)!==path.resolve(part.path))throw failure('نطاق مزامنة غير صالح','BAD_SCOPE');
+            await onMovieScan(message.scope);
+          }
+          finish(message.status || 'completed', message.error, message.errorCode);
+        }).catch(error=>finish('failed','تعذر تطبيق نتيجة المزامنة: '+error.message,'RECONCILE_FAILED'));
       }
     });
     child.stderr.on('data', buffer => { stderr = (stderr + buffer.toString()).slice(-2000); });
@@ -274,6 +281,8 @@ module.exports = function createServices(options) {
     syncJobs: () => jobs.map(publicJob),
     cancelSync,
     getStoredItems,
+    movieScans: () => {const db=new DatabaseSync(storePath,{readOnly:true});try{return require('./movie-scan-state.cjs').pending(db);}finally{db.close();}},
+    movieScanRecords: scope => {const db=new DatabaseSync(storePath,{readOnly:true});try{return require('./movie-scan-state.cjs').records(db,scope);}finally{db.close();}},
     close
   };
 };
