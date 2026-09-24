@@ -1004,7 +1004,14 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     }
   }
   function candidateNames(candidate) {
-    return [candidate.originalTitle, candidate.title, candidate.arabicTitle, candidate.searchQuery].filter(name => typeof name === 'string' && name.trim() && name.trim().length <= 200).map(name => name.trim()).filter((name, index, names) => names.indexOf(name) === index);
+    return (candidate.zainAliases || [candidate.originalTitle, candidate.title, candidate.arabicTitle, candidate.searchQuery]).filter(name => typeof name === 'string' && name.trim() && name.trim().length <= 200).map(name => name.trim()).filter((name, index, names) => names.indexOf(name) === index).slice(0, 6);
+  }
+  function allNamesCandidate(candidate) {
+    var names = candidateNames(candidate);
+    return {
+      searchQuery: names.join(' | '),
+      allNames: names.length > 1
+    };
   }
   function preferredName(candidate, category) {
     var names = candidateNames(candidate);
@@ -1098,7 +1105,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             return _context12.a(2);
           case 1:
             name = String(candidate.searchQuery || candidate.title || candidate.originalTitle || candidate.arabicTitle || '').trim();
-            if (!(!name || name.length > (candidate.allNames ? 1215 : 200))) {
+            if (!(!name || name.length > (candidate.allNames ? 1200 : 200))) {
               _context12.n = 2;
               break;
             }
@@ -1117,11 +1124,11 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             event.zainAdvancedSelection = true;
             input.dispatchEvent(event);
             input.focus();
-            status.textContent = 'جارٍ البحث في الاستراحة عن «' + name + '»…';
+            status.textContent = 'جارٍ البحث في الاستراحة…';
             if (box) {
               box.classList.add('zain-search-selected');
               heading = box.querySelector('h3');
-              if (heading) heading.textContent = 'البحث عن «' + name + '»';
+              if (heading) heading.textContent = 'نتائج البحث المتقدم';
               details = box.querySelector('.zain-gemini-details');
               if (details) details.open = true;
             }
@@ -1155,7 +1162,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             }
             throw Error('تعذر قراءة نتائج البحث المحلي.');
           case 8:
-            status.textContent = rows.length ? 'تم البحث عن «' + name + '»؛ تظهر الأعمال المتاحة في نتائج الاستراحة.' : 'لم نجد «' + name + '» في الاستراحة. يمكنك اختيار اسم آخر من النتائج أو تعديل نص البحث.';
+            status.textContent = rows.length ? 'تظهر النتائج المتاحة أدناه.' : 'لا توجد نتائج في الاستراحة؛ جرّب اسمًا آخر أو عدّل البحث.';
             _context12.n = 11;
             break;
           case 9:
@@ -1184,7 +1191,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   }
   function _run() {
     _run = _asyncToGenerator(_regenerator().m(function _callee12(stage, input, q, kind, category, current) {
-      var c, timer, r, v, candidates, list, status, details, _iterator8, _step8, _loop5, answer, retry, _t10, _t11;
+      var c, timer, r, v, candidates, heading, list, status, details, _iterator8, _step8, _loop5, answer, retry, _t10, _t11;
       return _regenerator().w(function (_context15) {
         while (1) switch (_context15.p = _context15.n) {
           case 0:
@@ -1226,6 +1233,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             throw Error(v.error || (r.status === 405 ? 'تعذر الوصول إلى خدمة البحث؛ يلزم تحديث السيرفر.' : 'تعذر البحث'));
           case 5:
             candidates = Array.isArray(v.candidates) ? v.candidates.map(item => item && Object.assign({}, item, {
+              zainAliases: candidateNames(item),
               searchQuery: preferredName(item, category)
             })).filter(item => item && typeof item.searchQuery === 'string' && item.searchQuery.trim() && item.searchQuery.length <= 200).slice(0, 6) : [];
             if (!(!v.answer && !v.message && !candidates.length)) {
@@ -1240,11 +1248,12 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
               _context15.n = 14;
               break;
             }
-            stage.append(el('p', candidates.length === 1 ? 'وجدنا اسمًا مقترحًا، ويجري البحث عنه في الاستراحة.' : 'اختر العمل المطلوب للبحث عنه في الاستراحة:'));
+            heading = box && box.querySelector('h3');
+            if (heading) heading.textContent = candidates.length === 1 ? 'نتائج البحث المتقدم' : 'اختر العمل المطلوب';
             list = el('div'), status = el('p'), details = el('details');
             details.className = 'zain-gemini-details';
             details.open = true;
-            details.append(el('summary', 'عرض الأسماء المقترحة وتغيير الاختيار'));
+            details.append(el('summary', 'الأسماء المقترحة'));
             status.setAttribute('role', 'status');
             status.setAttribute('aria-live', 'polite');
             status.className = 'zain-local-search-status';
@@ -1252,36 +1261,46 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             _iterator8 = _createForOfIteratorHelper(candidates);
             _context15.p = 7;
             _loop5 = _regenerator().m(function _loop5() {
-              var candidate, card, label, names, choose, _iterator9, _step9, _loop6, aliases, all, _t1;
+              var candidate, card, label, synopsis, description, aliases, choose, _iterator9, _step9, _loop6, _t1;
               return _regenerator().w(function (_context14) {
                 while (1) switch (_context14.p = _context14.n) {
                   case 0:
                     candidate = _step8.value;
                     card = el('article');
-                    card.style.cssText = 'border:1px solid #515b76;border-radius:10px;padding:12px;margin:10px 0';
+                    card.className = 'zain-gemini-card';
                     label = (candidate.title || candidate.searchQuery) + (candidate.year ? ' (' + candidate.year + ')' : '');
                     card.append(el('h4', label));
-                    names = [candidate.originalTitle, candidate.arabicTitle].filter((name, index, array) => name && name !== candidate.title && array.indexOf(name) === index);
-                    if (names.length) card.append(el('p', names.join(' — ')));
-                    if (candidate.synopsis) card.append(el('p', candidate.synopsis));
-                    choose = el('button', 'البحث عن «' + candidate.searchQuery + '»');
+                    if (candidate.synopsis) {
+                      synopsis = String(candidate.synopsis).trim();
+                      description = el('p', synopsis.length > 180 ? synopsis.slice(0, 177).trim() + '…' : synopsis);
+                      description.className = 'zain-gemini-synopsis';
+                      description.title = synopsis;
+                      card.append(description);
+                    }
+                    aliases = candidateNames(candidate), choose = el('button', aliases.length > 1 ? 'البحث بجميع الأسماء' : 'البحث عن «' + candidate.searchQuery + '»');
                     choose.type = 'button';
-                    choose.className = 'zain-gemini-choose';
-                    choose.onclick = () => selectCandidate(input, candidate, status, current);
+                    choose.className = 'zain-gemini-choose' + (aliases.length > 1 ? ' zain-gemini-all-names' : '');
+                    choose.title = 'يجمع نتائج أسماء العمل دون تكرار';
+                    choose.onclick = () => selectCandidate(input, allNamesCandidate(candidate), status, current);
                     card.append(choose);
-                    _iterator9 = _createForOfIteratorHelper(candidateNames(candidate).filter(name => name !== candidate.searchQuery));
+                    if (!(aliases.length > 1)) {
+                      _context14.n = 7;
+                      break;
+                    }
+                    _iterator9 = _createForOfIteratorHelper(aliases);
                     _context14.p = 1;
                     _loop6 = _regenerator().m(function _loop6() {
-                      var alternate, b;
+                      var name, b;
                       return _regenerator().w(function (_context13) {
                         while (1) switch (_context13.n) {
                           case 0:
-                            alternate = _step9.value;
-                            b = el('button', 'البحث بالاسم الآخر: ' + alternate);
+                            name = _step9.value;
+                            b = el('button', name);
                             b.type = 'button';
                             b.className = 'zain-gemini-alternate';
+                            b.title = 'البحث بهذا الاسم فقط';
                             b.onclick = () => selectCandidate(input, {
-                              searchQuery: alternate
+                              searchQuery: name
                             }, status, current);
                             card.append(b);
                           case 1:
@@ -1311,18 +1330,6 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
                     _iterator9.f();
                     return _context14.f(6);
                   case 7:
-                    aliases = candidateNames(candidate);
-                    if (aliases.length > 1) {
-                      all = el('button', 'البحث بجميع الأسماء');
-                      all.type = 'button';
-                      all.className = 'zain-gemini-all-names';
-                      all.title = 'يجمع نتائج كل اسم دون تكرار العمل';
-                      all.onclick = () => selectCandidate(input, {
-                        searchQuery: aliases.join(' | '),
-                        allNames: true
-                      }, status, current);
-                      card.append(all);
-                    }
                     list.append(card);
                   case 8:
                     return _context14.a(2);
@@ -1353,7 +1360,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
           case 13:
             details.append(list);
             stage.replaceChildren(details, status);
-            if (candidates.length === 1) selectCandidate(input, candidates[0], status, current);
+            if (candidates.length === 1) selectCandidate(input, allNamesCandidate(candidates[0]), status, current);
             _context15.n = 15;
             break;
           case 14:
@@ -1656,7 +1663,8 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
 .admin-cont .sections-cont .sec .btns svg{pointer-events:none;display:block;flex:none}.admin-cont .sections-cont .sec .btns>[aria-busy=true]{opacity:.55;cursor:wait}.admin-cont .sections-cont .sec .btns>button:focus{outline:2px solid white;outline-offset:1px}
 header .zain-main-link .item{margin-left:16px!important;padding-left:16px!important;border-left:1px solid #ffffff35}header .zain-home-entry>.zain-home-section{font:700 14px Estra7ahBold,Arial,sans-serif!important;line-height:22px!important;padding:6px 5px!important;max-width:180px;overflow:hidden;text-overflow:ellipsis}header .zain-nav-expand{font-size:16px!important;padding:8px 5px!important}
 .zain-home-compact .NetWorkTitle{padding:12px 0 8px!important;margin:0!important;height:auto!important;min-height:0!important}.zain-home-compact:not(.zain-has-hero) .NetWorkTitle{padding-top:calc(var(--zain-header-height,72px) + 12px)!important}.zain-home-compact .NetWorkTitle .cont{height:auto!important;min-height:0!important;padding:0!important;margin:0!important}.zain-home-compact .NetWorkTitle .title{font-size:28px!important;line-height:1.4!important;margin:0!important}.zain-home-compact .NetWorkTitle .desc{margin:3px 0!important;line-height:1.6!important}.zain-home-compact .zain-news-wrap{height:auto!important;min-height:48px!important;margin:0!important;padding:0!important}.zain-home-compact .news{margin:4px 0!important;padding:0!important;min-height:40px!important}.zain-home-compact .startSections{padding:0!important;margin:8px 0 14px!important}.zain-home-compact .zain-start-wrap{margin:0!important;padding:0!important}
-#zain-advanced-search{font:16px Arial!important;line-height:1.8!important}#zain-advanced-search h3{font-size:20px!important;margin:0 0 8px}#zain-advanced-search{padding:12px 16px!important;margin:12px auto!important;max-width:1100px!important}#zain-advanced-search .zain-gemini-details>summary{cursor:pointer;padding:6px;color:#cbd3ff}#zain-advanced-search .zain-gemini-candidates{max-height:260px;overflow:auto}#zain-advanced-search.zain-search-selected{padding:8px 14px!important}#zain-advanced-search.zain-search-selected h3{font-size:17px!important}#zain-advanced-search .zain-local-search-status{margin:4px 0!important;font-size:14px!important}#zain-advanced-search button,#zain-gemini-settings button{font:700 17px Arial!important;min-height:46px!important;padding:12px 24px!important;background:#555ea5;color:white;border:1px solid #8791d0;border-radius:9px;cursor:pointer;margin:7px}#zain-advanced-search p{font-size:17px!important}#zain-gemini-settings{font:16px Arial!important;line-height:1.8}#zain-gemini-settings summary{font-size:19px;font-weight:bold;cursor:pointer;padding:8px}#zain-gemini-settings input:not([type=checkbox]){font-size:16px!important;min-height:42px;box-sizing:border-box}#zain-gemini-settings input[type=checkbox]{width:19px;height:19px;vertical-align:middle}
+#zain-advanced-search{font:14px Arial!important;line-height:1.4!important;padding:6px 10px!important;margin:6px auto!important;max-width:1100px!important;border-radius:8px!important}#zain-advanced-search h3{font-size:15px!important;line-height:1.4!important;margin:0 0 2px!important}#zain-advanced-search .zain-gemini-details>summary{cursor:pointer;padding:0 3px;color:#cbd3ff;font-size:13px;line-height:1.4}#zain-advanced-search .zain-gemini-candidates{max-height:180px;overflow:auto}#zain-advanced-search .zain-gemini-card{border:1px solid #515b76;border-radius:6px;padding:4px 6px;margin:3px 0}#zain-advanced-search .zain-gemini-card h4{font-size:14px;line-height:1.4;margin:0 0 2px}#zain-advanced-search p{font-size:14px!important;margin:4px 0!important}#zain-advanced-search .zain-gemini-synopsis{font-size:13px!important;line-height:1.35;margin:2px 0!important}#zain-advanced-search .zain-local-search-status{margin:2px 0 0!important;font-size:12px!important;line-height:1.4}#zain-advanced-search button,#zain-gemini-settings button{font:700 17px Arial!important;min-height:46px!important;padding:12px 24px!important;background:#555ea5;color:white;border:1px solid #8791d0;border-radius:9px;cursor:pointer;margin:7px}#zain-advanced-search .zain-gemini-card button{font:700 13px Arial!important;min-height:30px!important;padding:4px 8px!important;margin:2px!important;border-radius:6px}#zain-advanced-search .zain-gemini-all-names{background:#404e93}
+#zain-gemini-settings{font:16px Arial!important;line-height:1.8}#zain-gemini-settings summary{font-size:19px;font-weight:bold;cursor:pointer;padding:8px}#zain-gemini-settings input:not([type=checkbox]){font-size:16px!important;min-height:42px;box-sizing:border-box}#zain-gemini-settings input[type=checkbox]{width:19px;height:19px;vertical-align:middle}
 `;
   document.head.appendChild(style);
   var waiting = false;
