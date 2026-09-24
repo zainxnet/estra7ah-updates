@@ -2033,6 +2033,10 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
           case 8:
             picture = _row.card.querySelector('.img'), reload = (_row$card$querySelect = _row.card.querySelector('.lni-reload')) === null || _row$card$querySelect === void 0 ? void 0 : _row$card$querySelect.closest('.ic');
             if (picture) {
+              if (!picture.getAttribute('data-zain-src') && !/\/ItemImage\//i.test(picture.getAttribute('src') || '')) {
+                picture.setAttribute('data-zain-src', new URL('/ItemImage/' + encodeURIComponent(_row.id), location.origin).href);
+                picture.removeAttribute('src');
+              }
               becameSaved = _item.hasContent && (picture.dataset.zainMetadata === 'missing' || picture.classList.contains('noData'));
               picture.dataset.zainMetadata = _item.hasContent ? 'saved' : 'missing';
               picture.classList.toggle('noData', !_item.hasContent);
