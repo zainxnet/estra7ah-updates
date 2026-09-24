@@ -227,8 +227,8 @@ async function api(req, res, parts) {
       if (a.length === 1 && a[0]) return reply(safeSection(sectionRow(a[0])));
       return reply(list(sections.filter(s => s.is_hidden !== 'yes' && String(s.in_section || 'null') === String(a[2] || 'null')).sort((x, y) => (+x.order || 0) - (+y.order || 0)), a[0], a[1]).map(safeSection));
     }
-    case 'starSections': return reply(sections.filter(s => s.star && s.is_hidden !== 'yes').map(safeSection));
-    case 'getAllVIPSections': return reply(sections.filter(s => s.isVIP === 'yes' && s.is_hidden !== 'yes').map(safeSection));
+    case 'starSections': return reply(sections.filter(s => s.star && s.is_hidden !== 'yes').sort((a,b)=>(Number(a.order)||0)-(Number(b.order)||0)).map(safeSection));
+    case 'getAllVIPSections': return reply(sections.filter(s => s.isVIP === 'yes' && s.is_hidden !== 'yes').sort((a,b)=>(Number(a.order)||0)-(Number(b.order)||0)).map(safeSection));
     case 'getAllAds': return respond(res, { ads: [] });
     case 'getAllExts': return respond(res, { exts: [] });
     case 'getNumbers': { if(items.countTop)return reply({sections:[{count:sections.length}],movies:[{count:items.countTop({types:['movie','film']})}],serieses:[{count:items.countTop({types:['series','tv','anime','kids','deen','sports','learn','ramadan','series.tv','series.anime','series.kids','series.deen','series.sports','series.learn','series.ramadan']})}],songs:[{count:0}],books:[{count:items.countTop({types:['booksSameFolder']})}],apps:[{count:0}]});const rows = topRows(); return reply({ sections: [{ count: sections.length }], movies: [{ count: rows.filter(x => x.type === 'movie').length }], serieses: [{ count: rows.filter(x => x.type === 'series' || x.type.startsWith('series.')).length }], songs: [{ count: 0 }], books: [{ count: rows.filter(x => x.type === 'booksSameFolder').length }], apps: [{ count: 0 }] }); }

@@ -54,7 +54,7 @@ module.exports=function createAdmin({dir,sections,settings,port,services={},exte
  const extension=extensions.find(service=>service.adminActions?.has(action)||service.adminReads?.has(action));
  if(extension){const result=await extension.admin(action,a.slice(1),req.method==='POST'?(extension.readBody?await extension.readBody(req,action):await body(req)):{},req.method);if(result)return reply(res,result.body,result.status||200)}
  if(action==='logout'){sessions.delete(sess.token);res.setHeader('Set-Cookie','estraLocal=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');return reply(res,{msg:'ok'})}
- if(action==='getAllSections'||action==='getAllJustSections')return reply(res,sections);
+ if(action==='getAllSections'||action==='getAllJustSections')return reply(res,sections.slice().sort((a,b)=>(Number(a.order)||0)-(Number(b.order)||0)));
  if(action==='getCurrentDiskes'){if(req.method!=='GET')return reply(res,{msg:'error'},405);return reply(res,await requireService('drives')())}
  if(action==='path'){
   if(req.method!=='GET')return reply(res,{msg:'error'},405);
