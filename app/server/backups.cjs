@@ -2,6 +2,7 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{fork}=require('node:child_process');
 module.exports=function({base,onEvent=()=>{},isSyncing=()=>false}){
  const dir=path.join(base,'data'),root=path.join(dir,'local-backups');fs.mkdirSync(root,{recursive:true});let busy=false,lastError='',lastAutomatic=0;
+ const backupJobs=[];
 
  const maintenance={running:false,action:null,phase:'idle',error:'',report:null,backup:null};
  function maintenanceWorker(optimize){return new Promise((resolve,reject)=>{const child=fork(path.join(__dirname,'database-maintenance-worker.cjs'),[],{windowsHide:true,stdio:['ignore','ignore','ignore','ipc']});let done=false;const timer=setTimeout(()=>finish(Error('انتهت مهلة فحص القاعدة')),15*60*1000);function finish(error,result){if(done)return;done=true;clearTimeout(timer);child.kill();error?reject(error):resolve(result)}child.on('error',finish);child.on('exit',()=>finish(Error('توقفت عملية فحص القاعدة؛ لم تكتمل الصيانة')));child.on('message',r=>finish(r.ok?null:Error(r.error),r.result));child.send({base,optimize});})}
@@ -9,7 +10,7 @@ module.exports=function({base,onEvent=()=>{},isSyncing=()=>false}){
  (async()=>{try{const scan=await maintenanceWorker(false);maintenance.report=scan;if(!scan.ok)throw Error('لم يجتز الفحص جميع الملفات؛ لم يبدأ التحسين');if(optimize&&scan.reclaimable>0){maintenance.phase='backup';maintenance.backup=await create(true);maintenance.phase='optimize';maintenance.report=await maintenanceWorker(true)}maintenance.phase='done';onEvent(optimize&&maintenance.backup?'اكتمل التحسين الآمن للقاعدة':'اكتمل فحص قاعدة البيانات','success')}catch(e){maintenance.error=e.message;maintenance.phase='failed';onEvent('تعذرت صيانة القاعدة: '+e.message,'warning')}finally{maintenance.running=false}})();return {msg:'ok'};}
  async function worker(action,file){const stage=path.join(root,'work-'+crypto.randomUUID());return new Promise((resolve,reject)=>{const c=fork(path.join(__dirname,'backup-worker.cjs'),[],{windowsHide:true,stdio:['ignore','ignore','ignore','ipc']});let done=false;const timer=setTimeout(()=>finish(Error('انتهت مهلة النسخ الاحتياطي')),15*60*1000);function finish(e,r){if(done)return;done=true;clearTimeout(timer);c.kill();e?reject(e):resolve({...r,stage});}c.on('error',finish);c.on('exit',()=>finish(Error('توقفت عملية النسخ الاحتياطي')));c.on('message',r=>finish(r.ok?null:Error(r.error),r));c.send({base,action,file,stage});});}
  const existingBackups=fs.readdirSync(root).filter(n=>/^zain-[\w-]+\.zain\.gz$/.test(n));for(const name of existingBackups)lastAutomatic=Math.max(lastAutomatic,fs.statSync(path.join(root,name)).mtimeMs);
- async function create(internal=false){if(busy||maintenance.running&&!internal)throw Object.assign(Error('توجد عملية نسخ احتياطي قيد التنفيذ'),{status:409});busy=true;lastError='';onEvent('بدأ إنشاء نسخة احتياطية','success');try{const name='zain-'+new Date().toISOString().replace(/[:.]/g,'-')+'.zain.gz',tmp=path.join(root,name+'.partial');await worker('create',tmp);fs.renameSync(tmp,path.join(root,name));lastAutomatic=Date.now();onEvent('تم حفظ النسخة الاحتياطية: '+name,'success');return name;}catch(e){lastError=e.message;onEvent('تعذر النسخ الاحتياطي: '+e.message,'warning');throw e;}finally{busy=false;}}
+ async function create(internal=false){if(busy||maintenance.running&&!internal)throw Object.assign(Error('توجد عملية نسخ احتياطي قيد التنفيذ'),{status:409});busy=true;lastError='';const job={id:crypto.randomUUID(),status:'running',name:'',size:0,error:''};backupJobs.push(job);if(backupJobs.length>8)backupJobs.shift();onEvent('بدأ إنشاء نسخة احتياطية','success');try{const name='zain-'+new Date().toISOString().replace(/[:.]/g,'-')+'.zain.gz',tmp=path.join(root,name+'.partial');const archive=await worker('create',tmp);fs.renameSync(tmp,path.join(root,name));lastAutomatic=Date.now();Object.assign(job,{status:'completed',name,fileCount:archive.files.length,size:fs.statSync(path.join(root,name)).size});onEvent('تم حفظ النسخة الاحتياطية: '+name,'success');return name;}catch(e){lastError=e.message;Object.assign(job,{status:'failed',error:e.message});onEvent('تعذر النسخ الاحتياطي: '+e.message,'warning');throw e;}finally{busy=false;}}
  async function handle(req,res,action,args){const json=(v,s=200)=>res.writeHead(s,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}).end(JSON.stringify(v));
  try{
   if(action==='databaseMaintenanceStatus'){if(req.method!=='GET')return json({msg:'error'},405);return json(maintenance);}
@@ -17,8 +18,15 @@ module.exports=function({base,onEvent=()=>{},isSyncing=()=>false}){
   if(maintenance.running&&['restoreBackup','saveDatabase','backupNow'].includes(action))return json({msg:'error',error:'انتظر انتهاء فحص أو تحسين القاعدة'},409);
   if(action==='remoteBackups')return json([]);
   if(action==='localBackups'){const rows=fs.readdirSync(root).filter(n=>/^zain-[\w-]+\.zain\.gz$/.test(n)).map(name=>{const s=fs.statSync(path.join(root,name));return {name,size:s.size,modifiedTime:s.mtime.toISOString()};});return json(rows.sort((a,b)=>b.modifiedTime.localeCompare(a.modifiedTime)));}
-  if(action==='backupStatus')return json({busy,lastError,pendingRestart:fs.existsSync(path.join(dir,'pending-restore.json'))});
-  if(action==='saveDatabase'){const name=await create();return json({msg:'ok',name});}
+  if(action==='backupStatus'){const id=new URL(req.url||'/','http://localhost').searchParams.get('jobId'),job=id?backupJobs.find(j=>j.id===id):backupJobs.at(-1);return json({busy,lastError,job:job||null,pendingRestart:fs.existsSync(path.join(dir,'pending-restore.json'))});}
+  if(action==='saveDatabase'){
+   if(req.method==='POST'&&new URL(req.url||'/','http://localhost').searchParams.get('background')==='1'){
+    if(busy||maintenance.running)return json({msg:'error',error:'توجد عملية نسخ أو صيانة قيد التنفيذ؛ انتظر انتهاءها'},409);
+    // Return immediately so large catalogs do not leave a navigation or request hanging.
+    create().catch(()=>{});return json({msg:'ok',jobId:backupJobs.at(-1).id},202);
+   }
+   const name=await create();return json({msg:'ok',name});
+  }
   if(action==='backupNow'){const name=await create();return download(name,res);}
   if(action==='download')return download(args[0],res);
   if(action==='restoreBackup'){

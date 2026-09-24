@@ -1,5 +1,54 @@
 (function () {
   'use strict';
+  let creating=false,box;
+  const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  function status(message){
+    if(!box||!document.documentElement.contains(box)){
+      box=document.createElement('div');box.id='zain-backup-download';box.dir='rtl';box.setAttribute('role','status');
+      box.style.cssText='position:relative;margin:10px 0;padding:12px 16px;background:#202a40;border:1px solid #536581;border-radius:8px;color:white;font:14px Arial;line-height:1.8';
+      const page=document.querySelector('.backups-cont'),top=document.querySelector('.topbar-cont');
+      if(page)page.prepend(box);else if(top)top.parentNode.insertBefore(box,top.nextSibling);else document.body.append(box);
+    }
+    box.textContent=message;return box;
+  }
+  async function api(action,method='GET'){
+    const control=new AbortController(),timer=setTimeout(()=>control.abort(),12000);
+    try{const response=await fetch('/admin/api/'+action,{method,credentials:'same-origin',cache:'no-store',signal:control.signal}),data=await response.json();
+      if(!response.ok||data.msg==='error'||data.msg==='login')throw Error(data.error||(response.status===401?'سجّل الدخول إلى لوحة التحكم ثم حاول مجددًا':'تعذر إنشاء النسخة الاحتياطية'));return data;
+    }finally{clearTimeout(timer)}
+  }
+  async function createBackup(button){
+    if(creating)return;creating=true;const disabled=button.disabled;button.disabled=true;button.setAttribute('aria-busy','true');
+    status('جارٍ تجهيز نسخة مضغوطة كاملة لقاعدة البيانات… سيبدأ تنزيلها تلقائيًا عند الانتهاء.');
+    try{
+      const started=await api('saveDatabase?background=1','POST');const expires=Date.now()+16*60*1000;
+      while(Date.now()<expires){
+        await sleep(700);const result=await api('backupStatus?jobId='+encodeURIComponent(started.jobId)),job=result.job;
+        if(!job)throw Error('تعذر متابعة النسخة؛ راجع قائمة النسخ المحلية أو أعد المحاولة.');
+        if(job.status==='failed')throw Error(job.error||'تعذر تجهيز النسخة الاحتياطية');
+        if(job.status!=='completed')continue;
+        const panel=status('اكتملت النسخة المضغوطة ('+(Number(job.size)/1024/1024).toLocaleString('ar',{maximumFractionDigits:2})+' ميجابايت، '+job.fileCount+' ملفًا). تم طلب تنزيلها؛ إذا لم يبدأ استخدم الرابط التالي. '),link=document.createElement('a');
+        link.href='/admin/api/download/'+encodeURIComponent(job.name);link.download=job.name;link.textContent='تنزيل النسخة مرة أخرى';
+        link.style.cssText='color:#b7ddff;text-decoration:underline';panel.appendChild(link);link.click();
+        window.dispatchEvent(new CustomEvent('zain-backup-created',{detail:{name:job.name,size:job.size}}));return;
+      }
+      throw Error('تأخر تجهيز النسخة؛ راجع قائمة النسخ المحلية وحالة النسخ قبل إعادة المحاولة.');
+    }catch(error){status(error.name==='AbortError'?'تأخر الرد من الخادم؛ راجع قائمة النسخ المحلية قبل إعادة المحاولة.':error.message)}
+    finally{creating=false;button.disabled=disabled;button.removeAttribute('aria-busy')}
+  }
+  // Both legacy controls previously either opened an empty tab or only saved on
+  // the server. Capture the action before React's handler navigates away.
+  document.addEventListener('click',event=>{
+    if(!/^\/admin(?:\/|$)/.test(location.pathname)||event.button!==0)return;
+    const anchor=event.target.closest&&event.target.closest('a[href]'),button=event.target.closest&&event.target.closest('button');let control;
+    if(anchor){try{const url=new URL(anchor.href,location.href);if(url.origin===location.origin&&url.pathname==='/admin/api/backupNow')control=anchor.querySelector('button')||anchor}catch{}}
+    if(!control&&button&&button.closest('.topbar-cont')&&button.textContent.trim()==='حفظ قاعدة البيانات')control=button;
+    if(!control)return;event.preventDefault();event.stopImmediatePropagation();createBackup(control);
+  },true);
+})();
+
+(function () {
+  'use strict';
 
   if (document.getElementById('zain-sync-status')) return;
 

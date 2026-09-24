@@ -10,17 +10,18 @@ const port = config.port;
 let gemini;
 let ready = false, startupError = '', sections = [], settings = {}, admin, services, content, operations, artwork, scanArtwork, uiCompat, speed, itemAdmin, backups, broadcast, metadata, posters, actorImages, exclusiveArtwork;
 const responseCache=require('./browse-cache.cjs')();let catalogRevision=0,topCacheRevision=-1,topCache=[];const normalizedNames=new WeakMap();
-const items = new Map(), children = new Map(), sectionItems = new Map(), files = new Map();
-const byMediaPath = new Map(), scannedAliases = new Map();
-const byFilePath = new Map();
+let items = new Map(), children = new Map(), sectionItems = new Map(), files = new Map();
+let byMediaPath = new Map(), scannedAliases = new Map();
+let byFilePath = new Map();
 const mediaKey = x => x.path ? String(x.sectionId) + '|' + String(x.type) + '|' + path.normalize(x.path).toLowerCase().replace(/[\\/]+$/, '') : '';
 const controlToken = crypto.randomBytes(32).toString('hex');
 const log = fs.createWriteStream(path.join(base, 'logs/requests.log'), { flags: 'a' });
 const types = { ".webp": "image/webp", '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.json': 'application/json', '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.webm': 'video/webm', '.mkv': 'video/x-matroska', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.ogg': 'audio/ogg', '.vtt': 'text/vtt; charset=utf-8', '.pdf': 'application/pdf' };
 const pick = (o, keys) => Object.fromEntries(keys.filter(k => o[k] !== undefined).map(k => [k, o[k]]));
 const safeFile = f => pick(f, ['id', 'filename', 'itemId', 'type']);
-const safeItem = x => x ? { ...pick(x, ['id', 'name', 'type', 'inItem', 'views', 'downloads', 'sectionId', 'createdAt', 'content', 'pathSize']), files: (x.files || []).map(safeFile) } : null;
-const detailItem = x => x ? {...safeItem(x), ...(settings.estra7ah_type === 'caffe' ? {path:'/zain/folder/'+encodeURIComponent(x.id)} : {})} : null;
+const publicCatalog=require('./public-catalog.cjs');
+const safeItem = x => x ? { ...pick(x, ['id', 'name', 'type', 'inItem', 'views', 'downloads', 'sectionId', 'createdAt', 'content', 'pathSize']),type:publicCatalog.publicType(x.type), files: (x.files || []).map(safeFile) } : null;
+const detailItem = x => x ? {...safeItem(x),content:publicCatalog.detailContent(x.content), ...(settings.estra7ah_type === 'caffe' ? {path:'/zain/folder/'+encodeURIComponent(x.id)} : {})} : null;
 const safeSection = x => x ? pick(x, ['id', 'name', 'views', 'in_section', 'type', 'downloadActive', 'order', 'linkedId', 'is_hidden', 'NumOfEps', 'createdAt', 'updatedAt', 'isVIP', 'star']) : null;
 function respond(res, body, status = 200) { if (!res.destroyed) res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }).end(JSON.stringify(body)); }
 function normalize(value) { return String(value || '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/[ؤئ]/g, 'ء').replace(/ى/g, 'ي').toLowerCase(); }
@@ -45,7 +46,7 @@ function removeCatalogItem(id) {
  for(const file of item.files||[])files.delete(file.id);
  items.delete(id);children.delete(id);
 }
-function mergeScanned(rows) {
+function mergeScanned(rows, automatic=true) {
   for (const record of rows) {
     const fileOwner = (record.files || []).map(f => byFilePath.get(String(record.sectionId) + '|' + path.normalize(f.path || '').toLowerCase())).find(Boolean);
     // Stable scanner IDs take precedence: virtual seasons can share one folder.
@@ -77,12 +78,12 @@ function mergeScanned(rows) {
   }
   itemAdmin?.apply();
   // The scanner publishes immediately; metadata and cover downloads use their own queue.
-  metadata?.enqueueMissing(rows.map(x=>scannedAliases.get(x.id)||x.id));
+  if(automatic)metadata?.enqueueMissing(rows.map(x=>scannedAliases.get(x.id)||x.id));
 }
 const childRows = id => [...(children.get(id) || [])].map(k => items.get(k));
 const sectionRow = id => sections.find(s => s.id === id);
 const artworkItem=id=>{const item=items.get(id);return require('./movie-folder.cjs')(item,sectionRow(item?.sectionId));};
-const topRows = () => {if(topCacheRevision!==catalogRevision){topCache=[...sectionItems.values()].flatMap(ids=>[...ids].map(id=>items.get(id))).filter(Boolean);topCacheRevision=catalogRevision;}return topCache.slice();};
+const topRows = () => {if(topCacheRevision!==catalogRevision){topCache=items.topRows?items.topRows():[...sectionItems.values()].flatMap(ids=>[...ids].map(id=>items.get(id))).filter(Boolean);topCacheRevision=catalogRevision;}return topCache.slice();};
 function normalizedName(item){let cached=normalizedNames.get(item);if(!cached||cached.name!==item.name){cached={name:item.name,value:normalize(item.name)};normalizedNames.set(item,cached)}return cached.value;}
 function searchKeys(query){
   const text=String(query||'');
@@ -90,11 +91,13 @@ function searchKeys(query){
   if(!text.includes(' | '))return [normalize(query)];
   return [...new Set(text.slice(0,1200).split(' | ',6).map(value=>normalize(value.trim().slice(0,200))).filter(Boolean))];
 }
-function searchRows(query,start,count){const keys=searchKeys(query),at=Math.max(0,Number(start)||0),limit=Math.min(200,Math.max(1,Number(count)||100)),found=[];let skipped=0;for(const item of topRows()){const name=normalizedName(item);if(!keys.some(key=>name.includes(key)))continue;if(skipped++<at)continue;found.push(item);if(found.length>=limit)break}return found;}
+let searchRevision=-1,searchCatalog=[];
+function searchRows(query,start,count){if(items.queryTop){const at=Math.max(0,Number(start)||0),limit=Math.min(200,Math.max(1,Number(count)||100)),rows=[];let offset=0;while(true){const batch=items.queryTop({keys:searchKeys(query),offset,limit:Math.max(100,at+limit)});rows.push(...batch);const unique=publicCatalog.uniqueSearch(rows,id=>!!sectionRow(id),id=>children.get(id)?.size||0);if(unique.length>=at+limit||batch.length<Math.max(100,at+limit))return unique.slice(at,at+limit);offset+=batch.length;}}if(searchRevision!==catalogRevision){searchCatalog=publicCatalog.uniqueSearch(topRows(),id=>!!sectionRow(id),id=>children.get(id)?.size||0);searchRevision=catalogRevision;}const keys=searchKeys(query),at=Math.max(0,Number(start)||0),limit=Math.min(200,Math.max(1,Number(count)||100)),found=[];let skipped=0;for(const item of searchCatalog){const name=normalizedName(item);if(!keys.some(key=>name.includes(key)))continue;if(skipped++<at)continue;found.push(item);if(found.length>=limit)break}return found;}
 function newest(count) {
   const result = { movies: [], series: [], pindItemsNew: [], singers: [] };
   for (const t of ['deen', 'sports', 'tv', 'learn', 'ramadan', 'kids', 'anime']) result['series.' + t] = [];
-  for (const x of topRows().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))) { const key = x.type === 'movie' ? 'movies' : x.type; if (result[key] && result[key].length < count) result[key].push(safeItem(x)); }
+  const newestRows=items.queryTop?['movie','film','series','series.tv','tv','series.anime','anime','series.kids','kids','series.deen','deen','series.sports','sports','series.learn','learn','series.ramadan','ramadan','singers'].flatMap(type=>items.queryTop({types:[type],newest:true,limit:count})):topRows();
+  for (const x of newestRows.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))) { const type=publicCatalog.publicType(x.type),key = type === 'movie' ? 'movies' : type; if (result[key] && result[key].length < count) result[key].push(safeItem(x)); }
   result.pindItemsNew = itemAdmin?.pinnedItems() || [];
   return result;
 }
@@ -209,7 +212,7 @@ async function api(req, res, parts) {
     case 'getAllVIPSections': return reply(sections.filter(s => s.isVIP === 'yes' && s.is_hidden !== 'yes').map(safeSection));
     case 'getAllAds': return respond(res, { ads: [] });
     case 'getAllExts': return respond(res, { exts: [] });
-    case 'getNumbers': { const rows = topRows(); return reply({ sections: [{ count: sections.length }], movies: [{ count: rows.filter(x => x.type === 'movie').length }], serieses: [{ count: rows.filter(x => x.type === 'series' || x.type.startsWith('series.')).length }], songs: [{ count: 0 }], books: [{ count: rows.filter(x => x.type === 'booksSameFolder').length }], apps: [{ count: 0 }] }); }
+    case 'getNumbers': { if(items.countTop)return reply({sections:[{count:sections.length}],movies:[{count:items.countTop({types:['movie','film']})}],serieses:[{count:items.countTop({types:['series','tv','anime','kids','deen','sports','learn','ramadan','series.tv','series.anime','series.kids','series.deen','series.sports','series.learn','series.ramadan']})}],songs:[{count:0}],books:[{count:items.countTop({types:['booksSameFolder']})}],apps:[{count:0}]});const rows = topRows(); return reply({ sections: [{ count: sections.length }], movies: [{ count: rows.filter(x => x.type === 'movie').length }], serieses: [{ count: rows.filter(x => x.type === 'series' || x.type.startsWith('series.')).length }], songs: [{ count: 0 }], books: [{ count: rows.filter(x => x.type === 'booksSameFolder').length }], apps: [{ count: 0 }] }); }
     case 'getSecType': return reply(safeSection(sectionRow(a[0])) || {});
     case 'getItems': case 'getItemsFiltered': {
       let rows = [...(sectionItems.get(a[2]) || [])].map(id => items.get(id));
@@ -220,8 +223,8 @@ async function api(req, res, parts) {
       return reply(list(rows, a[0], a[1]).map(safeItem));
     }
     case 'getItemsSearch': return reply(list(searchRows(a.slice(2).join('/'),a[0],a[1]), 0, a[1]).map(x => ({ ...safeItem(x), section: safeSection(sectionRow(x.sectionId)) || { name: 'قسم غير موجود' } })));
-    case 'getLast20Items': return reply(topRows().sort((a, b) => (+b.createdAt || 0) - (+a.createdAt || 0)).slice(0, 20).map(safeItem));
-    case 'getItemData': { const item = items.get(a[0]); return respond(res, item ? { ...detailItem(item), data: detailItem(item), item: detailItem(item), section: safeSection(sectionRow(item.sectionId)) } : {}, item ? 200 : 404); }
+    case 'getLast20Items': if(items.queryTop)return reply(items.queryTop({newest:true,limit:20}).map(safeItem));return reply(topRows().sort((a, b) => (+b.createdAt || 0) - (+a.createdAt || 0)).slice(0, 20).map(safeItem));
+    case 'getItemData': { const item = items.get(a[0]); return respond(res, item ? { ...detailItem(item), data: detailItem(item), item: detailItem(item), section: safeSection(sectionRow(item.sectionId)) || {id:item.sectionId,name:'قسم غير موجود',type:publicCatalog.publicType(item.type),downloadActive:'yes'} } : {}, item ? 200 : 404); }
     case 'getSeries': case 'getEpisods': return reply(childRows(a[0]).map(x => ({ ...safeItem(x), seriesName: items.get(a[0])?.name || '' })));
     case 'getSimilerItems': return respond(res, require('./similar-items.cjs')({items:topRows(),sections,genre:a[0],type:a[1],excludeId:a[3]}).map(safeItem));
     case 'getNumSeasonsAndEps': { const rows = childRows(a[0]), seasons = rows.filter(x => x.type === 'season'); return reply({ seasons: seasons.length, eps: rows.filter(x => x.type === 'episod').length + seasons.reduce((n, x) => n + childRows(x.id).filter(y => y.type === 'episod').length, 0) }); }
@@ -269,6 +272,8 @@ const server = http.createServer(async (req, res) => {
       res.once('finish',done);res.once('close',done);
     }
     if (!ready) return respond(res, { error: startupError || 'جار تحميل القاعدة' }, 503);
+    const detailRoute=/^\/itemView\/[^/]+\/([^/]+)\/?$/.exec(route);
+    if(detailRoute){const item=items.get(detailRoute[1]);if(item&&!publicCatalog.hasDetail(item.type)){res.writeHead(302,{Location:'/zain/folder/'+encodeURIComponent(item.id),'Cache-Control':'no-store'}).end();return;}}
     log.write(req.method + ' ' + route + '\n');
     if (route.startsWith('/admin/api/')) return admin.handle(req, res, route);
     if(route.startsWith('/zain/folder-target/')){
@@ -346,9 +351,11 @@ server.listen(port, config.bind, async () => {
     const source = JSON.parse(await fs.promises.readFile(path.join(base, 'assets/db/estra7ah.json'), 'utf8'));
     sections = source.sectionsData;
     settings = { ...pick(source.settings || {}, ['isApprove', 'main_name', 'main_desc', 'main_phone', 'main_facebook', 'mubasher_port', 'is_stop_constraction', 'is_only_app', 'estra7ah_type', 'show_movies', 'show_series', 'show_tvs', 'show_s_r', 'show_anime', 'show_kids', 'show_m_d', 'show_sports', 'show_learn']), main_name: 'استراحة زين' };
-    updateItems(JSON.parse(await fs.promises.readFile(path.join(base, 'assets/db/estra7ah.items.json'), 'utf8')).itemsData);
+    const bootStarted=Date.now(),startupCache=require('./startup-cache.cjs')(base);
     services = require('./services.cjs')({ dir: data, sections, onItems: mergeScanned });
-    mergeScanned(await services.getStoredItems());
+    const cachedCatalog=await startupCache.read();
+    if(cachedCatalog){({items,children,sectionItems,files,byMediaPath,byFilePath,scannedAliases}=cachedCatalog);catalogRevision++;}
+    else{updateItems(JSON.parse(await fs.promises.readFile(path.join(base,'assets/db/estra7ah.items.json'),'utf8')).itemsData);mergeScanned(await services.getStoredItems(),false);}
     content = require('./content-services.cjs')({ dir: data, source: { ...source, getItem: id => { const item = items.get(id); return item ? { ...safeItem(item), section: safeSection(sectionRow(item.sectionId)) } : null; } } });
     itemAdmin = require('./item-admin.cjs')({dir:data,items,safeItem,updateItems,removeItem:removeCatalogItem,prepareExclusive:item=>exclusiveArtwork.prepare(item)});
     speed=require('./speed.cjs')({dir:data});
@@ -376,7 +383,10 @@ server.listen(port, config.bind, async () => {
     settings.mubasher_port=String(config.broadcastPort||Number(settings.mubasher_port)||3333);
     if(Number(settings.mubasher_port)===port)throw Error('منفذ البث يجب أن يختلف عن منفذ الاستراحة');
     broadcast=require('./broadcast.cjs')({base,port:Number(settings.mubasher_port),mainPort:port,authorize:req=>admin.authorize(req),allowedHost,onEvent:admin.recordEvent});
-    indexImages(); for(const row of topRows())normalizedName(row); ready = true; admin.recordEvent('تم تشغيل الاستراحة على المنفذ '+port+' والبث على '+settings.mubasher_port,'success'); console.log('Zain ready: http://127.0.0.1:' + port + '/; ' + items.size + ' records');
+    indexImages(); ready = true;
+    console.log('Startup catalog: '+(cachedCatalog?'cached':'rebuilt')+'; '+(Date.now()-bootStarted)+'ms');
+    if(!cachedCatalog){const signature=startupCache.signature();setImmediate(async()=>{admin.recordEvent('جار تجهيز فهرس التشغيل السريع في الخلفية','success');const saved=await startupCache.write({items,children,sectionItems,files,byMediaPath,byFilePath,scannedAliases},signature);admin.recordEvent(saved?'اكتمل فهرس التشغيل السريع؛ سيكون جاهزًا عند التشغيل التالي':'لم يكتمل الفهرس أو تغيرت المكتبة أثناء التجهيز؛ ستُقرأ القاعدة الأصلية عند التشغيل التالي',saved?'success':'warning');});}
+ admin.recordEvent('تم تشغيل الاستراحة على المنفذ '+port+' والبث على '+settings.mubasher_port,'success'); console.log('Zain ready: http://127.0.0.1:' + port + '/; ' + items.size + ' records');
   } catch (e) { startupError = 'تعذر تحميل ملفات الخادم: ' + e.message; console.error(startupError); }
 });
 server.on('error', error => { console.error(error.message); process.exit(1); });

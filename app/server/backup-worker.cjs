@@ -7,6 +7,7 @@ module.exports={allowed,fixed,mediaDirs,run};
 async function run({base,action,file,stage}){
  fs.mkdirSync(stage,{recursive:true});
  if(action==='create'){
+  for(const n of ['assets/db/estra7ah.json','assets/db/estra7ah.items.json','data/admin.json'])if(!fs.existsSync(path.join(base,n)))throw Error('تعذر إنشاء نسخة كاملة؛ ملف قاعدة البيانات مفقود: '+n);
   const names=fixed.filter(n=>fs.existsSync(path.join(base,n)));
   const logos=path.join(base,'data/exclusive-logos');if(fs.existsSync(logos))for(const n of fs.readdirSync(logos))if(allowed('data/exclusive-logos/'+n))names.push('data/exclusive-logos/'+n);
   const sectionImages=path.join(base,'data/section-images');if(fs.existsSync(sectionImages))for(const n of fs.readdirSync(sectionImages))if(allowed('data/section-images/'+n))names.push('data/section-images/'+n);

@@ -1,3 +1,8 @@
+function ownKeys(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
+function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), !0).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
+function _defineProperty(e, r, t) { return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, { value: t, enumerable: !0, configurable: !0, writable: !0 }) : e[r] = t, e; }
+function _toPropertyKey(t) { var i = _toPrimitive(t, "string"); return "symbol" == typeof i ? i : i + ""; }
+function _toPrimitive(t, r) { if ("object" != typeof t || !t) return t; var e = t[Symbol.toPrimitive]; if (void 0 !== e) { var i = e.call(t, r || "default"); if ("object" != typeof i) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === r ? String : Number)(t); }
 function _regeneratorValues(e) { if (null != e) { var t = e["function" == typeof Symbol && Symbol.iterator || "@@iterator"], r = 0; if (t) return t.call(e); if ("function" == typeof e.next) return e; if (!isNaN(e.length)) return { next: function next() { return e && r >= e.length && (e = void 0), { value: e && e[r++], done: !e }; } }; } throw new TypeError(typeof e + " is not iterable"); }
 function _createForOfIteratorHelper(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e && r && "number" == typeof r.length) { t && (r = t); var _n = 0, F = function F() {}; return { s: F, n: function n() { return _n >= r.length ? { done: !0 } : { done: !1, value: r[_n++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = !0, u = !1; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = !0, o = r; }, f: function f() { try { a || null == t.return || t.return(); } finally { if (u) throw o; } } }; }
 function _slicedToArray(r, e) { return _arrayWithHoles(r) || _iterableToArrayLimit(r, e) || _unsupportedIterableToArray(r, e) || _nonIterableRest(); }
@@ -1699,4 +1704,504 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   window.addEventListener('resize', schedule);
   setInterval(schedule, 1500);
   schedule();
+})();
+(() => {
+  'use strict';
+
+  var fresh = new Map(),
+    seenCompletions = new Set();
+  var panel,
+    polling = false,
+    nextPoll = 0,
+    requesting = false,
+    notice = '',
+    wasItems = false;
+  var statusNames = {
+    queued: 'في الانتظار',
+    running: 'جارية',
+    completed: 'اكتملت',
+    partial: 'اكتملت جزئياً',
+    interrupted: 'توقفت بسبب خطأ',
+    cancelled: 'أوقفت'
+  };
+  var el = (tag, text) => {
+    var node = document.createElement(tag);
+    if (text) node.textContent = text;
+    return node;
+  };
+  var style = el('style');
+  style.textContent = '.items-cont .img[data-zain-metadata="saved"]{filter:none!important;-webkit-filter:none!important}.items-cont .img[data-zain-metadata="missing"]{filter:grayscale(1);-webkit-filter:grayscale(1)}#zain-item-metadata-progress{clear:both;direction:rtl;background:#182134;border:1px solid #3e4e69;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:14px;line-height:1.6}#zain-item-metadata-progress p{margin:4px 0}#zain-item-metadata-progress button{background:#a1464c;color:white;border:0;border-radius:5px;padding:6px 14px;margin:4px 0;cursor:pointer}';
+  document.head.appendChild(style);
+  function api(_x20, _x21) {
+    return _api.apply(this, arguments);
+  }
+  function _api() {
+    _api = _asyncToGenerator(_regenerator().m(function _callee18(action, body) {
+      var response, data;
+      return _regenerator().w(function (_context21) {
+        while (1) switch (_context21.n) {
+          case 0:
+            _context21.n = 1;
+            return fetch('/admin/api/' + action, _objectSpread({
+              credentials: 'same-origin',
+              cache: 'no-store',
+              method: body ? 'POST' : 'GET'
+            }, body ? {
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(body)
+            } : {}));
+          case 1:
+            response = _context21.v;
+            _context21.n = 2;
+            return response.json();
+          case 2:
+            data = _context21.v;
+            if (!(!response.ok || data.msg === 'error')) {
+              _context21.n = 3;
+              break;
+            }
+            throw Error(data.error || 'تعذر الاتصال بخدمة المزامنة');
+          case 3:
+            return _context21.a(2, data);
+        }
+      }, _callee18);
+    }));
+    return _api.apply(this, arguments);
+  }
+  function cardId(card) {
+    var img = card.querySelector('img');
+    if (!img) return '';
+    var raw = img.getAttribute('data-zain-src') || img.getAttribute('src') || '';
+    var match = raw.match(/\/ItemImage\/([^/?]+)/i);
+    if (match) {
+      try {
+        return decodeURIComponent(match[1]);
+      } catch (_unused6) {
+        return '';
+      }
+    }
+    return card.dataset.zainItemId || '';
+  }
+  function cards() {
+    return Array.from(document.querySelectorAll('.items-cont .items>.item')).map(card => {
+      var id = cardId(card);
+      if (id) card.dataset.zainItemId = id;
+      return {
+        card,
+        id
+      };
+    }).filter(row => row.id);
+  }
+  function ensurePanel() {
+    var host = document.querySelector('.items-cont .items');
+    if (!host) return null;
+    if (!panel || !panel.isConnected) {
+      panel = el('section');
+      panel.id = 'zain-item-metadata-progress';
+      panel.setAttribute('aria-label', 'حالة مزامنة بيانات العناصر');
+      host.parentNode.insertBefore(panel, host);
+    }
+    return panel;
+  }
+  function render(jobs) {
+    var host = ensurePanel();
+    if (!host) return;
+    host.replaceChildren();
+    host.hidden = !jobs.length && !notice;
+    if (notice) {
+      var line = el('p', notice);
+      line.setAttribute('role', 'status');
+      host.appendChild(line);
+    }
+    var active = jobs.filter(job => job.status === 'queued' || job.status === 'running');
+    var _iterator0 = _createForOfIteratorHelper(active.length ? active : jobs.slice(-1)),
+      _step0;
+    try {
+      var _loop7 = function _loop7() {
+        var job = _step0.value;
+        var row = el('p', (statusNames[job.status] || job.status) + ' — ' + job.completed + ' محفوظ، ' + job.failed + ' تعذر، ' + (job.skipped || 0) + ' مكتمل سابقاً، من ' + job.total);
+        host.appendChild(row);
+        var current = (job.activeItems || []).map(item => item.name).filter(Boolean);
+        if (current.length) host.appendChild(el('p', 'جارٍ مزامنة: ' + current.join('، ')));
+        if (job.message) host.appendChild(el('p', job.message));
+        if (job.status === 'running' || job.status === 'queued') {
+          var button = el('button', 'إيقاف مزامنة البيانات');
+          button.type = 'button';
+          button.disabled = !!job.cancelled;
+          button.onclick = _asyncToGenerator(_regenerator().m(function _callee16() {
+            var _t15;
+            return _regenerator().w(function (_context19) {
+              while (1) switch (_context19.p = _context19.n) {
+                case 0:
+                  button.disabled = true;
+                  _context19.p = 1;
+                  _context19.n = 2;
+                  return api('cancelMetadata/' + encodeURIComponent(job.id), {});
+                case 2:
+                  notice = 'أرسل طلب الإيقاف؛ تبقى البيانات المحفوظة متاحة.';
+                  _context19.n = 4;
+                  break;
+                case 3:
+                  _context19.p = 3;
+                  _t15 = _context19.v;
+                  notice = _t15.message;
+                case 4:
+                  nextPoll = 0;
+                  poll();
+                case 5:
+                  return _context19.a(2);
+              }
+            }, _callee16, null, [[1, 3]]);
+          }));
+          host.appendChild(button);
+        }
+      };
+      for (_iterator0.s(); !(_step0 = _iterator0.n()).done;) {
+        _loop7();
+      }
+    } catch (err) {
+      _iterator0.e(err);
+    } finally {
+      _iterator0.f();
+    }
+    var link = el('a', 'عرض التفاصيل في سجل الأحداث');
+    link.href = '/admin/events';
+    link.style.color = '#c2d4ff';
+    host.appendChild(link);
+  }
+  window.zainAdminFreshItem = function (item) {
+    var saved = fresh.get(item.id);
+    if (!saved) return item;
+    var content = _objectSpread(_objectSpread({}, item.content), saved.content);
+    try {
+      content.contentJSON = JSON.parse(content.contentJSON || '{}');
+    } catch (_unused7) {
+      content.contentJSON = {};
+    }
+    return _objectSpread(_objectSpread({}, item), {}, {
+      content,
+      haveContent: saved.hasContent
+    });
+  };
+  function poll() {
+    return _poll.apply(this, arguments);
+  }
+  function _poll() {
+    _poll = _asyncToGenerator(_regenerator().m(function _callee19() {
+      var active, option, rows, ids, _status, jobs, states, byId, changed, _iterator1, _step1, _row$card$querySelect, _row, _item, picture, reload, becameSaved, _iterator10, _step10, job, _iterator14, _step14, id, _key, updated, _iterator11, _step11, item, _iterator12, _step12, row, img, url, _iterator13, _step13, _id, _t18, _t19;
+      return _regenerator().w(function (_context22) {
+        while (1) switch (_context22.p = _context22.n) {
+          case 0:
+            if (!(location.pathname !== '/admin/items')) {
+              _context22.n = 1;
+              break;
+            }
+            if (wasItems) {
+              if (panel) panel.remove();
+              panel = null;
+              fresh.clear();
+              seenCompletions.clear();
+              notice = '';
+              nextPoll = 0;
+              wasItems = false;
+            }
+            return _context22.a(2);
+          case 1:
+            wasItems = true;
+            if (!(polling || Date.now() < nextPoll)) {
+              _context22.n = 2;
+              break;
+            }
+            return _context22.a(2);
+          case 2:
+            polling = true;
+            active = false;
+            _context22.p = 3;
+            option = document.querySelector('.items-cont option[value="no-content"]');
+            if (option) option.textContent = 'العناصر غير المزامنة — الأحدث أولاً';
+            rows = cards();
+            ids = rows.map(row => row.id);
+            _context22.n = 4;
+            return api('metadataStatus');
+          case 4:
+            _status = _context22.v;
+            jobs = Array.isArray(_status.jobs) ? _status.jobs : [];
+            active = jobs.some(job => job.status === 'queued' || job.status === 'running');
+            render(jobs);
+            if (!ids.length) {
+              _context22.n = 16;
+              break;
+            }
+            _context22.n = 5;
+            return api('getItemSyncState/' + encodeURIComponent(ids.slice(0, 200).join(',')));
+          case 5:
+            states = _context22.v;
+            byId = new Map((states.items || []).map(item => [item.id, item]));
+            changed = new Set();
+            _iterator1 = _createForOfIteratorHelper(rows);
+            _context22.p = 6;
+            _iterator1.s();
+          case 7:
+            if ((_step1 = _iterator1.n()).done) {
+              _context22.n = 10;
+              break;
+            }
+            _row = _step1.value;
+            _item = byId.get(_row.id);
+            if (_item) {
+              _context22.n = 8;
+              break;
+            }
+            return _context22.a(3, 9);
+          case 8:
+            picture = _row.card.querySelector('.img'), reload = (_row$card$querySelect = _row.card.querySelector('.lni-reload')) === null || _row$card$querySelect === void 0 ? void 0 : _row$card$querySelect.closest('.ic');
+            if (picture) {
+              becameSaved = _item.hasContent && (picture.dataset.zainMetadata === 'missing' || picture.classList.contains('noData'));
+              picture.dataset.zainMetadata = _item.hasContent ? 'saved' : 'missing';
+              picture.classList.toggle('noData', !_item.hasContent);
+              if (becameSaved && !fresh.has(_row.id)) changed.add(_row.id);
+            }
+            if (reload) {
+              reload.classList.toggle('no', _item.hasContent);
+              reload.classList.toggle('ok', !_item.hasContent);
+              reload.title = _item.hasContent ? 'تمت مزامنة البيانات — انقر لتحديثها' : 'تنزيل ومزامنة بيانات المحتوى';
+            }
+          case 9:
+            _context22.n = 7;
+            break;
+          case 10:
+            _context22.n = 12;
+            break;
+          case 11:
+            _context22.p = 11;
+            _t18 = _context22.v;
+            _iterator1.e(_t18);
+          case 12:
+            _context22.p = 12;
+            _iterator1.f();
+            return _context22.f(12);
+          case 13:
+            _iterator10 = _createForOfIteratorHelper(jobs);
+            try {
+              for (_iterator10.s(); !(_step10 = _iterator10.n()).done;) {
+                job = _step10.value;
+                _iterator14 = _createForOfIteratorHelper(job.completedIds || []);
+                try {
+                  for (_iterator14.s(); !(_step14 = _iterator14.n()).done;) {
+                    id = _step14.value;
+                    _key = job.id + ':' + id;
+                    if (byId.has(id) && !seenCompletions.has(_key)) {
+                      changed.add(id);
+                      seenCompletions.add(_key);
+                    }
+                  }
+                } catch (err) {
+                  _iterator14.e(err);
+                } finally {
+                  _iterator14.f();
+                }
+              }
+            } catch (err) {
+              _iterator10.e(err);
+            } finally {
+              _iterator10.f();
+            }
+            if (!changed.size) {
+              _context22.n = 15;
+              break;
+            }
+            _context22.n = 14;
+            return api('getItemSyncState/' + encodeURIComponent(Array.from(changed).join(',')) + '/content');
+          case 14:
+            updated = _context22.v;
+            _iterator11 = _createForOfIteratorHelper(updated.items || []);
+            try {
+              for (_iterator11.s(); !(_step11 = _iterator11.n()).done;) {
+                item = _step11.value;
+                fresh.set(item.id, item);
+              }
+            } catch (err) {
+              _iterator11.e(err);
+            } finally {
+              _iterator11.f();
+            }
+            _iterator12 = _createForOfIteratorHelper(rows);
+            try {
+              for (_iterator12.s(); !(_step12 = _iterator12.n()).done;) {
+                row = _step12.value;
+                if (changed.has(row.id)) {
+                  img = row.card.querySelector('img');
+                  if (img) {
+                    url = new URL('/ItemImage/' + encodeURIComponent(row.id), location.origin);
+                    url.searchParams.set('zainMetadata', Date.now());
+                    img.setAttribute('data-zain-src', url.href);
+                  }
+                }
+              }
+            } catch (err) {
+              _iterator12.e(err);
+            } finally {
+              _iterator12.f();
+            }
+          case 15:
+            _iterator13 = _createForOfIteratorHelper(fresh.keys());
+            try {
+              for (_iterator13.s(); !(_step13 = _iterator13.n()).done;) {
+                _id = _step13.value;
+                if (!byId.has(_id)) fresh.delete(_id);
+              }
+            } catch (err) {
+              _iterator13.e(err);
+            } finally {
+              _iterator13.f();
+            }
+          case 16:
+            _context22.n = 18;
+            break;
+          case 17:
+            _context22.p = 17;
+            _t19 = _context22.v;
+            notice = _t19.message;
+            render([]);
+          case 18:
+            _context22.p = 18;
+            polling = false;
+            nextPoll = Date.now() + (document.hidden ? 10000 : active ? 1000 : 5000);
+            return _context22.f(18);
+          case 19:
+            return _context22.a(2);
+        }
+      }, _callee19, null, [[6, 11, 12, 13], [3, 17, 18, 19]]);
+    }));
+    return _poll.apply(this, arguments);
+  }
+  document.addEventListener('click', function () {
+    var _ref0 = _asyncToGenerator(_regenerator().m(function _callee17(event) {
+      var target, ids, all, id, text, _ids, result, _t16, _t17;
+      return _regenerator().w(function (_context20) {
+        while (1) switch (_context20.p = _context20.n) {
+          case 0:
+            if (!(location.pathname !== '/admin/items')) {
+              _context20.n = 1;
+              break;
+            }
+            return _context20.a(2);
+          case 1:
+            target = event.target.closest && event.target.closest('.items-cont .items>.item .ic,.items-cont .admin-fancy-button');
+            if (target) {
+              _context20.n = 2;
+              break;
+            }
+            return _context20.a(2);
+          case 2:
+            all = false;
+            if (!target.closest('.items>.item')) {
+              _context20.n = 5;
+              break;
+            }
+            if (target.querySelector('.lni-reload')) {
+              _context20.n = 3;
+              break;
+            }
+            return _context20.a(2);
+          case 3:
+            id = cardId(target.closest('.items>.item'));
+            if (id) {
+              _context20.n = 4;
+              break;
+            }
+            return _context20.a(2);
+          case 4:
+            ids = [id];
+            _context20.n = 8;
+            break;
+          case 5:
+            text = target.textContent;
+            if (!/مزامنة كل العناصر بدون محتوى/.test(text)) {
+              _context20.n = 6;
+              break;
+            }
+            all = true;
+            _context20.n = 8;
+            break;
+          case 6:
+            if (!/مزامنة كل العناصر الحالية/.test(text)) {
+              _context20.n = 7;
+              break;
+            }
+            ids = cards().map(row => row.id);
+            _context20.n = 8;
+            break;
+          case 7:
+            return _context20.a(2);
+          case 8:
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            if (!requesting) {
+              _context20.n = 9;
+              break;
+            }
+            return _context20.a(2);
+          case 9:
+            requesting = true;
+            target.setAttribute('aria-busy', 'true');
+            _context20.p = 10;
+            if (!all) {
+              _context20.n = 12;
+              break;
+            }
+            _context20.n = 11;
+            return api('startDownloadItemsData', {});
+          case 11:
+            _t16 = _context20.v;
+            _context20.n = 14;
+            break;
+          case 12:
+            _context20.n = 13;
+            return api('getContentAndSaveItAll', {
+              ids: ids.join(',')
+            });
+          case 13:
+            _t16 = _context20.v;
+          case 14:
+            result = _t16;
+            notice = 'بدأت مزامنة ' + (result.total || ((_ids = ids) === null || _ids === void 0 ? void 0 : _ids.length) || 0) + ' عنصر، من الأحدث إلى الأقدم؛ تتحدث حالة البطاقات أثناء العمل.';
+            render([]);
+            _context20.n = 16;
+            break;
+          case 15:
+            _context20.p = 15;
+            _t17 = _context20.v;
+            notice = _t17.message;
+            render([]);
+          case 16:
+            _context20.p = 16;
+            requesting = false;
+            target.removeAttribute('aria-busy');
+            nextPoll = 0;
+            poll();
+            return _context20.f(16);
+          case 17:
+            return _context20.a(2);
+        }
+      }, _callee17, null, [[10, 15, 16, 17]]);
+    }));
+    return function (_x22) {
+      return _ref0.apply(this, arguments);
+    };
+  }(), true);
+  document.addEventListener('change', event => {
+    if (event.target.closest && event.target.closest('.items-cont')) {
+      nextPoll = 0;
+      setTimeout(poll, 250);
+    }
+  });
+  window.addEventListener('focus', () => {
+    nextPoll = 0;
+    poll();
+  });
+  setInterval(poll, 1000);
+  poll();
 })();

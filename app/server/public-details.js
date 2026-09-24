@@ -22,3 +22,6 @@
  function schedule(){if(!scheduled){scheduled=true;requestAnimationFrame(update);}}
  new MutationObserver(schedule).observe(document.body,{childList:true,subtree:true});addEventListener('popstate',schedule);schedule();
 })();
+
+// Generic folders must use their supported file browser, including SPA clicks.
+(()=>{document.addEventListener('click',event=>{if(event.button!==0||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;const link=event.target.closest?.('a[href]');if(!link)return;let url;try{url=new URL(link.href,location.href)}catch{return}if(url.origin!==location.origin)return;const match=/^\/itemView\/([^/]+)\/([^/]+)/.exec(url.pathname);if(!match||['movie','film','season','singer','tv','anime','kids','deen','sports','learn','ramadan'].includes(match[1])||/^series(?:\.|$)/.test(match[1]))return;event.preventDefault();event.stopImmediatePropagation();location.assign('/zain/folder/'+match[2]);},true)})();

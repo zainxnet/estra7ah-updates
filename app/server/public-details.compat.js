@@ -137,3 +137,23 @@ function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length)
   addEventListener('popstate', schedule);
   schedule();
 })();
+(() => {
+  document.addEventListener('click', event => {
+    var _event$target$closest, _event$target;
+    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    var link = (_event$target$closest = (_event$target = event.target).closest) === null || _event$target$closest === void 0 ? void 0 : _event$target$closest.call(_event$target, 'a[href]');
+    if (!link) return;
+    var url;
+    try {
+      url = new URL(link.href, location.href);
+    } catch (_unused) {
+      return;
+    }
+    if (url.origin !== location.origin) return;
+    var match = /^\/itemView\/([^/]+)\/([^/]+)/.exec(url.pathname);
+    if (!match || ['movie', 'film', 'season', 'singer', 'tv', 'anime', 'kids', 'deen', 'sports', 'learn', 'ramadan'].includes(match[1]) || /^series(?:\.|$)/.test(match[1])) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    location.assign('/zain/folder/' + match[2]);
+  }, true);
+})();

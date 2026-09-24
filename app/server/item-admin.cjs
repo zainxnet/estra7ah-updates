@@ -4,22 +4,29 @@ module.exports=function({dir,items,safeItem,updateItems,removeItem,prepareExclus
  const file=path.join(dir,'item-edits.json');let state=fs.existsSync(file)?JSON.parse(fs.readFileSync(file,'utf8')):{edits:{},deleted:[],pinned:[]};
  if(!state.edits||!Array.isArray(state.deleted)||!Array.isArray(state.pinned))throw Error('Invalid item edits store');
  function apply(){for(const [id,edit]of Object.entries(state.edits)){const item=items.get(id);if(item)updateItems([{...item,...edit}]);}for(const id of state.deleted)removeItem(id);}
- function save(next){if(fs.existsSync(file)){const folder=path.join(dir,'backups');fs.mkdirSync(folder,{recursive:true});fs.copyFileSync(file,path.join(folder,'item-edits-'+Date.now()+'-'+crypto.randomUUID()+'.json'));}const temporary=file+'.tmp';fs.writeFileSync(temporary,JSON.stringify(next));fs.renameSync(temporary,file);state=next;apply();}
+ let lastMetadataBackup=0;
+ function save(next,{metadataId}={}){const metadataSave=metadataId!==undefined,now=Date.now();if(fs.existsSync(file)&&(!metadataSave||!lastMetadataBackup||now-lastMetadataBackup>=60000)){const folder=path.join(dir,'backups');fs.mkdirSync(folder,{recursive:true});fs.copyFileSync(file,path.join(folder,'item-edits-'+now+'-'+crypto.randomUUID()+'.json'));if(metadataSave)lastMetadataBackup=now;}const temporary=file+'.tmp';fs.writeFileSync(temporary,JSON.stringify(next));fs.renameSync(temporary,file);state=next;if(metadataSave){const item=items.get(metadataId);if(item)updateItems([{...item,...state.edits[metadataId]}]);}else apply();}
  apply();
  state.exclusive=state.exclusive||[];
- const adminReads=new Set(['getItems','getPinedItems','getExclusiveItems']);const adminActions=new Set(['pinItem','delPinedItem','deleteItem','updateContent','addExclusiveItem','removeExclusiveItem','updateExclusiveItem']);
+ const adminReads=new Set(['getItems','getPinedItems','getExclusiveItems','getItemSyncState']);const adminActions=new Set(['pinItem','delPinedItem','deleteItem','updateContent','addExclusiveItem','removeExclusiveItem','updateExclusiveItem']);
  function exclusiveItems(){return state.exclusive.map(id=>{const item=items.get(id);if(!item)return null;const edit=state.exclusiveEdits?.[id]||{};let content={};try{content=JSON.parse(item.content?.contentJSON||'{}')}catch{}return {...safeItem(item),...(edit.name?{name:edit.name}:{}),content:{...item.content,contentJSON:JSON.stringify({...content,...edit.content})},...(edit.image?{exclusiveImage:'/zain/exclusive-custom-image?id='+encodeURIComponent(id)+'&v='+edit.version}:{})};}).filter(Boolean);}
- return {exclusiveItems,exclusiveFile:id=>{const name=state.exclusiveEdits?.[id]?.image;return state.exclusive.includes(id)&&items.has(id)&&/^[a-f0-9-]+\.(png|jpg|webp|gif)$/.test(name||'')?path.join(dir,'promotional-media',name):null;},readBody:(req,action)=>action==='updateExclusiveItem'?require('./multipart.cjs')(req,{limit:9*1024*1024}):require('./text-body.cjs')(req),saveContent:(id,content)=>{const next=structuredClone(state);next.edits[id]={...next.edits[id],content};save(next);},pinnedItems:()=>state.pinned.map(id=>items.get(id)).filter(Boolean).map(safeItem),adminReads,adminActions,async admin(action,args,body,method){
+ return {exclusiveItems,exclusiveFile:id=>{const name=state.exclusiveEdits?.[id]?.image;return state.exclusive.includes(id)&&items.has(id)&&/^[a-f0-9-]+\.(png|jpg|webp|gif)$/.test(name||'')?path.join(dir,'promotional-media',name):null;},readBody:(req,action)=>action==='updateExclusiveItem'?require('./multipart.cjs')(req,{limit:9*1024*1024}):require('./text-body.cjs')(req),saveContent:(id,content)=>{if(!items.has(id))return;const next={...state,edits:{...state.edits,[id]:{...state.edits[id],content}}};save(next,{metadataId:id});},pinnedItems:()=>state.pinned.map(id=>items.get(id)).filter(Boolean).map(safeItem),adminReads,adminActions,async admin(action,args,body,method){
   const result=(body,status=200)=>({body,status}),error=(message,status=400)=>result({msg:'error',error:message},status);
   if(adminReads.has(action)&&method!=='GET')return error('طريقة الطلب غير صالحة',405);
   if(action==='getExclusiveItems')return result({items:exclusiveItems()});
   if(action==='getPinedItems')return result({res:state.pinned.filter(id=>items.has(id)).map(itemId=>({itemId}))});
+  if(action==='getItemSyncState'){
+   const ids=[...new Set(String(args[0]||'').split(',').filter(Boolean))];if(ids.length>200||ids.some(id=>id.length>200))return error('عدد العناصر المطلوب كبير');
+   return result({items:ids.map(id=>items.get(id)).filter(Boolean).map(item=>({id:item.id,hasContent:require('./metadata.cjs').hasContent(item),...(args[1]==='content'?{content:item.content}: {})}))});
+  }
   if(action==='getItems'){
-   const [section,filter,type,offset,...queryParts]=args,q=queryParts.join('/').toLowerCase();let rows=[...items.values()].filter(item=>!item.inItem||item.inItem==='null');
+   const [section,filter,type,offset,...queryParts]=args,q=queryParts.join('/').toLowerCase();
+   if(items.queryTop&&filter!=='pined'){const normalized=q.replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/[ؤئ]/g,'ء').replace(/ى/g,'ي'),filters={section:section&&section!=='all'?section:undefined,types:type&&type!=='all'?[type]:undefined,keys:q&&!['null','undefined'].includes(q)?[normalized]:undefined,missing:filter==='no-content'};return result({total:[{count:items.countTop(filters)}],items:items.queryTop({...filters,offset:Math.max(0,parseInt(offset)||0),limit:100,newest:filter==='no-content'}).map(safeItem)});}
+   let rows=[...items.values()].filter(item=>!item.inItem||item.inItem==='null');
    if(section&&section!=='all')rows=rows.filter(item=>item.sectionId===section);
    if(type&&type!=='all')rows=rows.filter(item=>item.type===type);
    if(filter==='pined')rows=rows.filter(item=>state.pinned.includes(item.id));
-   if(filter==='no-content')rows=rows.filter(item=>!require('./metadata.cjs').hasContent(item));
+   if(filter==='no-content')rows=require('./metadata.cjs').newestFirst(rows.filter(item=>!require('./metadata.cjs').hasContent(item)));
    if(q&&!['null','undefined'].includes(q))rows=rows.filter(item=>String(item.name).toLowerCase().includes(q));
    const at=Math.max(0,parseInt(offset)||0);return result({total:[{count:rows.length}],items:rows.slice(at,at+100).map(safeItem)});
   }
