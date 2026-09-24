@@ -24,7 +24,9 @@ module.exports=function({dir,items,safeItem,updateItems,removeItem,prepareExclus
   if(action==='getItems'){
    const [section,filter,type,offset,...queryParts]=args,q=queryParts.join('/').toLowerCase();
    if(items.queryTop&&filter!=='pined'){const normalized=q.replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/[ؤئ]/g,'ء').replace(/ى/g,'ي'),filters={section:section&&section!=='all'?section:undefined,types:type&&type!=='all'?[type]:undefined,keys:q&&!['null','undefined'].includes(q)?[normalized]:undefined,missing:filter==='no-content'};return result({total:[{count:items.countTop(filters)}],items:items.queryTop({...filters,offset:Math.max(0,parseInt(offset)||0),limit:100,newest:filter==='no-content'}).map(safeItem)});}
-   let rows=[...items.values()].filter(item=>(!item.inItem||item.inItem==='null')&&require('./catalog-items.cjs').visible(item));
+   let rows=filter==='pined'
+    ? state.pinned.map(id=>items.get(id)).filter(item=>item&&(!item.inItem||item.inItem==='null')&&require('./catalog-items.cjs').visible(item))
+    : [...items.values()].filter(item=>(!item.inItem||item.inItem==='null')&&require('./catalog-items.cjs').visible(item));
    if(section&&section!=='all')rows=rows.filter(item=>item.sectionId===section);
    if(type&&type!=='all')rows=rows.filter(item=>item.type===type);
    if(filter==='pined')rows=rows.filter(item=>state.pinned.includes(item.id));
