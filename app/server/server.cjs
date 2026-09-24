@@ -244,7 +244,7 @@ const server = http.createServer(async (req, res) => {
     try { route = decodeURIComponent(url.pathname); } catch { return respond(res, {}, 400); }
     res.setHeader('Content-Security-Policy', "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; frame-src 'none'");
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    if (route === '/zain/health') return respond(res, { service: 'zain', version:release.version, ready, message: startupError || (ready ? 'الخادم يعمل' : 'جار تحميل قاعدة الاستراحة'), records: items.size, sections: sections.length, broadcast:broadcast?.status() });
+    if (route === '/zain/health') return respond(res, { service: 'zain', instanceId:crypto.createHash('sha256').update(controlToken).digest('hex'), version:release.version, ready, message: startupError || (ready ? 'الخادم يعمل' : 'جار تحميل قاعدة الاستراحة'), records: items.size, sections: sections.length, broadcast:broadcast?.status() });
     if (route === '/zain/control/stop') {
       if (req.method !== 'POST' || !['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress) || req.headers['x-zain-control'] !== controlToken) return respond(res, {}, 403);
       respond(res, { ok: true }); setTimeout(shutdown, 100); return;

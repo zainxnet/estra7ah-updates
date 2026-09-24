@@ -1080,7 +1080,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   }
   function _selectCandidate() {
     _selectCandidate = _asyncToGenerator(_regenerator().m(function _callee11(input, candidate, status, current) {
-      var name, selected, c, setter, event, heading, timeout, r, rows, _t0;
+      var name, selected, c, setter, event, heading, details, timeout, r, rows, _t0;
       return _regenerator().w(function (_context12) {
         while (1) switch (_context12.p = _context12.n) {
           case 0:
@@ -1090,7 +1090,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             }
             return _context12.a(2);
           case 1:
-            name = String(candidate.searchQuery || candidate.originalTitle || candidate.title || candidate.arabicTitle || '').trim();
+            name = String(candidate.searchQuery || candidate.title || candidate.originalTitle || candidate.arabicTitle || '').trim();
             if (!(!name || name.length > 200)) {
               _context12.n = 2;
               break;
@@ -1112,8 +1112,11 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             input.focus();
             status.textContent = 'جارٍ البحث في الاستراحة عن «' + name + '»…';
             if (box) {
+              box.classList.add('zain-search-selected');
               heading = box.querySelector('h3');
-              if (heading) heading.textContent = 'نتائج البحث المتقدم';
+              if (heading) heading.textContent = 'البحث عن «' + name + '»';
+              details = box.querySelector('.zain-gemini-details');
+              if (details) details.open = false;
             }
             timeout = setTimeout(() => c.abort(), 20000);
             _context12.p = 3;
@@ -1174,16 +1177,16 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   }
   function _run() {
     _run = _asyncToGenerator(_regenerator().m(function _callee12(stage, input, q, kind, category, current) {
-      var c, timer, r, v, candidates, list, status, _iterator8, _step8, _loop5, answer, retry, _t1, _t10;
-      return _regenerator().w(function (_context14) {
-        while (1) switch (_context14.p = _context14.n) {
+      var c, timer, r, v, candidates, list, status, details, _iterator8, _step8, _loop5, answer, retry, _t10, _t11;
+      return _regenerator().w(function (_context15) {
+        while (1) switch (_context15.p = _context15.n) {
           case 0:
             stage.replaceChildren(el('p', 'جارٍ البحث في Gemini…'));
             c = new AbortController();
             controller = c;
             timer = setTimeout(() => c.abort(), 50000);
-            _context14.p = 1;
-            _context14.n = 2;
+            _context15.p = 1;
+            _context15.n = 2;
             return fetch('/zain/advanced-search', {
               method: 'POST',
               headers: {
@@ -1198,26 +1201,28 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
               })
             });
           case 2:
-            r = _context14.v;
-            _context14.n = 3;
+            r = _context15.v;
+            _context15.n = 3;
             return r.json();
           case 3:
-            v = _context14.v;
+            v = _context15.v;
             if (!(!currentInput(input, current) || input.value.trim() !== q)) {
-              _context14.n = 4;
+              _context15.n = 4;
               break;
             }
-            return _context14.a(2);
+            return _context15.a(2);
           case 4:
             if (r.ok) {
-              _context14.n = 5;
+              _context15.n = 5;
               break;
             }
             throw Error(v.error || (r.status === 405 ? 'تعذر الوصول إلى خدمة البحث؛ يلزم تحديث السيرفر.' : 'تعذر البحث'));
           case 5:
-            candidates = Array.isArray(v.candidates) ? v.candidates.filter(item => item && typeof item.searchQuery === 'string' && item.searchQuery.trim() && item.searchQuery.length <= 200).slice(0, 6) : [];
+            candidates = Array.isArray(v.candidates) ? v.candidates.map(item => item && Object.assign({}, item, {
+              searchQuery: category === 'عربي' ? item.arabicTitle || item.title || item.searchQuery : item.title || item.searchQuery || item.originalTitle
+            })).filter(item => item && typeof item.searchQuery === 'string' && item.searchQuery.trim() && item.searchQuery.length <= 200).slice(0, 6) : [];
             if (!(!v.answer && !v.message && !candidates.length)) {
-              _context14.n = 6;
+              _context15.n = 6;
               break;
             }
             throw Error('لم تصل نتيجة من خدمة البحث');
@@ -1225,21 +1230,24 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             stage.replaceChildren(el('h4', 'نتيجة Gemini — ' + kind + ' ' + category));
             if (v.message) stage.append(el('p', v.message));
             if (!candidates.length) {
-              _context14.n = 14;
+              _context15.n = 14;
               break;
             }
             stage.append(el('p', candidates.length === 1 ? 'وجدنا اسمًا مقترحًا، ويجري البحث عنه في الاستراحة.' : 'اختر العمل المطلوب للبحث عنه في الاستراحة:'));
-            list = el('div'), status = el('p');
+            list = el('div'), status = el('p'), details = el('details');
+            details.className = 'zain-gemini-details';
+            details.open = true;
+            details.append(el('summary', 'عرض الأسماء المقترحة وتغيير الاختيار'));
             status.setAttribute('role', 'status');
             status.setAttribute('aria-live', 'polite');
             status.className = 'zain-local-search-status';
             list.className = 'zain-gemini-candidates';
             _iterator8 = _createForOfIteratorHelper(candidates);
-            _context14.p = 7;
+            _context15.p = 7;
             _loop5 = _regenerator().m(function _loop5() {
-              var candidate, card, label, names, choose, alternate, b;
-              return _regenerator().w(function (_context13) {
-                while (1) switch (_context13.n) {
+              var candidate, card, label, names, choose, _iterator9, _step9, _loop6, _t1;
+              return _regenerator().w(function (_context14) {
+                while (1) switch (_context14.p = _context14.n) {
                   case 0:
                     candidate = _step8.value;
                     card = el('article');
@@ -1254,76 +1262,109 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
                     choose.className = 'zain-gemini-choose';
                     choose.onclick = () => selectCandidate(input, candidate, status, current);
                     card.append(choose);
-                    alternate = [candidate.arabicTitle, candidate.originalTitle].find(name => name && name !== candidate.searchQuery);
-                    if (alternate) {
-                      b = el('button', 'البحث بالاسم الآخر: ' + alternate);
-                      b.type = 'button';
-                      b.className = 'zain-gemini-alternate';
-                      b.onclick = () => selectCandidate(input, {
-                        searchQuery: alternate
-                      }, status, current);
-                      card.append(b);
+                    _iterator9 = _createForOfIteratorHelper([candidate.arabicTitle, candidate.originalTitle].filter((name, index, array) => name && name !== candidate.searchQuery && array.indexOf(name) === index));
+                    _context14.p = 1;
+                    _loop6 = _regenerator().m(function _loop6() {
+                      var alternate, b;
+                      return _regenerator().w(function (_context13) {
+                        while (1) switch (_context13.n) {
+                          case 0:
+                            alternate = _step9.value;
+                            b = el('button', 'البحث بالاسم الآخر: ' + alternate);
+                            b.type = 'button';
+                            b.className = 'zain-gemini-alternate';
+                            b.onclick = () => selectCandidate(input, {
+                              searchQuery: alternate
+                            }, status, current);
+                            card.append(b);
+                          case 1:
+                            return _context13.a(2);
+                        }
+                      }, _loop6);
+                    });
+                    _iterator9.s();
+                  case 2:
+                    if ((_step9 = _iterator9.n()).done) {
+                      _context14.n = 4;
+                      break;
                     }
+                    return _context14.d(_regeneratorValues(_loop6()), 3);
+                  case 3:
+                    _context14.n = 2;
+                    break;
+                  case 4:
+                    _context14.n = 6;
+                    break;
+                  case 5:
+                    _context14.p = 5;
+                    _t1 = _context14.v;
+                    _iterator9.e(_t1);
+                  case 6:
+                    _context14.p = 6;
+                    _iterator9.f();
+                    return _context14.f(6);
+                  case 7:
                     list.append(card);
-                  case 1:
-                    return _context13.a(2);
+                  case 8:
+                    return _context14.a(2);
                 }
-              }, _loop5);
+              }, _loop5, null, [[1, 5, 6, 7]]);
             });
             _iterator8.s();
           case 8:
             if ((_step8 = _iterator8.n()).done) {
-              _context14.n = 10;
+              _context15.n = 10;
               break;
             }
-            return _context14.d(_regeneratorValues(_loop5()), 9);
+            return _context15.d(_regeneratorValues(_loop5()), 9);
           case 9:
-            _context14.n = 8;
+            _context15.n = 8;
             break;
           case 10:
-            _context14.n = 12;
+            _context15.n = 12;
             break;
           case 11:
-            _context14.p = 11;
-            _t1 = _context14.v;
-            _iterator8.e(_t1);
+            _context15.p = 11;
+            _t10 = _context15.v;
+            _iterator8.e(_t10);
           case 12:
-            _context14.p = 12;
+            _context15.p = 12;
             _iterator8.f();
-            return _context14.f(12);
+            return _context15.f(12);
           case 13:
-            stage.append(list, status, el('p', 'اقتراحات Gemini قد لا تكون موجودة في مكتبة الاستراحة.'));
+            details.append(list);
+            stage.replaceChildren(details, status);
             if (candidates.length === 1) selectCandidate(input, candidates[0], status, current);
-            _context14.n = 15;
+            _context15.n = 15;
             break;
           case 14:
             answer = el('div', v.answer || 'لم يتم تحديد عمل مطابق؛ جرّب كتابة اسم أوضح.');
             answer.style.cssText = 'white-space:pre-wrap;line-height:1.9;font-size:17px';
             stage.append(answer);
           case 15:
-            _context14.n = 18;
+            _context15.n = 18;
             break;
           case 16:
-            _context14.p = 16;
-            _t10 = _context14.v;
+            _context15.p = 16;
+            _t11 = _context15.v;
             if (currentInput(input, current)) {
-              _context14.n = 17;
+              _context15.n = 17;
               break;
             }
-            return _context14.a(2);
+            return _context15.a(2);
           case 17:
-            stage.replaceChildren(el('p', _t10.name === 'AbortError' ? 'انتهت مهلة البحث، يمكنك إعادة المحاولة.' : _t10.message));
-            if (/Gemini/.test(_t10.message) && /غير مفعّل/.test(_t10.message)) stage.append(el('p', 'للمسؤول: لوحة التحكم ← التحكم بالعناصر ← إعداد البحث المتقدم — Gemini. مفتاح TMDB مختلف عن مفتاح Gemini.'));
+            stage.replaceChildren(el('p', _t11.name === 'AbortError' ? 'انتهت مهلة البحث، يمكنك إعادة المحاولة.' : _t11.message));
+            if (/Gemini/.test(_t11.message) && /غير مفعّل/.test(_t11.message)) stage.append(el('p', 'للمسؤول: لوحة التحكم ← التحكم بالعناصر ← إعداد البحث المتقدم — Gemini. مفتاح TMDB مختلف عن مفتاح Gemini.'));
             retry = el('button', 'إعادة المحاولة');
             retry.type = 'button';
             retry.onclick = () => run(stage, input, q, kind, category, current);
             stage.append(retry);
           case 18:
-            _context14.p = 18;
+            _context15.p = 18;
             clearTimeout(timer);
-            return _context14.f(18);
+            return _context15.f(18);
           case 19:
-            return _context14.a(2);
+            return _context15.a(2);
         }
       }, _callee12, null, [[7, 11, 12, 13], [1, 16, 18, 19]]);
     }));
@@ -1348,14 +1389,14 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   }
   function _geminiRequest() {
     _geminiRequest = _asyncToGenerator(_regenerator().m(function _callee13(action, body) {
-      var controller, timer, response, value, _t11, _t12;
-      return _regenerator().w(function (_context15) {
-        while (1) switch (_context15.p = _context15.n) {
+      var controller, timer, response, value, _t12, _t13;
+      return _regenerator().w(function (_context16) {
+        while (1) switch (_context16.p = _context16.n) {
           case 0:
             controller = new AbortController(), timer = setTimeout(() => controller.abort(), 60000);
-            _context15.p = 1;
-            _context15.p = 2;
-            _context15.n = 3;
+            _context16.p = 1;
+            _context16.p = 2;
+            _context16.n = 3;
             return fetch('/admin/api/' + action, {
               method: 'POST',
               credentials: 'same-origin',
@@ -1366,45 +1407,45 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
               body: JSON.stringify(body)
             });
           case 3:
-            response = _context15.v;
-            _context15.n = 5;
+            response = _context16.v;
+            _context16.n = 5;
             break;
           case 4:
-            _context15.p = 4;
-            _t11 = _context15.v;
-            throw Error(_t11.name === 'AbortError' ? 'انتهت مهلة الاتصال؛ أعد المحاولة بعد قليل.' : 'تعذر الوصول إلى سيرفر الاستراحة. تأكد أنه يعمل وأن الجهاز متصل به، ثم أعد المحاولة. لم يتم تغيير الإعدادات.');
+            _context16.p = 4;
+            _t12 = _context16.v;
+            throw Error(_t12.name === 'AbortError' ? 'انتهت مهلة الاتصال؛ أعد المحاولة بعد قليل.' : 'تعذر الوصول إلى سيرفر الاستراحة. تأكد أنه يعمل وأن الجهاز متصل به، ثم أعد المحاولة. لم يتم تغيير الإعدادات.');
           case 5:
             if (!(response.status === 401 || response.status === 403)) {
-              _context15.n = 6;
+              _context16.n = 6;
               break;
             }
             throw Error('انتهت جلسة لوحة التحكم أو لا توجد صلاحية؛ سجّل الدخول مجددًا ثم أعد المحاولة.');
           case 6:
-            _context15.p = 6;
-            _context15.n = 7;
+            _context16.p = 6;
+            _context16.n = 7;
             return response.json();
           case 7:
-            value = _context15.v;
-            _context15.n = 9;
+            value = _context16.v;
+            _context16.n = 9;
             break;
           case 8:
-            _context15.p = 8;
-            _t12 = _context15.v;
+            _context16.p = 8;
+            _t13 = _context16.v;
             throw Error('وصل رد غير صالح من سيرفر الاستراحة؛ أعد فتح لوحة التحكم وتأكد من تشغيل النسخة المحدّثة.');
           case 9:
             if (!(!response.ok || value.msg !== 'ok')) {
-              _context15.n = 10;
+              _context16.n = 10;
               break;
             }
             throw Error(value.error || 'تعذر تنفيذ الطلب؛ أعد المحاولة.');
           case 10:
-            return _context15.a(2, value);
+            return _context16.a(2, value);
           case 11:
-            _context15.p = 11;
+            _context16.p = 11;
             clearTimeout(timer);
-            return _context15.f(11);
+            return _context16.f(11);
           case 12:
-            return _context15.a(2);
+            return _context16.a(2);
         }
       }, _callee13, null, [[6, 8], [2, 4], [1,, 11, 12]]);
     }));
@@ -1417,42 +1458,42 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     _settings = _asyncToGenerator(_regenerator().m(function _callee15() {
       var _document$querySelect;
       var host, response, current, area, form, key, model, enabled, translation, status, save, test, help, searchLabel, translationLabel, refreshHelp, _i3, _arr3, input, busy, submit, _submit;
-      return _regenerator().w(function (_context17) {
-        while (1) switch (_context17.p = _context17.n) {
+      return _regenerator().w(function (_context18) {
+        while (1) switch (_context18.p = _context18.n) {
           case 0:
             if (!(location.pathname !== '/admin/items' || document.getElementById('zain-gemini-settings') || settingBusy)) {
-              _context17.n = 1;
+              _context18.n = 1;
               break;
             }
-            return _context17.a(2);
+            return _context18.a(2);
           case 1:
             host = (_document$querySelect = document.querySelector('.left-menu .items')) === null || _document$querySelect === void 0 ? void 0 : _document$querySelect.parentElement;
             if (host) {
-              _context17.n = 2;
+              _context18.n = 2;
               break;
             }
-            return _context17.a(2);
+            return _context18.a(2);
           case 2:
             settingBusy = true;
-            _context17.p = 3;
+            _context18.p = 3;
             _submit = function _submit3() {
               _submit = _asyncToGenerator(_regenerator().m(function _callee14(action) {
-                var value, _t13;
-                return _regenerator().w(function (_context16) {
-                  while (1) switch (_context16.p = _context16.n) {
+                var value, _t14;
+                return _regenerator().w(function (_context17) {
+                  while (1) switch (_context17.p = _context17.n) {
                     case 0:
                       if (!busy) {
-                        _context16.n = 1;
+                        _context17.n = 1;
                         break;
                       }
-                      return _context16.a(2);
+                      return _context17.a(2);
                     case 1:
                       busy = true;
                       save.disabled = test.disabled = true;
                       status.style.color = '#ddd';
                       status.textContent = action === 'testGeminiKey' ? 'جارٍ فحص المفتاح والنموذج من السيرفر…' : 'جارٍ حفظ إعدادات Gemini…';
-                      _context16.p = 2;
-                      _context16.n = 3;
+                      _context17.p = 2;
+                      _context17.n = 3;
                       return geminiRequest(action, {
                         key: key.value,
                         model: model.value.trim(),
@@ -1460,27 +1501,27 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
                         translateDescriptions: translation.checked
                       });
                     case 3:
-                      value = _context16.v;
+                      value = _context17.v;
                       status.style.color = '#aee6ad';
                       if (action === 'saveGeminiSettings') {
                         key.value = '';
                         refreshHelp(value.configured);
                         status.textContent = 'تم حفظ إعدادات Gemini. استخدم «فحص المفتاح» للتأكد من اتصال السيرفر بالخدمة.';
                       } else status.textContent = value.message || 'نجح الفحص؛ المفتاح والنموذج يعملان من هذا السيرفر.';
-                      _context16.n = 5;
+                      _context17.n = 5;
                       break;
                     case 4:
-                      _context16.p = 4;
-                      _t13 = _context16.v;
+                      _context17.p = 4;
+                      _t14 = _context17.v;
                       status.style.color = '#ffb5b5';
-                      status.textContent = _t13.message;
+                      status.textContent = _t14.message;
                     case 5:
-                      _context16.p = 5;
+                      _context17.p = 5;
                       busy = false;
                       save.disabled = test.disabled = false;
-                      return _context16.f(5);
+                      return _context17.f(5);
                     case 6:
-                      return _context16.a(2);
+                      return _context17.a(2);
                   }
                 }, _callee14, null, [[2, 4, 5, 6]]);
               }));
@@ -1493,22 +1534,22 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
               key.placeholder = configured ? 'المفتاح محفوظ؛ اتركه فارغًا للاحتفاظ به' : 'أدخل مفتاح Gemini API';
               help.textContent = configured ? 'مفتاح Gemini محفوظ على السيرفر. يمكنك فحصه أو إدخال مفتاح بديل.' : 'لم يتم حفظ مفتاح Gemini بعد. مفتاح TMDB الموجود في الصفحة مخصص لبيانات الأفلام وصور الممثلين.';
             };
-            _context17.n = 4;
+            _context18.n = 4;
             return fetch('/admin/api/getGeminiSettings', {
               credentials: 'same-origin'
             });
           case 4:
-            response = _context17.v;
+            response = _context18.v;
             if (response.ok) {
-              _context17.n = 5;
+              _context18.n = 5;
               break;
             }
-            return _context17.a(2);
+            return _context18.a(2);
           case 5:
-            _context17.n = 6;
+            _context18.n = 6;
             return response.json();
           case 6:
-            current = _context17.v;
+            current = _context18.v;
             area = el('details');
             area.id = 'zain-gemini-settings';
             area.open = !current.configured;
@@ -1553,11 +1594,11 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             };
             test.onclick = () => submit('testGeminiKey');
           case 7:
-            _context17.p = 7;
+            _context18.p = 7;
             settingBusy = false;
-            return _context17.f(7);
+            return _context18.f(7);
           case 8:
-            return _context17.a(2);
+            return _context18.a(2);
         }
       }, _callee15, null, [[3,, 7, 8]]);
     }));
@@ -1596,7 +1637,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
 .admin-cont .sections-cont .sec .btns svg{pointer-events:none;display:block;flex:none}.admin-cont .sections-cont .sec .btns>[aria-busy=true]{opacity:.55;cursor:wait}.admin-cont .sections-cont .sec .btns>button:focus{outline:2px solid white;outline-offset:1px}
 header .zain-main-link .item{margin-left:16px!important;padding-left:16px!important;border-left:1px solid #ffffff35}header .zain-home-entry>.zain-home-section{font:700 14px Estra7ahBold,Arial,sans-serif!important;line-height:22px!important;padding:6px 5px!important;max-width:180px;overflow:hidden;text-overflow:ellipsis}header .zain-nav-expand{font-size:16px!important;padding:8px 5px!important}
 .zain-home-compact .NetWorkTitle{padding:12px 0 8px!important;margin:0!important;height:auto!important;min-height:0!important}.zain-home-compact:not(.zain-has-hero) .NetWorkTitle{padding-top:calc(var(--zain-header-height,72px) + 12px)!important}.zain-home-compact .NetWorkTitle .cont{height:auto!important;min-height:0!important;padding:0!important;margin:0!important}.zain-home-compact .NetWorkTitle .title{font-size:28px!important;line-height:1.4!important;margin:0!important}.zain-home-compact .NetWorkTitle .desc{margin:3px 0!important;line-height:1.6!important}.zain-home-compact .zain-news-wrap{height:auto!important;min-height:48px!important;margin:0!important;padding:0!important}.zain-home-compact .news{margin:4px 0!important;padding:0!important;min-height:40px!important}.zain-home-compact .startSections{padding:0!important;margin:8px 0 14px!important}.zain-home-compact .zain-start-wrap{margin:0!important;padding:0!important}
-#zain-advanced-search{font:16px Arial!important;line-height:1.8!important}#zain-advanced-search h3{font-size:22px!important}#zain-advanced-search button,#zain-gemini-settings button{font:700 17px Arial!important;min-height:46px!important;padding:12px 24px!important;background:#555ea5;color:white;border:1px solid #8791d0;border-radius:9px;cursor:pointer;margin:7px}#zain-advanced-search p{font-size:17px!important}#zain-gemini-settings{font:16px Arial!important;line-height:1.8}#zain-gemini-settings summary{font-size:19px;font-weight:bold;cursor:pointer;padding:8px}#zain-gemini-settings input:not([type=checkbox]){font-size:16px!important;min-height:42px;box-sizing:border-box}#zain-gemini-settings input[type=checkbox]{width:19px;height:19px;vertical-align:middle}
+#zain-advanced-search{font:16px Arial!important;line-height:1.8!important}#zain-advanced-search h3{font-size:20px!important;margin:0 0 8px}#zain-advanced-search{padding:12px 16px!important;margin:12px auto!important;max-width:1100px!important}#zain-advanced-search .zain-gemini-details>summary{cursor:pointer;padding:6px;color:#cbd3ff}#zain-advanced-search .zain-gemini-candidates{max-height:260px;overflow:auto}#zain-advanced-search.zain-search-selected{padding:8px 14px!important}#zain-advanced-search.zain-search-selected h3{font-size:17px!important}#zain-advanced-search .zain-local-search-status{margin:4px 0!important;font-size:14px!important}#zain-advanced-search button,#zain-gemini-settings button{font:700 17px Arial!important;min-height:46px!important;padding:12px 24px!important;background:#555ea5;color:white;border:1px solid #8791d0;border-radius:9px;cursor:pointer;margin:7px}#zain-advanced-search p{font-size:17px!important}#zain-gemini-settings{font:16px Arial!important;line-height:1.8}#zain-gemini-settings summary{font-size:19px;font-weight:bold;cursor:pointer;padding:8px}#zain-gemini-settings input:not([type=checkbox]){font-size:16px!important;min-height:42px;box-sizing:border-box}#zain-gemini-settings input[type=checkbox]{width:19px;height:19px;vertical-align:middle}
 `;
   document.head.appendChild(style);
   var waiting = false;
