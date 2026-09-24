@@ -1719,17 +1719,27 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     automaticEnabled = true,
     settingBusy = false;
   function ensurePinnedButton() {
+    var _select$selectedOptio;
     if (location.pathname !== '/admin/items') return;
-    var select = document.querySelector('.items-cont select');
-    var host = document.querySelector('.items-cont');
+    var select = document.querySelector('.items-cont select'),
+      selected = select === null || select === void 0 || (_select$selectedOptio = select.selectedOptions) === null || _select$selectedOptio === void 0 ? void 0 : _select$selectedOptio[0],
+      host = document.querySelector('.items-cont');
     if (!host) return;
     var button = document.getElementById('zain-remove-all-pinned');
-    if ((select === null || select === void 0 ? void 0 : select.value) === 'pined') {
+    var visiblePinned = Array.from(host.querySelectorAll('*')).some(node => {
+      var text = (node.textContent || '').trim();
+      if (text !== 'العناصر المثبتة' || node.children.length) return false;
+      var style = getComputedStyle(node),
+        rect = node.getBoundingClientRect();
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+    });
+    var pinned = (select === null || select === void 0 ? void 0 : select.value) === 'pined' || (select === null || select === void 0 ? void 0 : select.value) === 'pinned' || /العناصر\s+المثبتة/.test((selected === null || selected === void 0 ? void 0 : selected.textContent) || '') || visiblePinned;
+    if (pinned) {
       if (!button) {
         button = el('button', 'إزالة كل المحتوى المثبت');
         button.id = 'zain-remove-all-pinned';
         button.type = 'button';
-        button.style.cssText = 'background:#c8323f;color:#fff;border:0;border-radius:6px;padding:10px 18px;margin:8px 0;font-weight:bold;cursor:pointer';
+        button.style.cssText = 'display:block;position:relative;z-index:3;background:#c8323f;color:#fff;border:0;border-radius:6px;padding:10px 18px;margin:8px 0;font-weight:bold;cursor:pointer';
         button.onclick = _asyncToGenerator(_regenerator().m(function _callee16() {
           var _t15;
           return _regenerator().w(function (_context19) {
@@ -1761,7 +1771,8 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             }
           }, _callee16, null, [[2, 4]]);
         }));
-        host.insertBefore(button, host.firstChild);
+        var _cards = host.querySelector('.items');
+        ((_cards === null || _cards === void 0 ? void 0 : _cards.parentNode) || host).insertBefore(button, _cards || host.firstChild);
       }
     } else if (button) button.remove();
   }
@@ -2355,6 +2366,9 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     nextPoll = 0;
     poll();
   });
-  setInterval(poll, 1000);
+  setInterval(() => {
+    ensurePinnedButton();
+    poll();
+  }, 1000);
   poll();
 })();
