@@ -352,7 +352,8 @@ const server = http.createServer(async (req, res) => {
     if (route === '/zain/dashboard-bridge.js') { res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store' }).end(req.method === 'HEAD' ? '' : require('./browser-code.cjs')(uiCompat.bridgeScript)); return; }
     const adapted = uiCompat.transform(route);
     if (adapted) { res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store' }).end(req.method === 'HEAD' ? undefined : require('./browser-code.cjs')(adapted)); return; }
-    if (/^\/(sectionImage|SectionImage|ItemImage|itemImage|ExtImage|A-dImage)\//.test(route)) { const [, action, id] = route.split('/'); return image(req, res, action, id); }
+    const imageRoute=route.replace(/^\/api\//i,'/');
+    if (/^\/(sectionImage|SectionImage|ItemImage|itemImage|ExtImage|A-dImage)\//.test(imageRoute)) { const [, action, id] = imageRoute.split('/'); return image(req, res, action, id); }
     if (route === '/' || !path.extname(route)) {
       let html = await fs.promises.readFile(path.join(web, 'index.html'), 'utf8');
       html = html.replace('</head>','<meta name="estra7ah-version" content="'+release.version+'"></head>');

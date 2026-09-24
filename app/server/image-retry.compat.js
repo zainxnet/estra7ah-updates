@@ -16,6 +16,7 @@ function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length)
     MAX_TRIES = 6;
   var active = 0,
     scheduled = false;
+  var MAX_VISIBLE_REQUESTS = 8;
   var missing = '/assets/imgs/no-img.png';
   var connected = img => document.documentElement.contains(img);
   function source(raw) {
@@ -223,7 +224,7 @@ function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length)
         }
         if (!s || s.ready || s.busy || s.tries >= MAX_TRIES || document.hidden) continue;
         if (s.queued) {
-          if (visible(img) && active < 4) begin(img, s);
+          if (visible(img) && active < MAX_VISIBLE_REQUESTS) begin(img, s);
           continue;
         }
         var pending = Date.now() - s.nativeStarted < 15000;
@@ -236,7 +237,7 @@ function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length)
           }
         } else if (!img.complete && pending) continue;
         if (Date.now() < s.next || !visible(img)) continue;
-        if (active < 4) recover(img, s);
+        if (active < MAX_VISIBLE_REQUESTS) recover(img, s);
       }
     } catch (err) {
       _iterator2.e(err);

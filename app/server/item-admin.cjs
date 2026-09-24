@@ -10,7 +10,7 @@ module.exports=function({dir,items,safeItem,updateItems,removeItem,prepareExclus
  function save(next,{metadataId}={}){const metadataSave=metadataId!==undefined,now=Date.now();if(fs.existsSync(file)&&(!metadataSave||!lastMetadataBackup||now-lastMetadataBackup>=60000)){const folder=path.join(dir,'backups');fs.mkdirSync(folder,{recursive:true});fs.copyFileSync(file,path.join(folder,'item-edits-'+now+'-'+crypto.randomUUID()+'.json'));if(metadataSave)lastMetadataBackup=now;}const temporary=file+'.tmp';fs.writeFileSync(temporary,JSON.stringify(next));fs.renameSync(temporary,file);state=next;if(metadataSave){const item=items.get(metadataId);if(item)updateItems([{...item,...state.edits[metadataId]}]);}else apply();}
  apply();
  state.exclusive=state.exclusive||[];
- const adminReads=new Set(['getItems','getPinedItems','getExclusiveItems','getItemSyncState']);const adminActions=new Set(['pinItem','delPinedItem','deleteItem','updateContent','addExclusiveItem','removeExclusiveItem','updateExclusiveItem']);
+ const adminReads=new Set(['getItems','getPinedItems','getExclusiveItems','getItemSyncState']);const adminActions=new Set(['pinItem','delPinedItem','removeAllPinned','deleteItem','updateContent','addExclusiveItem','removeExclusiveItem','updateExclusiveItem']);
  function exclusiveItems(){return state.exclusive.map(id=>{const item=items.get(id);if(!item)return null;const edit=state.exclusiveEdits?.[id]||{};let content={};try{content=JSON.parse(item.content?.contentJSON||'{}')}catch{}return {...safeItem(item),...(edit.name?{name:edit.name}:{}),content:{...item.content,contentJSON:JSON.stringify({...content,...edit.content})},...(edit.image?{exclusiveImage:'/zain/exclusive-custom-image?id='+encodeURIComponent(id)+'&v='+edit.version}:{})};}).filter(Boolean);}
  return {exclusiveItems,exclusiveFile:id=>{const name=state.exclusiveEdits?.[id]?.image;return state.exclusive.includes(id)&&items.has(id)&&/^[a-f0-9-]+\.(png|jpg|webp|gif)$/.test(name||'')?path.join(dir,'promotional-media',name):null;},readBody:(req,action)=>action==='updateExclusiveItem'?require('./multipart.cjs')(req,{limit:9*1024*1024}):require('./text-body.cjs')(req),saveContent:(id,content)=>{if(!items.has(id))return;const next={...state,edits:{...state.edits,[id]:{...state.edits[id],content}}};save(next,{metadataId:id});},pinnedItems:()=>state.pinned.map(id=>items.get(id)).filter(Boolean).map(safeItem),adminReads,adminActions,async admin(action,args,body,method){
   const result=(body,status=200)=>({body,status}),error=(message,status=400)=>result({msg:'error',error:message},status);
@@ -32,6 +32,7 @@ module.exports=function({dir,items,safeItem,updateItems,removeItem,prepareExclus
    if(q&&!['null','undefined'].includes(q))rows=rows.filter(item=>String(item.name).toLowerCase().includes(q));
    const at=Math.max(0,parseInt(offset)||0);return result({total:[{count:rows.length}],items:rows.slice(at,at+100).map(safeItem)});
   }
+  if(action==='removeAllPinned'){if(method!=='POST')return error('طريقة الطلب غير صالحة',405);const next=structuredClone(state);next.pinned=[];save(next);return result({msg:'ok'});}
   if(!adminActions.has(action))return null;const id=args[0],item=items.get(id);if(!item)return error('العنصر غير موجود',404);
   if(action==='updateExclusiveItem'){
    if(method!=='POST')return error('طريقة الطلب غير صالحة',405);
