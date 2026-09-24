@@ -54,6 +54,7 @@ process.once('message', async configuration => {
   const progress = { files: 0, discoveredBytes: 0, indexedItems: 0, scannedDirectories: 0, warnings: 0, currentPath: configuration.source };
   try {
     const { section, storePath } = configuration;
+    if(section.type==='main'||section.type==='linked')throw Error('هذا قسم تجميعي؛ تزامن أقسام المحتوى الفرعية فقط');
     const root = path.resolve(configuration.source);
     db = new DatabaseSync(storePath);
     db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000');
@@ -95,7 +96,7 @@ process.once('message', async configuration => {
     }
     function baseRecord(source, name, type, inItem, kind, createdAt) {
       return { id: idFor(section.id, source, kind), name, type, inItem, sectionId: section.id,
-        path: source, pathSize: 0, createdAt, files: [], content: {} };
+        path: source, pathSize: 0, createdAt, files: [], content: {}, recordKind:kind==='item'&&types[path.extname(source).slice(1).toLowerCase()]?.startsWith('video/')?'file':'folder' };
     }
     function seriesParent(filePath, createdAt, size) {
       const relative = path.relative(root, filePath).split(path.sep);
@@ -162,13 +163,13 @@ process.once('message', async configuration => {
           record.pathSize = stat.size;
           record.files.push({ id: idFor(section.id, fullPath, 'file'), filename: entry.name, path: fullPath,
             itemId: record.id, type: { name: extension, mime_type: mime } });
-          if(section.type==='movies'&&directory!==root){
+          if(section.type==='movies'){
             let movieDirectory=directory;for(let ancestor=directory;ancestor!==root&&ancestor!==path.dirname(ancestor);ancestor=path.dirname(ancestor)){if(movieOwners.has(canonical(ancestor)))movieDirectory=movieOwners.get(canonical(ancestor));}
             movieOwners.set(canonical(directory),movieDirectory);
             movieDirectory=require('./movie-folder.cjs')({type:'movie',name:path.basename(movieDirectory),path:movieDirectory},{main_path:[root]}).path;
             const movieId=idFor(section.id,movieDirectory,'movie-folder');
             if(!containers.has(movieId))containers.set(movieId,baseRecord(movieDirectory,path.basename(movieDirectory),'movie',null,'movie-folder',createdAt));
-            const movie=containers.get(movieId);movie.pathSize+=stat.size;movie.files.push(...record.files.map(f=>({...f,itemId:movieId})));
+            const movie=containers.get(movieId);movie.createdAt=Math.max(movie.createdAt,createdAt);movie.pathSize+=stat.size;movie.files.push(...record.files.map(f=>({...f,itemId:movieId})));
           }else await addRecord(record);
           await emitProgress();
         }

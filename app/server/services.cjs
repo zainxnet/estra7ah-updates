@@ -213,7 +213,7 @@ module.exports = function createServices(options) {
   function startSync(sectionId = null) {
     ensureOpen();
     const sources = selectedSections(sectionId)
-      .filter(section => section.type !== 'linked')
+      .filter(section => !['linked','main'].includes(section.type))
       .flatMap(section => sectionPaths(section).map(source => ({ section, source })));
     if (!sources.length) throw failure('لا توجد مسارات محفوظة لهذا القسم', 'NO_PATHS');
     if (jobs.filter(job => ['queued', 'running'].includes(job.status)).length >= 10) throw failure('توجد مهام مزامنة كثيرة قيد الانتظار', 'BUSY');

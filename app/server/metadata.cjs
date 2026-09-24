@@ -7,7 +7,7 @@ module.exports=function({items,getKey,saveContent,savePoster,saveActors,hasArtwo
  const jobs=[],queue=[],controllers=new Map();const workers=Math.max(1,Math.min(3,Number(concurrency)||3));
  let running=false,closed=false,nextRequestAt=0,cooldownUntil=0,requestGate=Promise.resolve();
  const mediaType=type=>require('./public-catalog.cjs').publicType(type);
- const supported=item=>(['movie','series'].includes(mediaType(item.type))||/^series\./.test(mediaType(item.type)))&&(!item.inItem||item.inItem==='null');
+ const supported=item=>require('./catalog-items.cjs').visible(item)&&(['movie','series'].includes(mediaType(item.type))||/^series\./.test(mediaType(item.type)))&&(!item.inItem||item.inItem==='null');
  const fail=(message,status=400)=>Object.assign(Error(message),{status});
  const normal=value=>String(value||'').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
  const isArabic=value=>{if(typeof value!=='string')return false;const letters=value.match(/\p{L}/gu)||[];return letters.length>0&&letters.filter(c=>/\p{Script=Arabic}/u.test(c)).length/letters.length>=.3;};

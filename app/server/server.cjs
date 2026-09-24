@@ -19,7 +19,7 @@ const log = fs.createWriteStream(path.join(base, 'logs/requests.log'), { flags: 
 const types = { ".webp": "image/webp", '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.json': 'application/json', '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.webm': 'video/webm', '.mkv': 'video/x-matroska', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.ogg': 'audio/ogg', '.vtt': 'text/vtt; charset=utf-8', '.pdf': 'application/pdf' };
 const pick = (o, keys) => Object.fromEntries(keys.filter(k => o[k] !== undefined).map(k => [k, o[k]]));
 const safeFile = f => pick(f, ['id', 'filename', 'itemId', 'type']);
-const publicCatalog=require('./public-catalog.cjs');
+const publicCatalog=require('./public-catalog.cjs'),catalogItems=require('./catalog-items.cjs');
 const safeItem = x => x ? { ...pick(x, ['id', 'name', 'type', 'inItem', 'views', 'downloads', 'sectionId', 'createdAt', 'content', 'pathSize']),type:publicCatalog.publicType(x.type), files: (x.files || []).map(safeFile) } : null;
 const detailItem = x => x ? {...safeItem(x),content:publicCatalog.detailContent(x.content), ...(settings.estra7ah_type === 'caffe' ? {path:'/zain/folder/'+encodeURIComponent(x.id)} : {})} : null;
 const safeSection = x => x ? pick(x, ['id', 'name', 'views', 'in_section', 'type', 'downloadActive', 'order', 'linkedId', 'is_hidden', 'NumOfEps', 'createdAt', 'updatedAt', 'isVIP', 'star']) : null;
@@ -28,7 +28,8 @@ function normalize(value) { return String(value || '').replace(/[أإآ]/g, 'ا'
 function list(rows, start, count) { const at = Math.max(0, Number(start) || 0); return rows.slice(at, at + Math.min(200, Math.max(1, Number(count) || 100))); }
 function updateItems(rows) {
   catalogRevision++;
-  for (const x of rows) {
+  for (const input of rows) {
+    const x=catalogItems.display(input);
     if (!x.id) continue;
     const old = items.get(x.id);
     if (old) { if (old.inItem) children.get(old.inItem)?.delete(old.id); else sectionItems.get(old.sectionId)?.delete(old.id); for (const f of old.files || []) files.delete(f.id); }
@@ -51,9 +52,10 @@ function mergeScanned(rows, automatic=true) {
     const fileOwner = (record.files || []).map(f => byFilePath.get(String(record.sectionId) + '|' + path.normalize(f.path || '').toLowerCase())).find(Boolean);
     // Stable scanner IDs take precedence: virtual seasons can share one folder.
     let old = items.get(scannedAliases.get(record.id) || record.id);
+    if(record.recordKind==='folder'&&old&&catalogItems.videoFile(old))old=null;
     if (!old) {
       const candidate = items.get(fileOwner || byMediaPath.get(mediaKey(record)));
-      if (candidate && !(record.type === 'season' && candidate.id.startsWith('sync-') && candidate.id !== record.id)) old = candidate;
+      if (candidate && !(record.recordKind==='folder'&&catalogItems.videoFile(candidate)) && !(record.type === 'season' && candidate.id.startsWith('sync-') && candidate.id !== record.id)) old = candidate;
     }
     if(record.type==='movie'){
       let parent=path.dirname(record.path||'');
@@ -83,7 +85,7 @@ function mergeScanned(rows, automatic=true) {
 const childRows = id => [...(children.get(id) || [])].map(k => items.get(k));
 const sectionRow = id => sections.find(s => s.id === id);
 const artworkItem=id=>{const item=items.get(id);return require('./movie-folder.cjs')(item,sectionRow(item?.sectionId));};
-const topRows = () => {if(topCacheRevision!==catalogRevision){topCache=items.topRows?items.topRows():[...sectionItems.values()].flatMap(ids=>[...ids].map(id=>items.get(id))).filter(Boolean);topCacheRevision=catalogRevision;}return topCache.slice();};
+const topRows = () => {if(topCacheRevision!==catalogRevision){topCache=items.topRows?items.topRows():[...sectionItems.values()].flatMap(ids=>[...ids].map(id=>items.get(id))).filter(Boolean);topCache=topCache.filter(catalogItems.visible);topCacheRevision=catalogRevision;}return topCache.slice();};
 function normalizedName(item){let cached=normalizedNames.get(item);if(!cached||cached.name!==item.name){cached={name:item.name,value:normalize(item.name)};normalizedNames.set(item,cached)}return cached.value;}
 function searchKeys(query){
   const text=String(query||'');
@@ -215,7 +217,7 @@ async function api(req, res, parts) {
     case 'getNumbers': { if(items.countTop)return reply({sections:[{count:sections.length}],movies:[{count:items.countTop({types:['movie','film']})}],serieses:[{count:items.countTop({types:['series','tv','anime','kids','deen','sports','learn','ramadan','series.tv','series.anime','series.kids','series.deen','series.sports','series.learn','series.ramadan']})}],songs:[{count:0}],books:[{count:items.countTop({types:['booksSameFolder']})}],apps:[{count:0}]});const rows = topRows(); return reply({ sections: [{ count: sections.length }], movies: [{ count: rows.filter(x => x.type === 'movie').length }], serieses: [{ count: rows.filter(x => x.type === 'series' || x.type.startsWith('series.')).length }], songs: [{ count: 0 }], books: [{ count: rows.filter(x => x.type === 'booksSameFolder').length }], apps: [{ count: 0 }] }); }
     case 'getSecType': return reply(safeSection(sectionRow(a[0])) || {});
     case 'getItems': case 'getItemsFiltered': {
-      let rows = [...(sectionItems.get(a[2]) || [])].map(id => items.get(id));
+      let rows = [...(sectionItems.get(a[2]) || [])].map(id => items.get(id)).filter(catalogItems.visible);
       const query = normalize(a.slice(6).join('/')); if (query && !['undefined', 'null'].includes(query)) rows = rows.filter(x => normalizedName(x).includes(query));
       if (a[4] && !['all', 'undefined'].includes(a[4])) rows = rows.filter(x => String(x.content?.year) === a[4]);
       if (a[3] && !['all', 'undefined'].includes(a[3])) rows = rows.filter(x => require('./genre-filter.cjs').matches(x,a[3]));
@@ -355,7 +357,7 @@ server.listen(port, config.bind, async () => {
     services = require('./services.cjs')({ dir: data, sections, onItems: mergeScanned });
     const cachedCatalog=await startupCache.read();
     if(cachedCatalog){({items,children,sectionItems,files,byMediaPath,byFilePath,scannedAliases}=cachedCatalog);catalogRevision++;}
-    else{updateItems(JSON.parse(await fs.promises.readFile(path.join(base,'assets/db/estra7ah.items.json'),'utf8')).itemsData);mergeScanned(await services.getStoredItems(),false);}
+    else{updateItems(JSON.parse(await fs.promises.readFile(path.join(base,'assets/db/estra7ah.items.json'),'utf8')).itemsData);mergeScanned(await services.getStoredItems(),false);catalogItems.repairMovieFiles(items,updateItems);}
     content = require('./content-services.cjs')({ dir: data, source: { ...source, getItem: id => { const item = items.get(id); return item ? { ...safeItem(item), section: safeSection(sectionRow(item.sectionId)) } : null; } } });
     itemAdmin = require('./item-admin.cjs')({dir:data,items,safeItem,updateItems,removeItem:removeCatalogItem,prepareExclusive:item=>exclusiveArtwork.prepare(item)});
     speed=require('./speed.cjs')({dir:data});
