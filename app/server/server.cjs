@@ -84,7 +84,13 @@ const sectionRow = id => sections.find(s => s.id === id);
 const artworkItem=id=>{const item=items.get(id);return require('./movie-folder.cjs')(item,sectionRow(item?.sectionId));};
 const topRows = () => {if(topCacheRevision!==catalogRevision){topCache=[...sectionItems.values()].flatMap(ids=>[...ids].map(id=>items.get(id))).filter(Boolean);topCacheRevision=catalogRevision;}return topCache.slice();};
 function normalizedName(item){let cached=normalizedNames.get(item);if(!cached||cached.name!==item.name){cached={name:item.name,value:normalize(item.name)};normalizedNames.set(item,cached)}return cached.value;}
-function searchRows(query,start,count){const key=normalize(query),at=Math.max(0,Number(start)||0),limit=Math.min(200,Math.max(1,Number(count)||100)),found=[];let skipped=0;for(const item of topRows()){if(!normalizedName(item).includes(key))continue;if(skipped++<at)continue;found.push(item);if(found.length>=limit)break}return found;}
+function searchKeys(query){
+  const text=String(query||'');
+  // Only the explicit spaced separator opts in to searching alternative names.
+  if(!text.includes(' | '))return [normalize(query)];
+  return [...new Set(text.slice(0,1200).split(' | ',6).map(value=>normalize(value.trim().slice(0,200))).filter(Boolean))];
+}
+function searchRows(query,start,count){const keys=searchKeys(query),at=Math.max(0,Number(start)||0),limit=Math.min(200,Math.max(1,Number(count)||100)),found=[];let skipped=0;for(const item of topRows()){const name=normalizedName(item);if(!keys.some(key=>name.includes(key)))continue;if(skipped++<at)continue;found.push(item);if(found.length>=limit)break}return found;}
 function newest(count) {
   const result = { movies: [], series: [], pindItemsNew: [], singers: [] };
   for (const t of ['deen', 'sports', 'tv', 'learn', 'ramadan', 'kids', 'anime']) result['series.' + t] = [];

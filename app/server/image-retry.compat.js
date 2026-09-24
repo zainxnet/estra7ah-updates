@@ -9,7 +9,7 @@ function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length)
   'use strict';
 
   var posterStyle = document.createElement('style');
-  posterStyle.textContent = ".image-loading>svg{display:block!important}.image-loading[data-zain-pending=\"no\"]{display:none!important}.zain-poster-slot{position:relative}.zain-poster-slot>.image-loading{position:absolute;top:0;left:0;width:100%;height:100%}.zain-poster-slot>.image-loading>svg{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}img[data-zain-artwork=\"unavailable\"]{visibility:visible!important}.image-loading[data-zain-pending=\"yes\"]{display:block!important}.zain-poster-slot{display:block;background:#202638;border-radius:8px;overflow:hidden}img[data-zain-artwork=\"queued\"],img[data-zain-artwork=\"loading\"]{aspect-ratio:2/3;background:#202638!important;color:transparent!important;visibility:hidden!important}img[data-zain-artwork=\"ready\"]{visibility:visible!important}";
+  posterStyle.textContent = ".image-loading>svg{display:block!important}.image-loading[data-zain-pending=\"no\"]{display:none!important}.zain-poster-slot{position:relative}.zain-poster-slot>.image-loading{position:absolute;top:0;left:0;width:100%;height:100%}.zain-poster-slot>.image-loading>svg{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}img[data-zain-artwork=\"unavailable\"]{visibility:visible!important}.image-loading[data-zain-pending=\"yes\"]{display:block!important}.zain-poster-slot{display:block;background:#202638;border-radius:8px;overflow:hidden}img[data-zain-artwork=\"queued\"],img[data-zain-artwork=\"loading\"]{width:100%!important;aspect-ratio:2/3;background:#202638!important;color:transparent!important;visibility:hidden!important}img[data-zain-artwork=\"ready\"]{visibility:visible!important}";
   document.head.appendChild(posterStyle);
   var states = new WeakMap(),
     tracked = new Set(),
@@ -30,13 +30,11 @@ function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length)
   }
   function mark(img, status) {
     img.setAttribute('data-zain-artwork', status);
-    if (!window.CSS || !CSS.supports || !CSS.supports('aspect-ratio', '2 / 3')) {
-      if (status === 'queued' || status === 'loading') {
-        var _img$parentElement;
-        var width = img.getBoundingClientRect().width || ((_img$parentElement = img.parentElement) === null || _img$parentElement === void 0 ? void 0 : _img$parentElement.clientWidth) || 100;
-        img.style.minHeight = Math.round(width * 1.5) + 'px';
-      } else img.style.minHeight = '';
-    }
+    if (status === 'queued' || status === 'loading') {
+      var _img$parentElement;
+      var width = ((_img$parentElement = img.parentElement) === null || _img$parentElement === void 0 ? void 0 : _img$parentElement.clientWidth) || img.getBoundingClientRect().width || 100;
+      img.style.minHeight = Math.round(width * 1.5) + 'px';
+    } else img.style.minHeight = '';
     var p = img.parentElement;
     if (p) {
       var _iterator = _createForOfIteratorHelper(p.children),

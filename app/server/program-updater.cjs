@@ -71,11 +71,12 @@ function lifecycle(root){
  async stopNew(){if(launched){try{await local(root,'/zain/control/stop')}catch{}for(let i=0;i<20;i++){if(!await health())return;await delay(250)}if(launched.exitCode===null)launched.kill();await delay(500);}}
  };
 }
-function lock(root){const file=path.join(workspace(root),'lock.json');if(fs.existsSync(file)){const previous=JSON.parse(fs.readFileSync(file));try{process.kill(previous.pid,0);throw error('توجد نافذة تحديث أخرى تعمل');}catch(e){if(e.code!=='ESRCH')throw e;}fs.unlinkSync(file);}fs.writeFileSync(file,JSON.stringify({pid:process.pid,at:new Date().toISOString()}),{flag:'wx'});return ()=>{if(fs.existsSync(file)){const v=JSON.parse(fs.readFileSync(file));if(v.pid===process.pid)fs.unlinkSync(file)}};}
+function lock(root){const file=path.join(workspace(root),'lock.json');if(fs.existsSync(file)){const previous=JSON.parse(fs.readFileSync(file));if(!Number.isSafeInteger(previous.pid)||previous.pid<=0)throw error('بيانات قفل التحديث غير صالحة؛ راجع نافذة التحديث');try{process.kill(previous.pid,0);throw error('توجد نافذة تحديث أخرى تعمل');}catch(e){if(e.code!=='ESRCH')throw e;}fs.unlinkSync(file);}fs.writeFileSync(file,JSON.stringify({pid:process.pid,at:new Date().toISOString()}),{flag:'wx'});return ()=>{if(fs.existsSync(file)){const v=JSON.parse(fs.readFileSync(file));if(v.pid===process.pid)fs.unlinkSync(file)}};}
 module.exports={allowed,target,verifyEnvelope,plan,stage,apply,recoverPending,hash,compareVersion,remote,latest,downloadFile,gitToken,protectToken,REPO,PRODUCT};
 
 
 function pending(root){const dir=workspace(root);return fs.readdirSync(dir,{withFileTypes:true}).some(e=>{if(!e.isDirectory()||!/^[\w-]+$/.test(e.name))return false;const file=path.join(dir,e.name,'journal.json');return fs.existsSync(file)&&['applying','validating'].includes(JSON.parse(fs.readFileSync(file)).phase);});}
+function releaseStaleLock(root){root=fs.realpathSync(root);if(pending(root))throw error('توجد عملية تحديث غير مكتملة؛ استخدم استعادة الإصدار السابق في نافذة التحديث');const release=lock(root);try{if(pending(root))throw error('توجد عملية تحديث غير مكتملة؛ استخدم نافذة التحديث');return {ready:true};}finally{release();}}
 function browserOpen(url){spawn('powershell.exe',['-NoProfile','-NonInteractive','-Command',"Start-Process -FilePath '"+url.replace(/'/g,"''")+"'"],{windowsHide:true,stdio:'ignore'}).unref();}
 function page(nonce){
 return String.raw`<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>تحديث الاستراحة</title>
@@ -102,7 +103,7 @@ async function ui(root,{open=true}={}){
  root=fs.realpathSync(root);const releaseLock=lock(root),key=crypto.randomBytes(32).toString('hex'),nonce=crypto.randomBytes(18).toString('base64'),publicKey=fs.readFileSync(path.join(root,'server/update-public-key.pem'),'utf8');
  const state={current:JSON.parse(fs.readFileSync(path.join(root,'server/release.json'))).version,message:'جاهز لفحص تحديثات البرنامج.',busy:false,error:false,changes:0,bytes:0,pending:pending(root),credential:fs.existsSync(path.join(root,'data/update-settings.json'))};
  if(state.pending)state.message='توجد عملية تحديث لم تكتمل. استعد الإصدار السابق قبل المتابعة.';
- let manifest,token='',origin,lastRequest=Date.now();try{token=storedToken(root)||gitToken()}catch{state.message='بيانات الوصول المحفوظة تخص حساب ويندوز آخر؛ أعد إدخالها.'}
+ let manifest,token='',origin,lastRequest=Date.now(),closing=false;try{token=storedToken(root)||gitToken()}catch{state.message='بيانات الوصول المحفوظة تخص حساب ويندوز آخر؛ أعد إدخالها.'}
  function respond(res,value,status=200){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}).end(JSON.stringify(value));}
  function report(message){state.message=message;}
  function task(work){if(state.busy)throw error('توجد عملية تحديث قيد التنفيذ');state.busy=true;state.error=false;Promise.resolve().then(work).catch(e=>{state.error=true;state.message=e.message;}).finally(()=>{state.busy=false;state.pending=pending(root);});}
@@ -116,7 +117,12 @@ async function ui(root,{open=true}={}){
    lastRequest=Date.now();let bytes='';for await(const chunk of req){bytes+=chunk;if(bytes.length>4096)return respond(res,{error:'طلب كبير'},413);}
    const body=JSON.parse(bytes||'{}'),action=req.url.slice(5);
    if(action==='state')return respond(res,state);
+   if(closing)return respond(res,{error:'جارٍ إغلاق نافذة التحديث'},409);
    if(state.busy)return respond(res,{error:'انتظر انتهاء عملية التحديث'},409);
+   if(action==='stop'){
+    if(state.pending||pending(root))return respond(res,{error:'توجد عملية تحديث غير مكتملة؛ استعد الإصدار السابق أولًا'},409);
+    closing=true;respond(res,{stopped:true});clearInterval(idle);server.close(releaseLock);server.closeIdleConnections?.();return;
+   }
    if(typeof body.token==='string'&&body.token.trim()){if(!/^[A-Za-z0-9_]{20,300}$/.test(body.token.trim()))throw error('تنسيق رمز الوصول غير صالح');token=body.token.trim();}
    if(action==='save'){if(!token)throw error('أدخل رمز الوصول أولًا');atomic(path.join(root,'data/update-settings.json'),JSON.stringify({repository:REPO,tokenProtected:protectToken(token)}));state.credential=true;state.message='حُفظ الوصول مشفرًا لحساب ويندوز الحالي.';}
    else if(action==='check'){
@@ -134,10 +140,12 @@ async function ui(root,{open=true}={}){
   }catch(e){state.error=true;state.message=e.message;respond(res,{error:e.message},400);}
  });
  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});origin='http://127.0.0.1:'+server.address().port;
+ const lockFile=path.join(workspace(root),'lock.json'),lockValue=JSON.parse(fs.readFileSync(lockFile));if(lockValue.pid!==process.pid)throw error('تغير قفل التحديث أثناء التشغيل');atomic(lockFile,JSON.stringify({...lockValue,port:server.address().port,session:key}));
  process.once('exit',releaseLock);const idle=setInterval(()=>{if(!state.busy&&Date.now()-lastRequest>30*60*1000){releaseLock();server.close();clearInterval(idle);}},60000);idle.unref();
  const url=origin+'/#'+key;if(open)browserOpen(url);return {url,server,state,close(){clearInterval(idle);server.close();releaseLock();}};
 }
-module.exports.ui=ui;module.exports.pending=pending;
+module.exports.ui=ui;module.exports.pending=pending;module.exports.releaseStaleLock=releaseStaleLock;
 if(require.main===module&&process.argv[2]==='ui')ui(process.argv[3]||path.resolve(__dirname,'..')).catch(e=>{console.error(e.message);process.exitCode=1;});
+if(require.main===module&&process.argv[2]==='release-stale-lock'){try{console.log(JSON.stringify(releaseStaleLock(process.argv[3]||path.resolve(__dirname,'..'))));}catch(e){console.error(e.message);process.exitCode=1;}}
 
 module.exports.lifecycle=lifecycle;

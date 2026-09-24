@@ -1003,6 +1003,13 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
       _iterator7.f();
     }
   }
+  function candidateNames(candidate) {
+    return [candidate.originalTitle, candidate.title, candidate.arabicTitle, candidate.searchQuery].filter(name => typeof name === 'string' && name.trim() && name.trim().length <= 200).map(name => name.trim()).filter((name, index, names) => names.indexOf(name) === index);
+  }
+  function preferredName(candidate, category) {
+    var names = candidateNames(candidate);
+    return category === 'عربي' ? candidate.arabicTitle || candidate.title || names[0] : names.find(name => /[A-Za-z]/.test(name) && !/[\u0600-\u06ff\u0900-\u097f\u3040-\u30ff\u3400-\u9fff]/.test(name)) || candidate.title || names[0];
+  }
   function currentInput(input, current) {
     return current === generation && input.isConnected && !!input.closest('.search-items-count');
   }
@@ -1091,7 +1098,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             return _context12.a(2);
           case 1:
             name = String(candidate.searchQuery || candidate.title || candidate.originalTitle || candidate.arabicTitle || '').trim();
-            if (!(!name || name.length > 200)) {
+            if (!(!name || name.length > (candidate.allNames ? 1215 : 200))) {
               _context12.n = 2;
               break;
             }
@@ -1116,7 +1123,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
               heading = box.querySelector('h3');
               if (heading) heading.textContent = 'البحث عن «' + name + '»';
               details = box.querySelector('.zain-gemini-details');
-              if (details) details.open = false;
+              if (details) details.open = true;
             }
             timeout = setTimeout(() => c.abort(), 20000);
             _context12.p = 3;
@@ -1219,7 +1226,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             throw Error(v.error || (r.status === 405 ? 'تعذر الوصول إلى خدمة البحث؛ يلزم تحديث السيرفر.' : 'تعذر البحث'));
           case 5:
             candidates = Array.isArray(v.candidates) ? v.candidates.map(item => item && Object.assign({}, item, {
-              searchQuery: category === 'عربي' ? item.arabicTitle || item.title || item.searchQuery : item.title || item.searchQuery || item.originalTitle
+              searchQuery: preferredName(item, category)
             })).filter(item => item && typeof item.searchQuery === 'string' && item.searchQuery.trim() && item.searchQuery.length <= 200).slice(0, 6) : [];
             if (!(!v.answer && !v.message && !candidates.length)) {
               _context15.n = 6;
@@ -1245,7 +1252,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             _iterator8 = _createForOfIteratorHelper(candidates);
             _context15.p = 7;
             _loop5 = _regenerator().m(function _loop5() {
-              var candidate, card, label, names, choose, _iterator9, _step9, _loop6, _t1;
+              var candidate, card, label, names, choose, _iterator9, _step9, _loop6, aliases, all, _t1;
               return _regenerator().w(function (_context14) {
                 while (1) switch (_context14.p = _context14.n) {
                   case 0:
@@ -1262,7 +1269,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
                     choose.className = 'zain-gemini-choose';
                     choose.onclick = () => selectCandidate(input, candidate, status, current);
                     card.append(choose);
-                    _iterator9 = _createForOfIteratorHelper([candidate.arabicTitle, candidate.originalTitle].filter((name, index, array) => name && name !== candidate.searchQuery && array.indexOf(name) === index));
+                    _iterator9 = _createForOfIteratorHelper(candidateNames(candidate).filter(name => name !== candidate.searchQuery));
                     _context14.p = 1;
                     _loop6 = _regenerator().m(function _loop6() {
                       var alternate, b;
@@ -1304,6 +1311,18 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
                     _iterator9.f();
                     return _context14.f(6);
                   case 7:
+                    aliases = candidateNames(candidate);
+                    if (aliases.length > 1) {
+                      all = el('button', 'البحث بجميع الأسماء');
+                      all.type = 'button';
+                      all.className = 'zain-gemini-all-names';
+                      all.title = 'يجمع نتائج كل اسم دون تكرار العمل';
+                      all.onclick = () => selectCandidate(input, {
+                        searchQuery: aliases.join(' | '),
+                        allNames: true
+                      }, status, current);
+                      card.append(all);
+                    }
                     list.append(card);
                   case 8:
                     return _context14.a(2);
