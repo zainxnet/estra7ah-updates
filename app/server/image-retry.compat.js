@@ -15,8 +15,13 @@ function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length)
     tracked = new Set(),
     MAX_TRIES = 6;
   var active = 0,
-    scheduled = false;
-  var MAX_VISIBLE_REQUESTS = 8;
+    backgroundActive = 0,
+    scheduled = false,
+    retryTimer = 0,
+    retryAt = 0;
+  var MAX_VISIBLE_REQUESTS = 12,
+    MAX_BACKGROUND_REQUESTS = 6,
+    MAX_PENDING_MS = 60000;
   var missing = '/assets/imgs/no-img.png';
   var connected = img => document.documentElement.contains(img);
   function source(raw) {
@@ -70,6 +75,15 @@ function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length)
     var raw = img.getAttribute('src') || '',
       desired = source(img.getAttribute('data-zain-src') || '');
     var s = states.get(img);
+    if (/^\/(?:index\.html)?$/i.test(location.pathname) && raw) {
+      try {
+        var cover = new URL(raw, location.href);
+        if (cover.origin === location.origin && /^\/(?:api\/+)?sectionimage\/[\w.-]+\/?$/i.test(cover.pathname)) {
+          img.loading = 'eager';
+          img.decoding = 'async';
+        }
+      } catch (_unused2) {}
+    }
     if (s && raw === s.rendered && (!desired || desired === s.url)) return s;
     var url = desired || source(raw);
     if (!url && (!raw || /^data:image\//i.test(raw))) {
@@ -91,25 +105,42 @@ function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length)
       nativeStarted: Date.now(),
       awaitingNative: false,
       queued: !!desired || !source(raw),
-      slot: false
+      slot: false,
+      pendingStarted: 0
     };
     states.set(img, s);
     tracked.add(img);
     mark(img, s.queued ? 'queued' : 'loading');
     return s;
   }
-  function distance(img) {
-    var r = img.getBoundingClientRect();
-    return r.top > innerHeight ? r.top - innerHeight : r.bottom < 0 ? -r.bottom : 0;
-  }
-  function visible(img) {
+  function position(img, home) {
     var r = img.getBoundingClientRect(),
-      preloadBelow = Math.max(1200, Math.min(2200, innerHeight * 2));
-    return r.width > 0 && r.height > 0 && r.bottom >= -150 && r.top <= innerHeight + preloadBelow && r.right >= -100 && r.left <= innerWidth + 100;
+      shown = r.width > 0 && r.height > 0,
+      horizontal = r.right >= 0 && r.left <= innerWidth,
+      visible = shown && horizontal && r.bottom >= 0 && r.top <= innerHeight,
+      preloadBelow = Math.max(2400, Math.min(6000, innerHeight * 5));
+    return {
+      img,
+      visible,
+      eligible: shown && (home || horizontal && r.bottom >= -300 && r.top <= innerHeight + preloadBelow),
+      distance: (r.top > innerHeight ? r.top - innerHeight : r.bottom < 0 ? -r.bottom : 0) + (horizontal ? 0 : innerHeight + Math.min(Math.abs(r.left), Math.abs(r.right - innerWidth)))
+    };
   }
-  function begin(img, s) {
+  function begin(img, s, background) {
     s.queued = false;
-    recover(img, s);
+    img.loading = 'eager';
+    img.decoding = 'async';
+    recover(img, s, background);
+  }
+  function retrySoon(at) {
+    if (retryTimer && retryAt <= at) return;
+    clearTimeout(retryTimer);
+    retryAt = at;
+    retryTimer = setTimeout(() => {
+      retryTimer = 0;
+      retryAt = 0;
+      schedule();
+    }, Math.max(0, at - Date.now()));
   }
   function ready(img, s) {
     freeSlot(s);
@@ -130,17 +161,19 @@ function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length)
     }
     s.next = Date.now() + Math.min(15000, 750 * Math.pow(2, s.tries - 1));
     mark(img, 'loading');
+    retrySoon(s.next);
   }
-  function recover(_x, _x2) {
+  function recover(_x, _x2, _x3) {
     return _recover.apply(this, arguments);
   }
   function _recover() {
-    _recover = _asyncToGenerator(_regenerator().m(function _callee(img, s) {
-      var controller, timer, r, b, _t;
+    _recover = _asyncToGenerator(_regenerator().m(function _callee(img, s, background) {
+      var controller, timer, r, placeholder, retrySeconds, b, _t;
       return _regenerator().w(function (_context) {
         while (1) switch (_context.p = _context.n) {
           case 0:
             active++;
+            if (background) backgroundActive++;
             s.busy = true;
             s.tries++;
             s.controller = new AbortController();
@@ -160,28 +193,51 @@ function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length)
             })]);
           case 2:
             r = _context.v;
-            if (!(!r.ok || r.headers.get('X-Zain-Placeholder') || !/^(image\/)/i.test(r.headers.get('Content-Type') || '') || /svg/i.test(r.headers.get('Content-Type') || ''))) {
-              _context.n = 3;
-              break;
-            }
-            throw Error('pending');
-          case 3:
-            _context.n = 4;
-            return r.blob();
-          case 4:
-            b = _context.v;
-            if (!(!b.size || b.size > 8 * 1024 * 1024)) {
+            placeholder = r.headers.get('X-Zain-Placeholder');
+            if (!(placeholder === 'pending-artwork' || r.headers.get('X-Zain-Artwork-State') === 'pending')) {
               _context.n = 5;
               break;
             }
-            throw Error('invalid');
+            _context.n = 3;
+            return r.arrayBuffer();
+          case 3:
+            if (!s.pendingStarted) s.pendingStarted = Date.now();
+            if (!(Date.now() - s.pendingStarted >= MAX_PENDING_MS)) {
+              _context.n = 4;
+              break;
+            }
+            s.tries = MAX_TRIES;
+            throw Error('pending-timeout');
+          case 4:
+            s.tries--;
+            retrySeconds = Number(r.headers.get('Retry-After'));
+            s.next = Date.now() + Math.max(300, Math.min(3000, Number.isFinite(retrySeconds) && retrySeconds > 0 ? retrySeconds * 1000 : 500));
+            s.awaitingNative = false;
+            retrySoon(s.next);
+            return _context.a(2);
           case 5:
-            if (!(!connected(img) || states.get(img) !== s)) {
+            if (!(!r.ok || placeholder || !/^(image\/)/i.test(r.headers.get('Content-Type') || '') || /svg/i.test(r.headers.get('Content-Type') || ''))) {
               _context.n = 6;
               break;
             }
-            return _context.a(2);
+            throw Error('pending');
           case 6:
+            _context.n = 7;
+            return r.blob();
+          case 7:
+            b = _context.v;
+            if (!(!b.size || b.size > 8 * 1024 * 1024)) {
+              _context.n = 8;
+              break;
+            }
+            throw Error('invalid');
+          case 8:
+            if (!(!connected(img) || states.get(img) !== s)) {
+              _context.n = 9;
+              break;
+            }
+            return _context.a(2);
+          case 9:
             s.verified = true;
             s.awaitingNative = true;
             s.nativeStarted = Date.now();
@@ -190,60 +246,73 @@ function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length)
             s.objectUrl = URL.createObjectURL(b);
             s.rendered = s.objectUrl;
             img.src = s.objectUrl;
-            _context.n = 8;
+            _context.n = 11;
             break;
-          case 7:
-            _context.p = 7;
+          case 10:
+            _context.p = 10;
             _t = _context.v;
             if (connected(img) && states.get(img) === s) fail(img, s);
-          case 8:
-            _context.p = 8;
+          case 11:
+            _context.p = 11;
             clearTimeout(timer);
             s.controller = null;
             s.busy = false;
             active--;
+            if (background) backgroundActive--;
             schedule();
-            return _context.f(8);
-          case 9:
+            return _context.f(11);
+          case 12:
             return _context.a(2);
         }
-      }, _callee, null, [[1, 7, 8, 9]]);
+      }, _callee, null, [[1, 10, 11, 12]]);
     }));
     return _recover.apply(this, arguments);
   }
   function refresh() {
     scheduled = false;
-    var _iterator2 = _createForOfIteratorHelper(Array.from(tracked).sort((a, b) => distance(a) - distance(b))),
+    var home = /^\/(?:index\.html)?$/i.test(location.pathname),
+      candidates = [];
+    var _iterator2 = _createForOfIteratorHelper(tracked),
       _step2;
     try {
       for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
-        var img = _step2.value;
-        var s = states.get(img);
-        if (!connected(img)) {
-          release(img, s);
+        var _img = _step2.value;
+        var _s = states.get(_img);
+        if (!connected(_img)) {
+          release(_img, _s);
           continue;
         }
-        if (!s || s.ready || s.busy || s.tries >= MAX_TRIES || document.hidden) continue;
-        if (s.queued) {
-          if (visible(img) && active < MAX_VISIBLE_REQUESTS) begin(img, s);
-          continue;
-        }
-        var pending = Date.now() - s.nativeStarted < 15000;
-        if (s.slot && img.complete) freeSlot(s);
-        if (s.awaitingNative && pending) continue;
-        if (img.complete && img.naturalWidth > 0) {
-          if (s.verified || img.naturalWidth !== 300 || img.naturalHeight !== 450) {
-            ready(img, s);
-            continue;
-          }
-        } else if (!img.complete && pending) continue;
-        if (Date.now() < s.next || !visible(img)) continue;
-        if (active < MAX_VISIBLE_REQUESTS) recover(img, s);
+        if (_s && !_s.ready && !_s.busy && _s.tries < MAX_TRIES) candidates.push(position(_img, home));
       }
     } catch (err) {
       _iterator2.e(err);
     } finally {
       _iterator2.f();
+    }
+    candidates.sort((a, b) => Number(b.visible) - Number(a.visible) || a.distance - b.distance);
+    for (var _i = 0, _candidates = candidates; _i < _candidates.length; _i++) {
+      var candidate = _candidates[_i];
+      var img = candidate.img,
+        visible = candidate.visible,
+        eligible = candidate.eligible,
+        s = states.get(img);
+      if (document.hidden) break;
+      var available = active < MAX_VISIBLE_REQUESTS && (visible || backgroundActive < MAX_BACKGROUND_REQUESTS);
+      if (s.queued) {
+        if (eligible && available) begin(img, s, !visible);
+        continue;
+      }
+      var pending = Date.now() - s.nativeStarted < 15000;
+      if (s.slot && img.complete) freeSlot(s);
+      if (s.awaitingNative && pending) continue;
+      if (img.complete && img.naturalWidth > 0) {
+        if (s.verified || img.naturalWidth !== 300 || img.naturalHeight !== 450) {
+          ready(img, s);
+          continue;
+        }
+      } else if (!img.complete && pending) continue;
+      if (Date.now() < s.next || !eligible) continue;
+      if (available) recover(img, s, !visible);
     }
   }
   function schedule() {

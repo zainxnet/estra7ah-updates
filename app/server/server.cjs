@@ -183,7 +183,8 @@ async function image(req, res, action, id) {
   if(/^itemimage$/i.test(action)){const poster=posters?.file(id);if(poster)return stream(req,res,poster);}
   if (res.destroyed) return;
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450"><rect width="300" height="450" fill="#202638"/><g transform="translate(75 200)">'+require('./legacy-artwork.cjs').loading+'</g></svg>';
-  res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control':'no-store', 'X-Zain-Placeholder': 'missing-artwork' }).end(req.method === 'HEAD' ? '' : svg);
+  const artworkState=/^itemimage$/i.test(action)&&artwork?.status(artworkItem(id))==='pending'?'pending':'missing';
+  res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control':'no-store', 'X-Zain-Placeholder': 'missing-artwork', 'X-Zain-Artwork-State':artworkState, ...(artworkState==='pending'?{'Retry-After':'1'}:{}) }).end(req.method === 'HEAD' ? '' : svg);
 }
 function allowedHost(host, selectedPort=port) { const hosts = new Set(['127.0.0.1', 'localhost', ...Object.values(os.networkInterfaces()).flat().filter(Boolean).map(x => x.address)]); return [...hosts].some(address => host === (address.includes(':') ? '[' + address + ']' : address) + (selectedPort===80?'':':'+selectedPort) || host === (address.includes(':') ? '[' + address + ']' : address) + ':' + selectedPort); }
 const publicAttempts = new Map();
