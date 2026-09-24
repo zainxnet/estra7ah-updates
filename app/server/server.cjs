@@ -8,7 +8,7 @@ const configFile = path.join(data, 'server-config.json');
 const config = fs.existsSync(configFile) ? JSON.parse(fs.readFileSync(configFile, 'utf8')) : { port: 80, bind: '0.0.0.0' };
 const port = config.port;
 let gemini;
-let ready = false, startupError = '', sections = [], settings = {}, admin, services, content, operations, artwork, scanArtwork, uiCompat, speed, itemAdmin, backups, broadcast, metadata, posters, actorImages, exclusiveArtwork;
+let ready = false, startupError = '', startupMessage='جار فتح قاعدة الاستراحة',startupInfo={}, sections = [], settings = {}, admin, services, content, operations, artwork, scanArtwork, uiCompat, speed, itemAdmin, backups, broadcast, metadata, posters, actorImages, exclusiveArtwork;
 const responseCache=require('./browse-cache.cjs')();let catalogRevision=0,topCacheRevision=-1,topCache=[];const normalizedNames=new WeakMap();
 let items = new Map(), children = new Map(), sectionItems = new Map(), files = new Map();
 let byMediaPath = new Map(), scannedAliases = new Map();
@@ -255,7 +255,7 @@ const server = http.createServer(async (req, res) => {
     try { route = decodeURIComponent(url.pathname); } catch { return respond(res, {}, 400); }
     res.setHeader('Content-Security-Policy', "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; frame-src 'none'");
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    if (route === '/zain/health') return respond(res, { service: 'zain', instanceId:crypto.createHash('sha256').update(controlToken).digest('hex'), version:release.version, ready, message: startupError || (ready ? 'الخادم يعمل' : 'جار تحميل قاعدة الاستراحة'), records: items.size, sections: sections.length, broadcast:broadcast?.status() });
+    if (route === '/zain/health') return respond(res, { service: 'zain', instanceId:crypto.createHash('sha256').update(controlToken).digest('hex'), version:release.version, ready, message: startupError || (ready ? 'الخادم يعمل' : startupMessage), startup:startupInfo, records: items.size, sections: sections.length, broadcast:broadcast?.status() });
     if (route === '/zain/control/stop') {
       if (req.method !== 'POST' || !['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress) || req.headers['x-zain-control'] !== controlToken) return respond(res, {}, 403);
       respond(res, { ok: true }); setTimeout(shutdown, 100); return;
@@ -356,8 +356,8 @@ server.listen(port, config.bind, async () => {
     const bootStarted=Date.now(),startupCache=require('./startup-cache.cjs')(base);
     services = require('./services.cjs')({ dir: data, sections, onItems: mergeScanned });
     const cachedCatalog=await startupCache.read();
-    if(cachedCatalog){({items,children,sectionItems,files,byMediaPath,byFilePath,scannedAliases}=cachedCatalog);catalogRevision++;}
-    else{updateItems(JSON.parse(await fs.promises.readFile(path.join(base,'assets/db/estra7ah.items.json'),'utf8')).itemsData);mergeScanned(await services.getStoredItems(),false);catalogItems.repairMovieFiles(items,updateItems);}
+    if(cachedCatalog){({items,children,sectionItems,files,byMediaPath,byFilePath,scannedAliases}=cachedCatalog);catalogRevision++;mergeScanned(cachedCatalog.sourceChanges,false);startupInfo={mode:cachedCatalog.sourceChanges.length?'incremental':'cached',changedRecords:cachedCatalog.sourceChanges.length};}
+    else{startupMessage=startupCache.reason+'؛ جار قراءة العناصر المحفوظة';startupInfo={mode:'rebuild',reason:startupCache.reason};updateItems(JSON.parse(await fs.promises.readFile(path.join(base,'assets/db/estra7ah.items.json'),'utf8')).itemsData);startupMessage='جار تجهيز العناصر الجديدة وربط المجلدات';mergeScanned(await services.getStoredItems(),false);catalogItems.repairMovieFiles(items,updateItems);}
     content = require('./content-services.cjs')({ dir: data, source: { ...source, getItem: id => { const item = items.get(id); return item ? { ...safeItem(item), section: safeSection(sectionRow(item.sectionId)) } : null; } } });
     itemAdmin = require('./item-admin.cjs')({dir:data,items,safeItem,updateItems,removeItem:removeCatalogItem,prepareExclusive:item=>exclusiveArtwork.prepare(item)});
     speed=require('./speed.cjs')({dir:data});
@@ -386,7 +386,8 @@ server.listen(port, config.bind, async () => {
     if(Number(settings.mubasher_port)===port)throw Error('منفذ البث يجب أن يختلف عن منفذ الاستراحة');
     broadcast=require('./broadcast.cjs')({base,port:Number(settings.mubasher_port),mainPort:port,authorize:req=>admin.authorize(req),allowedHost,onEvent:admin.recordEvent});
     indexImages(); ready = true;
-    console.log('Startup catalog: '+(cachedCatalog?'cached':'rebuilt')+'; '+(Date.now()-bootStarted)+'ms');
+    startupInfo.durationMs=Date.now()-bootStarted;
+    console.log('Startup catalog: '+startupInfo.mode+'; '+startupInfo.durationMs+'ms; '+(startupInfo.changedRecords||0)+' changed records');
     if(!cachedCatalog){const signature=startupCache.signature();setImmediate(async()=>{admin.recordEvent('جار تجهيز فهرس التشغيل السريع في الخلفية','success');const saved=await startupCache.write({items,children,sectionItems,files,byMediaPath,byFilePath,scannedAliases},signature);admin.recordEvent(saved?'اكتمل فهرس التشغيل السريع؛ سيكون جاهزًا عند التشغيل التالي':'لم يكتمل الفهرس أو تغيرت المكتبة أثناء التجهيز؛ ستُقرأ القاعدة الأصلية عند التشغيل التالي',saved?'success':'warning');});}
  admin.recordEvent('تم تشغيل الاستراحة على المنفذ '+port+' والبث على '+settings.mubasher_port,'success'); console.log('Zain ready: http://127.0.0.1:' + port + '/; ' + items.size + ' records');
   } catch (e) { startupError = 'تعذر تحميل ملفات الخادم: ' + e.message; console.error(startupError); }

@@ -43,6 +43,7 @@ module.exports = function createServices(options) {
   fs.mkdirSync(dir, { recursive: true });
   const initialStore = new DatabaseSync(storePath);
   initialStore.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS records (id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at INTEGER NOT NULL)');
+  require('./catalog-revision.cjs').initialize(initialStore);
   initialStore.close();
 
   let closed = false;

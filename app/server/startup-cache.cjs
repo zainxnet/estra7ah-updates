@@ -44,14 +44,28 @@ class DiskMap extends Map {
  }
 }
 module.exports=function(base){
- const directory=path.join(base,'data','startup-cache'),file=path.join(directory,'catalog.sqlite'),meta=path.join(directory,'catalog.json');let writing;
+ const directory=path.join(base,'data','startup-cache'),file=path.join(directory,'catalog.sqlite'),meta=path.join(directory,'catalog.json'),store=path.join(base,'data/sync-items.sqlite'),revision=require('./catalog-revision.cjs');let writing,reason='';
  function signature(){return JSON.stringify({format:6,node:process.versions.v8,files:inputs.map(name=>{try{const s=fs.statSync(path.join(base,name));return name.endsWith('-wal')&&s.size===0?[name,0]:[name,s.size,s.mtimeMs,s.ctimeMs]}catch(e){if(e.code==='ENOENT')return [name,name.endsWith('-wal')?0:null];throw e;}})});}
  function editShape(){const file=path.join(base,'data/item-edits.json');const state=fs.existsSync(file)?JSON.parse(fs.readFileSync(file,'utf8')):{};return {edits:Object.fromEntries(Object.entries(state.edits||{}).map(([id,value])=>[id,Object.keys(value)])),deleted:state.deleted||[]};}
  function editsCompatible(previous){const current=editShape();return Object.entries(previous.edits).every(([id,keys])=>keys.every(key=>current.edits[id]?.includes(key)))&&previous.deleted.every(id=>current.deleted.includes(id));}
- async function read(){let db;try{const before=signature(),info=JSON.parse(await fs.promises.readFile(meta,'utf8'));if(info.signature!==before||fs.statSync(file).size!==info.bytes)return null;db=new DatabaseSync(file,{readOnly:true});const stored=db.prepare('SELECT value FROM metadata WHERE key=?').get('signature');if(stored?.value!==before)throw Error('Incomplete cache');const shape=JSON.parse(db.prepare('SELECT value FROM metadata WHERE key=?').get('edits')?.value||'null');if(!shape||!editsCompatible(shape))throw Error('Edits were reset');const value={};for(const name of families)value[name]=new DiskMap(db,name,info.counts[name]);if(signature()!==before)throw Error('Changed catalog');return value;}catch{try{db?.close()}catch{}return null;}}
+ async function read(){let db;try{
+  reason='';const before=signature(),info=JSON.parse(await fs.promises.readFile(meta,'utf8'));let changed=[];
+  if(fs.statSync(file).size!==info.bytes)throw Error('الفهرس المحلي غير مكتمل');
+  if(info.signature!==before){
+   const previous=JSON.parse(info.signature),current=JSON.parse(before);
+   if(previous.format!==current.format||previous.node!==current.node)throw Error('تجهيز الفهرس بعد تحديث البرنامج');
+   if(JSON.stringify(previous.files[0])!==JSON.stringify(current.files[0]))throw Error('تغيرت قاعدة المكتبة الأساسية أو استُعيدت نسخة احتياطية');
+   const delta=revision.changes(store,info.sourceRevision);
+   if(!delta)throw Error('تجهيز فهرس قاعدة المزامنة لأول مرة أو بعد تغيير كبير');
+   changed=delta.rows;
+  }
+  db=new DatabaseSync(file,{readOnly:true});const stored=db.prepare('SELECT value FROM metadata WHERE key=?').get('signature');if(stored?.value!==info.signature)throw Error('الفهرس المحلي غير مكتمل');
+  const shape=JSON.parse(db.prepare('SELECT value FROM metadata WHERE key=?').get('edits')?.value||'null');if(!shape||!editsCompatible(shape))throw Error('إعادة تجهيز الفهرس بعد استعادة تعديلات العناصر');
+  const value={sourceChanges:changed};for(const name of families)value[name]=new DiskMap(db,name,info.counts[name]);if(signature()!==before)throw Error('تغيرت المكتبة أثناء تحميل الفهرس');return value;
+ }catch(error){reason=error.code==='ENOENT'?'تجهيز الفهرس لأول تشغيل':error.message;try{db?.close()}catch{}return null;}}
  function write(value,expected){if(writing)return writing;writing=build(value,expected).finally(()=>{writing=null});return writing;}
  async function build(value,expected){let db;try{
-  if(signature()!==expected)return false;fs.mkdirSync(directory,{recursive:true});
+  const sourceRevision=revision.snapshot(store);if(signature()!==expected)return false;fs.mkdirSync(directory,{recursive:true});
   const snapshot=Object.fromEntries(families.map(name=>[name,new Map([...value[name]].map(([key,row])=>[key,row instanceof Set?new Set(row):row]))]));
   const edits=editShape();const temp=file+'.building';if(fs.existsSync(temp))fs.unlinkSync(temp);db=new DatabaseSync(temp);db.exec('PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF; CREATE TABLE metadata(key TEXT PRIMARY KEY,value TEXT)');const counts={};
   for(const name of families){db.exec('CREATE TABLE '+name+' (key TEXT PRIMARY KEY,value BLOB NOT NULL,summary TEXT)');const insert=db.prepare('INSERT INTO '+name+' VALUES(?,?,?)');counts[name]=snapshot[name].size;let batch=0;db.exec('BEGIN');
@@ -60,7 +74,7 @@ module.exports=function(base){
   }
   db.exec('CREATE TABLE top_items (key TEXT PRIMARY KEY,summary TEXT,name TEXT,type TEXT,created REAL,section TEXT,has_content INTEGER,visible INTEGER)');const list=db.prepare('INSERT INTO top_items VALUES(?,?,?,?,?,?,?,?)');let n=0;db.exec('BEGIN');for(const row of db.prepare('SELECT key,summary FROM items WHERE summary IS NOT NULL ORDER BY rowid').iterate()){const item=JSON.parse(row.summary),name=String(item.name||'').replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/[ؤئ]/g,'ء').replace(/ى/g,'ي').toLowerCase();list.run(row.key,row.summary,name,item.type||'',Number(item.createdAt)||0,item.sectionId||'',item.__zainHasContent?1:0,item.__zainVisible===false?0:1);if(++n%2000===0){db.exec('COMMIT');await tick();db.exec('BEGIN');}}db.exec('COMMIT; CREATE INDEX top_type_date ON top_items(type,created DESC); CREATE INDEX top_date ON top_items(created DESC); CREATE INDEX top_missing_date ON top_items(has_content,created DESC); CREATE INDEX top_section_date ON top_items(section,created DESC)');
   db.prepare('INSERT INTO metadata VALUES(?,?)').run('signature',expected);db.prepare('INSERT INTO metadata VALUES(?,?)').run('edits',JSON.stringify(edits));db.close();db=null;if(signature()!==expected)return false;
-  await fs.promises.rename(temp,file);await fs.promises.writeFile(meta+'.tmp',JSON.stringify({signature:expected,bytes:fs.statSync(file).size,counts}));await fs.promises.rename(meta+'.tmp',meta);return true;
+  await fs.promises.rename(temp,file);await fs.promises.writeFile(meta+'.tmp',JSON.stringify({signature:expected,bytes:fs.statSync(file).size,counts,sourceRevision}));await fs.promises.rename(meta+'.tmp',meta);return true;
  }catch(error){try{db?.close()}catch{}console.warn('Startup cache rebuild: '+error.message);return false;}}
- return {read,write,signature};
+ return {read,write,signature,get reason(){return reason;}};
 };

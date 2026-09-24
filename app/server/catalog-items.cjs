@@ -10,8 +10,8 @@ function display(item){
  if(!item||!mediaContainer(item)||videoFile(item)||!item.path)return item;
  const directory=path.win32.basename(item.path.replace(/[\\/]+$/,''));
  if(!directory||item.name===directory)return item;
- const childName=(item.files||[]).some(file=>path.win32.parse(file.filename||file.path||'').name===item.name);
- return item.recordKind==='folder'||childName?{...item,name:directory}:item;
+ const childName=(item.files||[]).some(file=>{const name=path.win32.basename(file.filename||file.path||'');return name===item.name||path.win32.parse(name).name===item.name;});
+ return !item.name||childName?{...item,name:directory}:item;
 }
 function folderId(sectionId,folder){const canonical=path.resolve(folder).replace(/\\/g,'/').replace(/\/+$/,'').toLowerCase();return 'sync-'+crypto.createHash('sha256').update(sectionId+'\0'+canonical+'\0movie-folder').digest('hex').slice(0,40);}
 // Repair the derived view only: retain legacy file records and IDs as children,
