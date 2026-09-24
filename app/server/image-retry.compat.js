@@ -103,8 +103,9 @@ function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length)
     return r.top > innerHeight ? r.top - innerHeight : r.bottom < 0 ? -r.bottom : 0;
   }
   function visible(img) {
-    var r = img.getBoundingClientRect();
-    return r.width > 0 && r.height > 0 && r.bottom >= -150 && r.top <= innerHeight + Math.max(400, Math.min(900, innerHeight * .85)) && r.right >= -100 && r.left <= innerWidth + 100;
+    var r = img.getBoundingClientRect(),
+      preloadBelow = Math.max(1200, Math.min(2200, innerHeight * 2));
+    return r.width > 0 && r.height > 0 && r.bottom >= -150 && r.top <= innerHeight + preloadBelow && r.right >= -100 && r.left <= innerWidth + 100;
   }
   function begin(img, s) {
     s.queued = false;

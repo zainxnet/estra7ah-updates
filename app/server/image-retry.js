@@ -23,7 +23,7 @@
   return s;
  }
  function distance(img){const r=img.getBoundingClientRect();return r.top>innerHeight?r.top-innerHeight:r.bottom<0?-r.bottom:0;}
- function visible(img){const r=img.getBoundingClientRect();return r.width>0&&r.height>0&&r.bottom>=-150&&r.top<=innerHeight+Math.max(400,Math.min(900,innerHeight*.85))&&r.right>=-100&&r.left<=innerWidth+100;}
+ function visible(img){const r=img.getBoundingClientRect(),preloadBelow=Math.max(1200,Math.min(2200,innerHeight*2));return r.width>0&&r.height>0&&r.bottom>=-150&&r.top<=innerHeight+preloadBelow&&r.right>=-100&&r.left<=innerWidth+100;}
  function begin(img,s){s.queued=false;recover(img,s);}
  function ready(img,s){freeSlot(s);s.ready=true;s.awaitingNative=false;mark(img,'ready');}
  function fail(img,s){freeSlot(s);
