@@ -169,8 +169,12 @@ async function image(req, res, action, id) {
     const item=artworkItem(id);
     // Release the HTTP connection immediately; a disconnected share must never queue
     // navigation/API requests behind a screen full of image downloads.
-    const result = artwork.peek(item);
-    if(!result) artwork.read(item).catch(()=>{});
+    let result = artwork.peek(item);
+    if(!result){
+      // Give a fast local read a short chance to finish; unavailable shares release
+      // the HTTP connection after this bounded window while their worker continues.
+      let timer;try{result=await Promise.race([artwork.read(item),new Promise(resolve=>{timer=setTimeout(()=>resolve(null),250);})]);}finally{clearTimeout(timer);}
+    }
     if (result && !res.destroyed) {
       res.writeHead(200, { 'Content-Type': result.type, 'Content-Length': result.bytes.length, 'Cache-Control': 'private, max-age=300', 'X-Zain-Artwork': 'catalog-media-path' });
       res.end(req.method === 'HEAD' ? undefined : result.bytes); return;

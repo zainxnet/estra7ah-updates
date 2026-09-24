@@ -1964,7 +1964,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   }
   function _poll() {
     _poll = _asyncToGenerator(_regenerator().m(function _callee21() {
-      var active, option, rows, ids, _status, jobs, states, byId, changed, _iterator1, _step1, _row$card$querySelect, _row, _item, picture, reload, becameSaved, _iterator10, _step10, job, _iterator14, _step14, id, _key, updated, _iterator11, _step11, item, _iterator12, _step12, row, img, url, _iterator13, _step13, _id, _t20, _t21;
+      var active, option, rows, ids, _status, jobs, states, byId, changed, _iterator1, _step1, _row$card$querySelect, _row, _item, picture, reload, becameSaved, _iterator10, _step10, job, _iterator15, _step15, id, _key, _iterator11, _step11, _job, _iterator16, _step16, _id, _key2, updated, _iterator12, _step12, item, _iterator13, _step13, row, img, url, _iterator14, _step14, _id2, _t20, _t21;
       return _regenerator().w(function (_context24) {
         while (1) switch (_context24.p = _context24.n) {
           case 0:
@@ -2062,10 +2062,10 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             try {
               for (_iterator10.s(); !(_step10 = _iterator10.n()).done;) {
                 job = _step10.value;
-                _iterator14 = _createForOfIteratorHelper(job.completedIds || []);
+                _iterator15 = _createForOfIteratorHelper(job.completedIds || []);
                 try {
-                  for (_iterator14.s(); !(_step14 = _iterator14.n()).done;) {
-                    id = _step14.value;
+                  for (_iterator15.s(); !(_step15 = _iterator15.n()).done;) {
+                    id = _step15.value;
                     _key = job.id + ':' + id;
                     if (byId.has(id) && !seenCompletions.has(_key)) {
                       changed.add(id);
@@ -2073,15 +2073,40 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                     }
                   }
                 } catch (err) {
-                  _iterator14.e(err);
+                  _iterator15.e(err);
                 } finally {
-                  _iterator14.f();
+                  _iterator15.f();
                 }
               }
             } catch (err) {
               _iterator10.e(err);
             } finally {
               _iterator10.f();
+            }
+            _iterator11 = _createForOfIteratorHelper(jobs);
+            try {
+              for (_iterator11.s(); !(_step11 = _iterator11.n()).done;) {
+                _job = _step11.value;
+                _iterator16 = _createForOfIteratorHelper(_job.posterReadyIds || []);
+                try {
+                  for (_iterator16.s(); !(_step16 = _iterator16.n()).done;) {
+                    _id = _step16.value;
+                    _key2 = _job.id + ':poster:' + _id;
+                    if (byId.has(_id) && !seenCompletions.has(_key2)) {
+                      changed.add(_id);
+                      seenCompletions.add(_key2);
+                    }
+                  }
+                } catch (err) {
+                  _iterator16.e(err);
+                } finally {
+                  _iterator16.f();
+                }
+              }
+            } catch (err) {
+              _iterator11.e(err);
+            } finally {
+              _iterator11.f();
             }
             if (!changed.size) {
               _context24.n = 15;
@@ -2091,21 +2116,21 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             return api('getItemSyncState/' + encodeURIComponent(Array.from(changed).join(',')) + '/content');
           case 14:
             updated = _context24.v;
-            _iterator11 = _createForOfIteratorHelper(updated.items || []);
+            _iterator12 = _createForOfIteratorHelper(updated.items || []);
             try {
-              for (_iterator11.s(); !(_step11 = _iterator11.n()).done;) {
-                item = _step11.value;
+              for (_iterator12.s(); !(_step12 = _iterator12.n()).done;) {
+                item = _step12.value;
                 fresh.set(item.id, item);
               }
             } catch (err) {
-              _iterator11.e(err);
+              _iterator12.e(err);
             } finally {
-              _iterator11.f();
+              _iterator12.f();
             }
-            _iterator12 = _createForOfIteratorHelper(rows);
+            _iterator13 = _createForOfIteratorHelper(rows);
             try {
-              for (_iterator12.s(); !(_step12 = _iterator12.n()).done;) {
-                row = _step12.value;
+              for (_iterator13.s(); !(_step13 = _iterator13.n()).done;) {
+                row = _step13.value;
                 if (changed.has(row.id)) {
                   img = row.card.querySelector('img');
                   if (img) {
@@ -2116,21 +2141,21 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                 }
               }
             } catch (err) {
-              _iterator12.e(err);
-            } finally {
-              _iterator12.f();
-            }
-          case 15:
-            _iterator13 = _createForOfIteratorHelper(fresh.keys());
-            try {
-              for (_iterator13.s(); !(_step13 = _iterator13.n()).done;) {
-                _id = _step13.value;
-                if (!byId.has(_id)) fresh.delete(_id);
-              }
-            } catch (err) {
               _iterator13.e(err);
             } finally {
               _iterator13.f();
+            }
+          case 15:
+            _iterator14 = _createForOfIteratorHelper(fresh.keys());
+            try {
+              for (_iterator14.s(); !(_step14 = _iterator14.n()).done;) {
+                _id2 = _step14.value;
+                if (!byId.has(_id2)) fresh.delete(_id2);
+              }
+            } catch (err) {
+              _iterator14.e(err);
+            } finally {
+              _iterator14.f();
             }
           case 16:
             _context24.n = 18;
