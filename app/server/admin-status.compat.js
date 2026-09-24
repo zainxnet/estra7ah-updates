@@ -842,49 +842,49 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     return _poll2.apply(this, arguments);
   }
   function _poll2() {
-    _poll2 = _asyncToGenerator(_regenerator().m(function _callee8() {
-      var eventsList, response, data, summary, _iterator5, _step5, _loop, _t8, _t9;
-      return _regenerator().w(function (_context9) {
-        while (1) switch (_context9.p = _context9.n) {
+    _poll2 = _asyncToGenerator(_regenerator().m(function _callee9() {
+      var eventsList, response, data, summary, stop, _iterator5, _step5, _loop, _t9, _t0;
+      return _regenerator().w(function (_context0) {
+        while (1) switch (_context0.p = _context0.n) {
           case 0:
-            _context9.p = 0;
+            _context0.p = 0;
             if (!(location.pathname !== '/admin/events')) {
-              _context9.n = 1;
+              _context0.n = 1;
               break;
             }
             if (panel) panel.remove();
             panel = null;
-            return _context9.a(2);
+            return _context0.a(2);
           case 1:
             eventsList = document.querySelector('.localevents-cont .cont-ev');
             if (eventsList) {
-              _context9.n = 2;
+              _context0.n = 2;
               break;
             }
-            return _context9.a(2);
+            return _context0.a(2);
           case 2:
-            _context9.n = 3;
+            _context0.n = 3;
             return fetch('/admin/api/metadataStatus', {
               credentials: 'same-origin',
               cache: 'no-store'
             });
           case 3:
-            response = _context9.v;
+            response = _context0.v;
             if (response.ok) {
-              _context9.n = 4;
+              _context0.n = 4;
               break;
             }
-            return _context9.a(2);
+            return _context0.a(2);
           case 4:
-            _context9.n = 5;
+            _context0.n = 5;
             return response.json();
           case 5:
-            data = _context9.v;
+            data = _context0.v;
             if (data.jobs.length) {
-              _context9.n = 6;
+              _context0.n = 6;
               break;
             }
-            return _context9.a(2);
+            return _context0.a(2);
           case 6:
             if (!panel) {
               panel = document.createElement('section');
@@ -898,12 +898,51 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             summary = document.createElement('h3');
             summary.textContent = 'مزامنة بيانات العناصر';
             panel.appendChild(summary);
+            if (data.jobs.some(job => ['queued', 'running'].includes(job.status))) {
+              stop = document.createElement('button');
+              stop.textContent = 'إلغاء جميع مهام مزامنة البيانات';
+              stop.style.cssText = 'background:#cf303d;color:white;border:0;border-radius:6px;padding:10px 18px;font-weight:bold;cursor:pointer';
+              stop.onclick = _asyncToGenerator(_regenerator().m(function _callee7() {
+                var result, _t8;
+                return _regenerator().w(function (_context7) {
+                  while (1) switch (_context7.p = _context7.n) {
+                    case 0:
+                      stop.disabled = true;
+                      _context7.p = 1;
+                      _context7.n = 2;
+                      return fetch('/admin/api/cancelAllMetadata', {
+                        method: 'POST',
+                        credentials: 'same-origin'
+                      });
+                    case 2:
+                      result = _context7.v;
+                      if (result.ok) {
+                        _context7.n = 3;
+                        break;
+                      }
+                      throw Error('تعذر إلغاء المزامنة');
+                    case 3:
+                      poll();
+                      _context7.n = 5;
+                      break;
+                    case 4:
+                      _context7.p = 4;
+                      _t8 = _context7.v;
+                      stop.textContent = _t8.message;
+                      stop.disabled = false;
+                    case 5:
+                      return _context7.a(2);
+                  }
+                }, _callee7, null, [[1, 4]]);
+              }));
+              panel.appendChild(stop);
+            }
             _iterator5 = _createForOfIteratorHelper(data.jobs.slice(-5).reverse());
-            _context9.p = 7;
+            _context0.p = 7;
             _loop = _regenerator().m(function _loop() {
               var job, row, cancel, _iterator6, _step6, error, line;
-              return _regenerator().w(function (_context8) {
-                while (1) switch (_context8.n) {
+              return _regenerator().w(function (_context9) {
+                while (1) switch (_context9.n) {
                   case 0:
                     job = _step5.value;
                     row = document.createElement('p');
@@ -913,11 +952,11 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
                       cancel = document.createElement('button');
                       cancel.textContent = 'إلغاء المزامنة';
                       cancel.style.cssText = 'background:#ad4c4c;color:white;border:0;border-radius:18px;padding:8px 18px;cursor:pointer';
-                      cancel.onclick = _asyncToGenerator(_regenerator().m(function _callee7() {
-                        return _regenerator().w(function (_context7) {
-                          while (1) switch (_context7.n) {
+                      cancel.onclick = _asyncToGenerator(_regenerator().m(function _callee8() {
+                        return _regenerator().w(function (_context8) {
+                          while (1) switch (_context8.n) {
                             case 0:
-                              _context7.n = 1;
+                              _context8.n = 1;
                               return fetch('/admin/api/cancelMetadata/' + encodeURIComponent(job.id), {
                                 method: 'POST',
                                 credentials: 'same-origin'
@@ -925,9 +964,9 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
                             case 1:
                               poll();
                             case 2:
-                              return _context7.a(2);
+                              return _context8.a(2);
                           }
-                        }, _callee7);
+                        }, _callee8);
                       }));
                       panel.appendChild(cancel);
                     }
@@ -945,45 +984,45 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
                       _iterator6.f();
                     }
                   case 1:
-                    return _context8.a(2);
+                    return _context9.a(2);
                 }
               }, _loop);
             });
             _iterator5.s();
           case 8:
             if ((_step5 = _iterator5.n()).done) {
-              _context9.n = 10;
+              _context0.n = 10;
               break;
             }
-            return _context9.d(_regeneratorValues(_loop()), 9);
+            return _context0.d(_regeneratorValues(_loop()), 9);
           case 9:
-            _context9.n = 8;
+            _context0.n = 8;
             break;
           case 10:
-            _context9.n = 12;
+            _context0.n = 12;
             break;
           case 11:
-            _context9.p = 11;
-            _t8 = _context9.v;
-            _iterator5.e(_t8);
+            _context0.p = 11;
+            _t9 = _context0.v;
+            _iterator5.e(_t9);
           case 12:
-            _context9.p = 12;
+            _context0.p = 12;
             _iterator5.f();
-            return _context9.f(12);
+            return _context0.f(12);
           case 13:
-            _context9.n = 15;
+            _context0.n = 15;
             break;
           case 14:
-            _context9.p = 14;
-            _t9 = _context9.v;
+            _context0.p = 14;
+            _t0 = _context0.v;
           case 15:
-            _context9.p = 15;
+            _context0.p = 15;
             if (!closed) timer = setTimeout(poll, 3000);
-            return _context9.f(15);
+            return _context0.f(15);
           case 16:
-            return _context9.a(2);
+            return _context0.a(2);
         }
-      }, _callee8, null, [[7, 11, 12, 13], [0, 14, 15, 16]]);
+      }, _callee9, null, [[7, 11, 12, 13], [0, 14, 15, 16]]);
     }));
     return _poll2.apply(this, arguments);
   }
