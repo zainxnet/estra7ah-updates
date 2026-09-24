@@ -9,14 +9,14 @@ function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length)
   'use strict';
 
   var posterStyle = document.createElement('style');
-  posterStyle.textContent = ".image-loading{background:#202638!important;border-radius:5px;animation:none!important}.image-loading>*{display:none!important}.image-loading[data-zain-pending=\"yes\"]{display:block!important}.zain-poster-slot{display:block;background:#202638;border-radius:8px;overflow:hidden}img[data-zain-artwork=\"queued\"],img[data-zain-artwork=\"loading\"]{aspect-ratio:2/3;background:#202638!important;color:transparent!important;visibility:hidden!important}img[data-zain-artwork=\"ready\"]{visibility:visible!important}";
+  posterStyle.textContent = ".image-loading>svg{display:block!important}.image-loading[data-zain-pending=\"no\"]{display:none!important}.zain-poster-slot{position:relative}.zain-poster-slot>.image-loading{position:absolute;top:0;left:0;width:100%;height:100%}.zain-poster-slot>.image-loading>svg{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}img[data-zain-artwork=\"unavailable\"]{visibility:visible!important}.image-loading[data-zain-pending=\"yes\"]{display:block!important}.zain-poster-slot{display:block;background:#202638;border-radius:8px;overflow:hidden}img[data-zain-artwork=\"queued\"],img[data-zain-artwork=\"loading\"]{aspect-ratio:2/3;background:#202638!important;color:transparent!important;visibility:hidden!important}img[data-zain-artwork=\"ready\"]{visibility:visible!important}";
   document.head.appendChild(posterStyle);
   var states = new WeakMap(),
     tracked = new Set(),
     MAX_TRIES = 6;
   var active = 0,
     scheduled = false;
-  var missing = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450"><rect width="300" height="450" fill="#202638"/><path d="M105 190h90v70h-90z M105 247l26-26 20 18 16-14 28 29" fill="none" stroke="#737b99" stroke-width="4"/><circle cx="171" cy="207" r="7" fill="#737b99"/></svg>');
+  var missing = '/assets/imgs/no-img.png';
   var connected = img => document.documentElement.contains(img);
   function source(raw) {
     try {

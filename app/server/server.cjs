@@ -150,7 +150,7 @@ async function image(req, res, action, id) {
   }
   if(/^itemimage$/i.test(action)){const poster=posters?.file(id);if(poster)return stream(req,res,poster);}
   if (res.destroyed) return;
-  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450"><rect width="300" height="450" fill="#202638"/><circle cx="150" cy="225" r="20" fill="none" stroke="#737b99" stroke-width="4" stroke-dasharray="30 100"><animateTransform attributeName="transform" type="rotate" from="0 150 225" to="360 150 225" dur="1.2s" repeatCount="indefinite"/></circle></svg>';
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450"><rect width="300" height="450" fill="#202638"/><g transform="translate(75 200)">'+require('./legacy-artwork.cjs').loading+'</g></svg>';
   res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control':'no-store', 'X-Zain-Placeholder': 'missing-artwork' }).end(req.method === 'HEAD' ? '' : svg);
 }
 function allowedHost(host, selectedPort=port) { const hosts = new Set(['127.0.0.1', 'localhost', ...Object.values(os.networkInterfaces()).flat().filter(Boolean).map(x => x.address)]); return [...hosts].some(address => host === (address.includes(':') ? '[' + address + ']' : address) + (selectedPort===80?'':':'+selectedPort) || host === (address.includes(':') ? '[' + address + ']' : address) + ':' + selectedPort); }
@@ -281,7 +281,7 @@ const server = http.createServer(async (req, res) => {
       const rows=(item.files||[]).map(file=>'<li>'+escape(file.filename)+' '+(sectionRow(item.sectionId)?.downloadActive!=='no'?'<a href="/api/download/'+encodeURIComponent(file.id)+'">تنزيل الملف</a>':'')+'</li>').join('');
       const folders=childRows(item.id).map(child=>'<li><a href="/zain/folder/'+encodeURIComponent(child.id)+'">'+escape(child.name)+'</a></li>').join('');
       const html='<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>تصفح المجلد</title><style>body{background:#151b2b;color:#eee;font:18px sans-serif;max-width:900px;margin:40px auto;padding:20px}li{padding:16px;border-bottom:1px solid #39415a}a{color:#a6c8ff;margin:12px}p{line-height:1.8}</style><h1>'+escape(item.name)+'</h1><a href="javascript:history.back()">رجوع</a><p>الملفات المسجلة في فهرس هذا المجلد. تنزيلها يتطلب اتصال الخادم بمسار الوسائط.</p><ul>'+folders+rows+'</ul>'+(!rows&&!folders?'<p>لا توجد ملفات مسجلة لهذا العنصر.</p>':'')+'</html>';
-      res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}).end(req.method==='HEAD'?'':html);return;
+      res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}).end(req.method==='HEAD'?'':require('./branding.cjs').html(html));return;
     }
 
     if(!route.startsWith('/admin')&&!route.startsWith('/zain/')&&!route.startsWith('/static/')&&!admin.authorize(req)){
@@ -312,7 +312,7 @@ const server = http.createServer(async (req, res) => {
       return respond(res,{items:ids.map(id=>{const item=artworkItem(id),local=artwork.peek(item),poster=posters.file(id);if(artwork.status(item)==='unknown')artwork.read(item).catch(()=>{});return {id,version:images.has('backend-statics/imgs/'+id)?'asset':local?'local':poster?'poster':null};})});
     }
     if (route === '/zain/actor-image') {const name=new URL(req.url,'http://localhost').searchParams.get('name')||'',file=actorImages.file(name);if(!file)return respond(res,{},404);return stream(req,res,file);}
-    if (route === '/zain/actor') {const name=new URL(req.url,'http://localhost').searchParams.get('name')||'';res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}).end(require('./actor-page.cjs')(topRows(),name.slice(0,200),new URL(req.url,'http://localhost').searchParams.get('type')));return;}
+    if (route === '/zain/actor') {const name=new URL(req.url,'http://localhost').searchParams.get('name')||'';res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}).end(require('./branding.cjs').html(require('./actor-page.cjs')(topRows(),name.slice(0,200),new URL(req.url,'http://localhost').searchParams.get('type'))));return;}
     if (route === '/zain/admin-status.js') return stream(req, res, path.join(__dirname, 'admin-status.compat.js'));
     if (route === '/zain/capabilities.json') return respond(res, uiCompat.capabilities);
     if (route === '/zain/dashboard-bridge.js') { res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store' }).end(req.method === 'HEAD' ? '' : require('./browser-code.cjs')(uiCompat.bridgeScript)); return; }
