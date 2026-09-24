@@ -1,6 +1,8 @@
 (()=>{'use strict';
  const posterStyle=document.createElement('style');posterStyle.textContent=".image-loading>svg{display:block!important}.image-loading[data-zain-pending=\"no\"]{display:none!important}.zain-poster-slot{position:relative}.zain-poster-slot>.image-loading{position:absolute;top:0;left:0;width:100%;height:100%}.zain-poster-slot>.image-loading>svg{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}img[data-zain-artwork=\"unavailable\"]{visibility:visible!important}.image-loading[data-zain-pending=\"yes\"]{display:block!important}.zain-poster-slot{display:block;background:#202638;border-radius:8px;overflow:hidden}img[data-zain-artwork=\"queued\"],img[data-zain-artwork=\"loading\"]{width:100%!important;aspect-ratio:2/3;background:#202638!important;color:transparent!important;visibility:hidden!important}img[data-zain-artwork=\"ready\"]{visibility:visible!important}";document.head.appendChild(posterStyle);
  const states=new WeakMap(),tracked=new Set(),MAX_TRIES=6;let active=0,scheduled=false;
+ // Keep the first visible rows moving even when a later card points to a slow share.
+ const MAX_VISIBLE_REQUESTS=8;
  const missing='/assets/imgs/no-img.png';
  const connected=img=>document.documentElement.contains(img);
  function source(raw){try{const u=new URL(raw,location.href);if(u.origin!==location.origin||!/^\/(?:api\/+)?itemimage\/[\w.-]+\/?$/i.test(u.pathname))return null;u.search=u.search.slice(1).split('&').filter(part=>part&&!/^zainRetry=/i.test(part)).join('&');return u.href;}catch{return null;}}
@@ -48,7 +50,7 @@
  function refresh(){
   scheduled=false;
   for(const img of Array.from(tracked).sort((a,b)=>distance(a)-distance(b))){const s=states.get(img);if(!connected(img)){release(img,s);continue;}if(!s||s.ready||s.busy||s.tries>=MAX_TRIES||document.hidden)continue;
-   if(s.queued){if(visible(img)&&active<4)begin(img,s);continue;}
+   if(s.queued){if(visible(img)&&active<MAX_VISIBLE_REQUESTS)begin(img,s);continue;}
    const pending=Date.now()-s.nativeStarted<15000;
    if(s.slot&&img.complete)freeSlot(s);
    if(s.awaitingNative&&pending)continue;
@@ -58,7 +60,7 @@
     if(s.verified||img.naturalWidth!==300||img.naturalHeight!==450){ready(img,s);continue;}
    }else if(!img.complete&&pending)continue;
    if(Date.now()<s.next||!visible(img))continue;
-   if(active<4)recover(img,s);
+   if(active<MAX_VISIBLE_REQUESTS)recover(img,s);
   }
  }
  function schedule(){if(!scheduled){scheduled=true;requestAnimationFrame(refresh);}}

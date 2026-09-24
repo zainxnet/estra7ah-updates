@@ -22,7 +22,7 @@ function candidatesFor(item, getItem) {
   }
   return output.slice(0, 96);
 }
-module.exports = function createArtwork({ getItem, timeoutMs = 15000, concurrency = 4, maxCacheBytes = 32 * 1024 * 1024, workerPath = path.join(__dirname, 'artwork-worker.cjs') } = {}) {
+module.exports = function createArtwork({ getItem, timeoutMs = 5000, concurrency = 8, maxCacheBytes = 32 * 1024 * 1024, workerPath = path.join(__dirname, 'artwork-worker.cjs') } = {}) {
   const cache = new Map(), pending = new Map(), queue = [], running = new Set();
   let cacheBytes = 0, closed = false;
   function remove(key) { const entry = cache.get(key); if (entry) { cacheBytes -= entry.value?.bytes.length || 0; cache.delete(key); } }
