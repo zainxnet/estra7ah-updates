@@ -1,38 +1,38 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-module.exports=function({dir,items,safeItem,updateItems,removeItem,prepareExclusive=async()=>({imageKind:'poster'})}){
+module.exports=function({dir,items,sharedCatalog,topRows,safeItem,updateItems,removeItem,prepareExclusive=async()=>({imageKind:'poster'})}){
  const file=path.join(dir,'item-edits.json');let state=fs.existsSync(file)?JSON.parse(fs.readFileSync(file,'utf8')):{edits:{},deleted:[],pinned:[]};
  if(!state.edits||!Array.isArray(state.deleted)||!Array.isArray(state.pinned))throw Error('Invalid item edits store');
- function apply(){for(const [id,edit]of Object.entries(state.edits)){const item=items.get(id);if(item)updateItems([{...item,...edit}]);}for(const [id,selection]of Object.entries(state.scanFiles||{})){const item=items.get(id);if(!item)continue;const allowed=new Set(selection.ids),files=(item.files||[]).filter(file=>allowed.has(file.id));if(files.length!==(item.files||[]).length||item.pathSize!==selection.pathSize)updateItems([{...item,files,pathSize:selection.pathSize}]);}for(const id of [...state.deleted,...(state.scanDeleted||[])])removeItem(id);}
+ function apply(){for(const [id,edit]of Object.entries(state.edits)){const item=items.get(id);if(item)updateItems([{...item,...edit}]);}for(const [id,selection]of Object.entries(state.scanFiles||{})){const item=items.get(id);if(!item)continue;const allowed=new Set(selection.ids),files=(item.files||[]).filter(file=>allowed.has(file.id));if(files.length!==(item.files||[]).length||item.pathSize!==selection.pathSize)updateItems([{...item,files,pathSize:selection.pathSize}]);}for(const id of [...state.deleted,...(state.scanDeleted||[])])removeItem(id);sharedCatalog?.load(state.sharedContent||{},state.edits);}
  function observe(ids){const present=new Set(ids),deleted=state.scanDeleted||[];if(!deleted.some(id=>present.has(id)))return;const scanFiles={...state.scanFiles};for(const id of deleted)if(present.has(id))delete scanFiles[id];save({...state,scanDeleted:deleted.filter(id=>!present.has(id)),scanFiles});}
  function reconcileScan(scope,removed,active){const gone=new Set(state.scanDeleted||[]),scanFiles={...state.scanFiles};for(const id of removed){gone.add(id);delete scanFiles[id];}for(const row of active){gone.delete(row.id);scanFiles[row.id]={ids:row.files.map(file=>file.id),pathSize:row.pathSize};}const key=require('./movie-scan-state.cjs').key(scope);save({...state,scanDeleted:[...gone],scanFiles,scanApplied:{...state.scanApplied,[key]:scope.stamp}});}
  let lastMetadataBackup=0;
- function save(next,{metadataId}={}){const metadataSave=metadataId!==undefined,now=Date.now();if(fs.existsSync(file)&&(!metadataSave||!lastMetadataBackup||now-lastMetadataBackup>=60000)){const folder=path.join(dir,'backups');fs.mkdirSync(folder,{recursive:true});fs.copyFileSync(file,path.join(folder,'item-edits-'+now+'-'+crypto.randomUUID()+'.json'));if(metadataSave)lastMetadataBackup=now;}const temporary=file+'.tmp';fs.writeFileSync(temporary,JSON.stringify(next));fs.renameSync(temporary,file);state=next;if(metadataSave){const item=items.get(metadataId);if(item)updateItems([{...item,...state.edits[metadataId]}]);}else apply();}
+ function save(next,{metadataId}={}){const metadataSave=metadataId!==undefined,now=Date.now();if(fs.existsSync(file)&&(!metadataSave||!lastMetadataBackup||now-lastMetadataBackup>=60000)){const folder=path.join(dir,'backups');fs.mkdirSync(folder,{recursive:true});fs.copyFileSync(file,path.join(folder,'item-edits-'+now+'-'+crypto.randomUUID()+'.json'));if(metadataSave)lastMetadataBackup=now;}const temporary=file+'.tmp';fs.writeFileSync(temporary,JSON.stringify(next));fs.renameSync(temporary,file);state=next;if(metadataSave){if(sharedCatalog)sharedCatalog.set(metadataId,state.sharedContent[sharedCatalog.key(metadataId)]);else{const item=items.get(metadataId);if(item)updateItems([{...item,...state.edits[metadataId]}]);}}else apply();}
  apply();
  state.exclusive=state.exclusive||[];
  const adminReads=new Set(['getItems','getPinedItems','getExclusiveItems','getItemSyncState']);const adminActions=new Set(['pinItem','delPinedItem','removeAllPinned','deleteItem','updateContent','addExclusiveItem','removeExclusiveItem','updateExclusiveItem']);
  function exclusiveItems(){return state.exclusive.map(id=>{const item=items.get(id);if(!item)return null;const edit=state.exclusiveEdits?.[id]||{};let content={};try{content=JSON.parse(item.content?.contentJSON||'{}')}catch{}return {...safeItem(item),...(edit.name?{name:edit.name}:{}),content:{...item.content,contentJSON:JSON.stringify({...content,...edit.content})},...(edit.image?{exclusiveImage:'/zain/exclusive-custom-image?id='+encodeURIComponent(id)+'&v='+edit.version}:{})};}).filter(Boolean);}
- return {exclusiveItems,exclusiveFile:id=>{const name=state.exclusiveEdits?.[id]?.image;return state.exclusive.includes(id)&&items.has(id)&&/^[a-f0-9-]+\.(png|jpg|webp|gif)$/.test(name||'')?path.join(dir,'promotional-media',name):null;},readBody:(req,action)=>action==='updateExclusiveItem'?require('./multipart.cjs')(req,{limit:9*1024*1024}):require('./text-body.cjs')(req),saveContent:(id,content)=>{if(!items.has(id))return;const next={...state,edits:{...state.edits,[id]:{...state.edits[id],content}}};save(next,{metadataId:id});},pinnedItems:()=>state.pinned.map(id=>items.get(id)).filter(Boolean).map(safeItem),adminReads,adminActions,async admin(action,args,body,method){
+ return {exclusiveItems,exclusiveFile:id=>{const name=state.exclusiveEdits?.[id]?.image;return state.exclusive.includes(id)&&items.has(id)&&/^[a-f0-9-]+\.(png|jpg|webp|gif)$/.test(name||'')?path.join(dir,'promotional-media',name):null;},readBody:(req,action)=>action==='updateExclusiveItem'?require('./multipart.cjs')(req,{limit:9*1024*1024}):require('./text-body.cjs')(req),saveContent:(id,content)=>{if(!items.has(id))return;const next=sharedCatalog?{...state,sharedContent:{...state.sharedContent,[sharedCatalog.key(id)]:content}}:{...state,edits:{...state.edits,[id]:{...state.edits[id],content}}};save(next,{metadataId:id});},pinnedItems:()=>{const rows=state.pinned.map(id=>items.get(id)).filter(Boolean);return (sharedCatalog?sharedCatalog.unique(rows):rows).map(safeItem)},adminReads,adminActions,async admin(action,args,body,method){
   const result=(body,status=200)=>({body,status}),error=(message,status=400)=>result({msg:'error',error:message},status);
   if(adminReads.has(action)&&method!=='GET')return error('طريقة الطلب غير صالحة',405);
   if(action==='getExclusiveItems')return result({items:exclusiveItems()});
-  if(action==='getPinedItems')return result({res:state.pinned.filter(id=>items.has(id)).map(itemId=>({itemId}))});
+  if(action==='getPinedItems')return result({res:[...new Set(state.pinned.flatMap(id=>sharedCatalog?.related(id)||[id]))].filter(id=>items.has(id)).map(itemId=>({itemId}))});
   if(action==='getItemSyncState'){
    const ids=[...new Set(String(args[0]||'').split(',').filter(Boolean))];if(ids.length>200||ids.some(id=>id.length>200))return error('عدد العناصر المطلوب كبير');
-   return result({items:ids.map(id=>items.get(id)).filter(Boolean).map(item=>({id:item.id,hasContent:require('./metadata.cjs').hasContent(item),...(args[1]==='content'?{content:item.content}: {})}))});
+   return result({items:ids.map(id=>items.get(id)).filter(Boolean).map(item=>sharedCatalog?.view(item)||item).map(item=>({id:item.id,hasContent:require('./metadata.cjs').hasContent(item),...(args[1]==='content'?{content:item.content}: {})}))});
   }
   if(action==='getItems'){
    const [section,filter,type,offset,...queryParts]=args,q=queryParts.join('/').toLowerCase();
-   if(items.queryTop&&filter!=='pined'){const normalized=q.replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/[ؤئ]/g,'ء').replace(/ى/g,'ي'),filters={section:section&&section!=='all'?section:undefined,types:type&&type!=='all'?[type]:undefined,keys:q&&!['null','undefined'].includes(q)?[normalized]:undefined,missing:filter==='no-content'};return result({total:[{count:items.countTop(filters)}],items:items.queryTop({...filters,offset:Math.max(0,parseInt(offset)||0),limit:100,newest:filter==='no-content'}).map(safeItem)});}
+   if(items.queryTop&&!sharedCatalog&&filter!=='pined'){const normalized=q.replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/[ؤئ]/g,'ء').replace(/ى/g,'ي'),filters={section:section&&section!=='all'?section:undefined,types:type&&type!=='all'?[type]:undefined,keys:q&&!['null','undefined'].includes(q)?[normalized]:undefined,missing:filter==='no-content'};return result({total:[{count:items.countTop(filters)}],items:items.queryTop({...filters,offset:Math.max(0,parseInt(offset)||0),limit:100,newest:filter==='no-content'}).map(safeItem)});}
    let rows=filter==='pined'
-    ? state.pinned.map(id=>items.get(id)).filter(item=>item&&(!item.inItem||item.inItem==='null')&&require('./catalog-items.cjs').visible(item))
-    : [...items.values()].filter(item=>(!item.inItem||item.inItem==='null')&&require('./catalog-items.cjs').visible(item));
+    ? [...new Set(state.pinned.flatMap(id=>sharedCatalog?.related(id)||[id]))].map(id=>items.get(id)).filter(item=>item&&(!item.inItem||item.inItem==='null')&&require('./catalog-items.cjs').visible(item))
+    : (topRows?topRows():[...items.values()].filter(item=>(!item.inItem||item.inItem==='null')&&require('./catalog-items.cjs').visible(item)));
    if(section&&section!=='all')rows=rows.filter(item=>item.sectionId===section);
    if(type&&type!=='all')rows=rows.filter(item=>item.type===type);
-   if(filter==='pined')rows=rows.filter(item=>state.pinned.includes(item.id));
-   if(filter==='no-content')rows=require('./metadata.cjs').newestFirst(rows.filter(item=>!require('./metadata.cjs').hasContent(item)));
+   if(filter==='pined')rows=rows.filter(item=>(sharedCatalog?.related(item.id)||[item.id]).some(id=>state.pinned.includes(id)));
+   if(filter==='no-content')rows=require('./metadata.cjs').newestFirst(rows.filter(item=>!(sharedCatalog?sharedCatalog.hasContent(item):require('./metadata.cjs').hasContent(item))));
    if(q&&!['null','undefined'].includes(q))rows=rows.filter(item=>String(item.name).toLowerCase().includes(q));
-   const at=Math.max(0,parseInt(offset)||0);return result({total:[{count:rows.length}],items:rows.slice(at,at+100).map(safeItem)});
+   if(sharedCatalog)rows=sharedCatalog.unique(rows);const at=Math.max(0,parseInt(offset)||0);return result({total:[{count:rows.length}],items:rows.slice(at,at+100).map(safeItem)});
   }
   if(action==='removeAllPinned'){if(method!=='POST')return error('طريقة الطلب غير صالحة',405);const next=structuredClone(state);next.pinned=[];save(next);return result({msg:'ok'});}
   if(!adminActions.has(action))return null;const id=args[0],item=items.get(id);if(!item)return error('العنصر غير موجود',404);
@@ -60,21 +60,21 @@ module.exports=function({dir,items,safeItem,updateItems,removeItem,prepareExclus
   const next=structuredClone(state);
   if(action==='addExclusiveItem'){if(!['movie','film','series'].includes(item.type))return error('اختر فيلماً أو مسلسلاً');if(!next.exclusive.includes(id))next.exclusive.push(id);}
   if(action==='removeExclusiveItem')next.exclusive=next.exclusive.filter(x=>x!==id);
-  if(action==='pinItem'){if(!next.pinned.includes(id))next.pinned.push(id);}
-  if(action==='delPinedItem')next.pinned=next.pinned.filter(value=>value!==id);
+  if(action==='pinItem'){const related=sharedCatalog?.related(id)||[id];if(!related.some(value=>next.pinned.includes(value)))next.pinned.push(id);}
+  if(action==='delPinedItem'){const related=new Set(sharedCatalog?.related(id)||[id]);next.pinned=next.pinned.filter(value=>!related.has(value));}
   if(action==='deleteItem'){
-   const ids=new Set([id]);let changed=true;while(changed){changed=false;for(const row of items.values())if(ids.has(row.inItem)&&!ids.has(row.id)){ids.add(row.id);changed=true;}}
+   const ids=new Set(sharedCatalog?.related(id)||[id]);let changed=true;while(changed){changed=false;for(const row of items.values())if(ids.has(row.inItem)&&!ids.has(row.id)){ids.add(row.id);changed=true;}}
    next.deleted=[...new Set([...next.deleted,...ids])];next.pinned=next.pinned.filter(value=>!ids.has(value));
   }
   if(action==='updateContent'){
    if(method!=='POST')return error('طريقة الطلب غير صالحة',405);
-   let data={};try{data=JSON.parse(item.content?.contentJSON||'{}')}catch{}
+   const editing=sharedCatalog?.view(item)||item;let data={};try{data=JSON.parse(editing.content?.contentJSON||'{}')}catch{}
    if(!data||typeof data!=='object'||Array.isArray(data))data={};
    const allowed=new Set(['name','Runtime','content_id','ReleaseDate','castEnglish','descArabic','descEnglish','directedByEnglish','imdbRating','imdbVotes','tagsArabic']);
    for(const [key,raw]of Object.entries(body)){let value=raw;if(Array.isArray(value)&&['castEnglish','directedByEnglish','tagsArabic'].includes(key))value=value.join(',');if(typeof value==='number')value=String(value);if(value===null)value='';if(!allowed.has(key)||typeof value!=='string'||value.length>20000)return error('حقل بيانات غير صالح');if(key==='name'){if(!value.trim()||value.length>300)return error('اسم العنصر مطلوب');continue;}data[key]=['castEnglish','directedByEnglish','tagsArabic'].includes(key)?(value.trim().startsWith('[')?(()=>{try{const a=JSON.parse(value);return Array.isArray(a)?a.map(String):[value]}catch{return value.split(',')}})():value.split(',')).map(s=>s.trim()).filter(Boolean):value;}
    if(body.imdbRating!==undefined&&(!Number.isFinite(Number(body.imdbRating))||Number(body.imdbRating)<0||Number(body.imdbRating)>10))return error('التقييم يجب أن يكون بين 0 و10');
-   const content={...item.content,contentJSON:JSON.stringify(data)};if(body.imdbRating!==undefined)content.imdb_ratings=Number(body.imdbRating);if(body.ReleaseDate!==undefined)content.year=parseInt(body.ReleaseDate)||0;
-   next.edits[id]={...next.edits[id],...(body.name?{name:body.name.trim()}:{}),content};
+   const content={...editing.content,contentJSON:JSON.stringify(data)};if(body.imdbRating!==undefined)content.imdb_ratings=Number(body.imdbRating);if(body.ReleaseDate!==undefined)content.year=parseInt(body.ReleaseDate)||0;
+   next.edits[id]={...next.edits[id],...(body.name?{name:body.name.trim()}:{}),...(!sharedCatalog?{content}:{})};if(sharedCatalog){delete next.edits[id].content;next.sharedContent={...next.sharedContent,[sharedCatalog.key(id)]:content};}
   }
   save(next);return result({msg:'ok',...exclusiveResult});
  },apply,observe,reconcileScan,scanApplied:scope=>state.scanApplied?.[require('./movie-scan-state.cjs').key(scope)]===scope.stamp};

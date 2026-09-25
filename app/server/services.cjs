@@ -32,6 +32,11 @@ function sectionPaths(section) {
     });
 }
 
+function sourceKey(section, source) {
+  const normalized = path.resolve(source).replace(/[\\/]+$/, '');
+  return String(section.type) + '\0' + (process.platform === 'win32' ? normalized.toLowerCase() : normalized);
+}
+
 module.exports = function createServices(options) {
   const { dir, sections, onItems = () => {}, onMovieScan = () => {} } = options;
   if (!Array.isArray(sections)) throw new TypeError('sections must be an array');
@@ -44,12 +49,14 @@ module.exports = function createServices(options) {
   const initialStore = new DatabaseSync(storePath);
   initialStore.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS records (id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at INTEGER NOT NULL)');
   require('./catalog-revision.cjs').initialize(initialStore);
+  require('./shared-scan-store.cjs').initialize(initialStore);
   initialStore.close();
 
   let closed = false;
   const jobs = [];
   const queue = [];
   const active = new Map();
+  const inFlight = new Map();
   const readers = new Set();
 
   function ensureOpen() {
@@ -79,12 +86,23 @@ module.exports = function createServices(options) {
     }
   }
 
-  function updateProgress(job, part, progress) {
+  function publishTask(task) {
+    for (const { job, part } of task.subscribers.values()) {
+      // Each request owns its status. Cancelling one request must not cancel
+      // the physical scan while another request is still waiting for it.
+      Object.assign(part, task.state);
+      if (part.startedAt) job.startedAt ||= part.startedAt;
+      updateJob(job);
+    }
+  }
+
+  function updateProgress(task, progress) {
+    const part = task.state;
     for (const key of ['files', 'discoveredBytes', 'indexedItems', 'scannedDirectories', 'warnings']) {
       if (Number.isFinite(progress?.[key]) && progress[key] >= 0) part[key] = progress[key];
     }
     if (progress?.currentPath) part.currentPath = String(progress.currentPath);
-    updateJob(job);
+    publishTask(task);
   }
 
   function forkWorker(filename) {
@@ -135,20 +153,21 @@ module.exports = function createServices(options) {
     if (closed) return;
     while (active.size < concurrency && queue.length) {
       const task = queue.shift();
-      if (task.part.status !== 'queued' || task.job.cancelRequested) continue;
+      if (task.state.status !== 'queued' || !task.subscribers.size) continue;
       runScan(task);
     }
   }
 
-  function runScan({ job, part, section }) {
+  function runScan(task) {
+    const { section, memberships } = task;
+    const part = task.state;
     const child = forkWorker('scan-worker.cjs');
-    const entry = { child, job, part, stop: null };
-    active.set(child.pid ?? part.id, entry);
-    const activeKey = child.pid ?? part.id;
+    const entry = { child, task };
+    const activeKey = child.pid ?? task.key;
+    active.set(activeKey, entry);
     part.status = 'running';
     part.startedAt = new Date().toISOString();
-    job.startedAt ||= part.startedAt;
-    updateJob(job);
+    publishTask(task);
     let lastActivity = Date.now();
     const started = lastActivity;
     let finished = false;
@@ -169,17 +188,18 @@ module.exports = function createServices(options) {
       part.status = status;
       part.finishedAt = new Date().toISOString();
       if (error) { part.error = error; part.errorCode = errorCode; }
-      updateJob(job);
+      publishTask(task);
+      if (inFlight.get(task.key) === task) inFlight.delete(task.key);
       if (child.connected) child.disconnect();
       child.kill();
       // Wait for actual process exit before starting another scanner.
     }
-    entry.stop = () => finish('cancelled', 'ألغيت المزامنة؛ النتائج المحفوظة باقية', 'CANCELLED');
+    task.stop = () => finish('cancelled', 'ألغيت المزامنة؛ النتائج المحفوظة باقية', 'CANCELLED');
 
     child.on('message', message => {
       if (finished) return;
       lastActivity = Date.now();
-      if (message?.progress) updateProgress(job, part, message.progress);
+      if (message?.progress) updateProgress(task, message.progress);
       if (message?.type === 'batch') {
         published = published.then(async () => {
           if (finished) return;
@@ -193,9 +213,14 @@ module.exports = function createServices(options) {
       } else if (message?.type === 'done') {
         published.then(async () => {
           if(finished)return;
-          if(message.status==='completed'&&message.scope&&(section.type==='movies'||section.type.startsWith('serieses'))){
-            if(message.scope.sectionId!==String(section.id)||path.resolve(message.scope.root)!==path.resolve(part.path))throw failure('نطاق مزامنة غير صالح','BAD_SCOPE');
-            await onMovieScan(message.scope);
+          if(message.status==='completed'&&(section.type==='movies'||section.type.startsWith('serieses'))){
+            const scopes=message.scopes||(message.scope?[message.scope]:[]);
+            const sectionIds=new Set(memberships.map(row=>String(row.id)));
+            for(const scope of scopes){
+              if(!sectionIds.delete(scope.sectionId)||sourceKey(section,scope.root)!==sourceKey(section,task.path))throw failure('نطاق مزامنة غير صالح','BAD_SCOPE');
+            }
+            if(sectionIds.size)throw failure('نطاق مزامنة غير مكتمل','BAD_SCOPE');
+            for(const scope of scopes){if(finished)return;await onMovieScan(scope);}
           }
           finish(message.status || 'completed', message.error, message.errorCode);
         }).catch(error=>finish('failed','تعذر تطبيق نتيجة المزامنة: '+error.message,'RECONCILE_FAILED'));
@@ -208,7 +233,8 @@ module.exports = function createServices(options) {
       active.delete(activeKey);
       setImmediate(pump);
     });
-    child.send({ source: part.path, section: { id: String(section.id), name: String(section.name || ''), type: String(section.type || '') }, storePath });
+    const describe=row=>({id:String(row.id),name:String(row.name||''),type:String(row.type||'')});
+    child.send({ source: task.path, section: describe(section), sections:memberships.map(describe), storePath });
   }
 
   function selectedSections(sectionId) {
@@ -220,9 +246,25 @@ module.exports = function createServices(options) {
 
   function startSync(sectionId = null) {
     ensureOpen();
-    const sources = selectedSections(sectionId)
+    const selected = selectedSections(sectionId)
       .filter(section => !['linked','main'].includes(section.type))
       .flatMap(section => sectionPaths(section).map(source => ({ section, source })));
+    // Each physical root is walked once. Sections still keep their legacy IDs,
+    // hierarchy and permissions; a shared scan refreshes every linked section.
+    // An ancestor/child root intentionally stays separate: folder depth defines
+    // the movie/show/season hierarchy, so coalescing those changes its meaning.
+    const wanted=new Set(selected.map(({section,source})=>sourceKey(section,source)));
+    const grouped=new Map();
+    for(const section of sections){
+      if(['linked','main'].includes(section.type))continue;
+      for(const source of sectionPaths(section)){
+        const key=sourceKey(section,source);if(!wanted.has(key))continue;
+        if(!grouped.has(key))grouped.set(key,{section,source,memberships:[]});
+        const group=grouped.get(key);
+        if(!group.memberships.some(row=>String(row.id)===String(section.id)))group.memberships.push(section);
+      }
+    }
+    const sources=[...grouped.values()];
     if (!sources.length) throw failure('لا توجد مسارات محفوظة لهذا القسم', 'NO_PATHS');
     if (jobs.filter(job => ['queued', 'running'].includes(job.status)).length >= 10) throw failure('توجد مهام مزامنة كثيرة قيد الانتظار', 'BUSY');
     const jobId = crypto.randomUUID();
@@ -231,14 +273,28 @@ module.exports = function createServices(options) {
       id: jobId, jobId, sectionId, status: 'queued', createdAt: now, updatedAt: now,
       startedAt: null, finishedAt: null, totalPaths: sources.length,
       files: 0, discoveredBytes: 0, indexedItems: 0, scannedDirectories: 0, warnings: 0,
-      paths: sources.map(({ section, source }) => ({
-        id: crypto.randomUUID(), sectionId: String(section.id), path: source, status: 'queued',
+      paths: sources.map(({ section, source, memberships }) => ({
+        id: crypto.randomUUID(), sectionId: String(section.id), sectionIds:memberships.map(row=>String(row.id)), path: source, status: 'queued',
         files: 0, discoveredBytes: 0, indexedItems: 0, scannedDirectories: 0, warnings: 0
       }))
     };
     jobs.push(job);
     while (jobs.length > 100 && !['queued', 'running'].includes(jobs[0].status)) jobs.shift();
-    sources.forEach(({ section }, index) => queue.push({ job, part: job.paths[index], section }));
+    sources.forEach(({ section, source, memberships }, index) => {
+      // Snapshot the membership set: an edit made during a scan belongs to a
+      // later scan, whose completion scopes must not reuse the old snapshot.
+      const snapshot = memberships.map(row => ({ id: String(row.id), name: String(row.name || ''), type: String(row.type || '') }));
+      const key = sourceKey(section, source) + '\0' + JSON.stringify(snapshot.slice().sort((a, b) => a.id.localeCompare(b.id)));
+      let task = inFlight.get(key);
+      if (!task) {
+        task = { key, path: source, section: snapshot.find(row => row.id === String(section.id)), memberships: snapshot,
+          subscribers: new Map(), state: { status: 'queued', files: 0, discoveredBytes: 0, indexedItems: 0, scannedDirectories: 0, warnings: 0 } };
+        inFlight.set(key, task);
+        queue.push(task);
+      }
+      task.subscribers.set(job.id, { job, part: job.paths[index] });
+      publishTask(task);
+    });
     setImmediate(pump);
     return { msg: 'ok', jobId };
   }
@@ -248,15 +304,24 @@ module.exports = function createServices(options) {
     if (!job) throw failure('مهمة المزامنة غير موجودة', 'NOT_FOUND');
     if (!['queued', 'running'].includes(job.status)) return { msg: 'ok', jobId, status: job.status };
     job.cancelRequested = true;
-    for (const part of job.paths) if (part.status === 'queued') part.status = 'cancelled';
-    for (const entry of active.values()) if (entry.job === job) entry.stop();
+    for (const task of inFlight.values()) {
+      const subscriber = task.subscribers.get(job.id);
+      if (!subscriber) continue;
+      task.subscribers.delete(job.id);
+      Object.assign(subscriber.part, { status: 'cancelled', finishedAt: new Date().toISOString(),
+        error: 'ألغيت المزامنة؛ النتائج المحفوظة باقية', errorCode: 'CANCELLED' });
+      if (!task.subscribers.size) {
+        if (task.stop) task.stop();
+        else { task.state.status = 'cancelled'; inFlight.delete(task.key); }
+      }
+    }
     updateJob(job);
     return { msg: 'ok', jobId, status: job.status };
   }
 
   function getStoredItems() {
     const db = new DatabaseSync(storePath, { readOnly: true });
-    try { return db.prepare('SELECT payload FROM records ORDER BY rowid').all().map(row => JSON.parse(row.payload)); }
+    try { const hydrate=require('./shared-scan-store.cjs').reader(db);return db.prepare('SELECT payload FROM records ORDER BY rowid').all().map(row => hydrate(row.payload)); }
     finally { db.close(); }
   }
 

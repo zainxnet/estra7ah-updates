@@ -35,7 +35,7 @@ class DiskMap extends Map {
  }
  topRows(){
   const rows=[],seen=new Set();
-  for(const {key,summary}of this.db.prepare('SELECT key,summary FROM items WHERE summary IS NOT NULL ORDER BY rowid').iterate()){
+  for(const {key,summary}of this.db.prepare('SELECT key,summary FROM top_items WHERE visible=1 ORDER BY rowid').iterate()){
    seen.add(key);if(this.removed.has(key))continue;if(super.has(key)){const current=super.get(key);if(!current.inItem||current.inItem==='null')rows.push(current);continue;}
    const item=JSON.parse(summary);for(const field of ['content','files'])Object.defineProperty(item,field,{enumerable:true,get:()=>this.get(key)?.[field]});rows.push(item);
   }
@@ -46,8 +46,8 @@ class DiskMap extends Map {
 module.exports=function(base){
  const directory=path.join(base,'data','startup-cache'),file=path.join(directory,'catalog.sqlite'),meta=path.join(directory,'catalog.json'),store=path.join(base,'data/sync-items.sqlite'),revision=require('./catalog-revision.cjs');let writing,reason='';
  function signature(){return JSON.stringify({format:6,node:process.versions.v8,files:inputs.map(name=>{try{const s=fs.statSync(path.join(base,name));return name.endsWith('-wal')&&s.size===0?[name,0]:[name,s.size,s.mtimeMs,s.ctimeMs]}catch(e){if(e.code==='ENOENT')return [name,name.endsWith('-wal')?0:null];throw e;}})});}
- function editShape(){const file=path.join(base,'data/item-edits.json');const state=fs.existsSync(file)?JSON.parse(fs.readFileSync(file,'utf8')):{};return {edits:Object.fromEntries(Object.entries(state.edits||{}).map(([id,value])=>[id,Object.keys(value)])),deleted:[...(state.deleted||[]),...(state.scanDeleted||[])]};}
- function editsCompatible(previous){const current=editShape();return Object.entries(previous.edits).every(([id,keys])=>keys.every(key=>current.edits[id]?.includes(key)))&&previous.deleted.every(id=>current.deleted.includes(id));}
+ function editShape(){const file=path.join(base,'data/item-edits.json');const state=fs.existsSync(file)?JSON.parse(fs.readFileSync(file,'utf8')):{};return {sharedContent:Object.keys(state.sharedContent||{}),edits:Object.fromEntries(Object.entries(state.edits||{}).map(([id,value])=>[id,Object.keys(value)])),deleted:[...(state.deleted||[]),...(state.scanDeleted||[])]};}
+ function editsCompatible(previous){const current=editShape();return (previous.sharedContent||[]).every(key=>current.sharedContent.includes(key))&&Object.entries(previous.edits).every(([id,keys])=>keys.every(key=>current.edits[id]?.includes(key)))&&previous.deleted.every(id=>current.deleted.includes(id));}
  async function read(){let db;try{
   reason='';const before=signature(),info=JSON.parse(await fs.promises.readFile(meta,'utf8'));let changed=[];
   if(fs.statSync(file).size!==info.bytes)throw Error('الفهرس المحلي غير مكتمل');

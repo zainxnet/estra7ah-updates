@@ -17,5 +17,5 @@ function pending(db){
  if(!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='movie_scans'").get())return [];
  return db.prepare('SELECT section_id sectionId,root,stamp FROM movie_scans').all();
 }
-function records(db,scope){const saved=db.prepare('SELECT ids,stamp FROM movie_scans WHERE section_id=? AND root=?').get(scope.sectionId,scope.root);if(!saved||saved.stamp!==scope.stamp)throw Error('تغيرت نتيجة المزامنة');return db.prepare('SELECT r.payload FROM json_each(?) ids JOIN records r ON r.id=ids.value ORDER BY r.rowid').all(saved.ids).map(row=>JSON.parse(row.payload));}
+function records(db,scope){const saved=db.prepare('SELECT ids,stamp FROM movie_scans WHERE section_id=? AND root=?').get(scope.sectionId,scope.root);if(!saved||saved.stamp!==scope.stamp)throw Error('تغيرت نتيجة المزامنة');const hydrate=require('./shared-scan-store.cjs').reader(db);return db.prepare('SELECT r.payload FROM json_each(?) ids JOIN records r ON r.id=ids.value ORDER BY r.rowid').all(saved.ids).map(row=>hydrate(row.payload));}
 module.exports={contains,complete,pending,records,key:scope=>String(scope.sectionId)+'|'+key(scope.root)};

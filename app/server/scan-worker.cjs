@@ -17,6 +17,7 @@ const types = {
 };
 const seriesTypes = { kids: 'series.kids', sports: 'sports', tv: 'tv', anime: 'anime', deen: 'deen', learn: 'learn', ramadan: 'ramadan' };
 const acknowledgments = new Map();
+const identities = new Map();
 process.on('disconnect', () => process.exit(0));
 process.on('message', message => {
   if (message?.type === 'ack') {
@@ -30,8 +31,10 @@ function canonical(value) {
   const normalized = path.resolve(value).replace(/\\/g, '/').replace(/\/+$/, '');
   return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
 }
-function idFor(sectionId, source, kind) {
-  return 'sync-' + crypto.createHash('sha256').update(sectionId + '\0' + canonical(source) + '\0' + kind).digest('hex').slice(0, 40);
+function idFor(sectionId, source, kind, remember = true) {
+  const id = 'sync-' + crypto.createHash('sha256').update(sectionId + '\0' + canonical(source) + '\0' + kind).digest('hex').slice(0, 40);
+  if(remember)identities.set(id, { source, kind });
+  return id;
 }
 function allowed(sectionType, mime, extension) {
   if (sectionType === 'movies' || sectionType.startsWith('serieses') || sectionType.startsWith('vids')) return mime.startsWith('video/');
@@ -55,15 +58,18 @@ process.once('message', async configuration => {
   try {
     const { section, storePath } = configuration;
     if(section.type==='main'||section.type==='linked')throw Error('هذا قسم تجميعي؛ تزامن أقسام المحتوى الفرعية فقط');
+    const memberships=Array.isArray(configuration.sections)&&configuration.sections.length?configuration.sections:[section];
+    if(memberships.some(row=>row.type!==section.type)||new Set(memberships.map(row=>String(row.id))).size!==memberships.length)throw Error('Invalid shared scan sections');
     const root = path.resolve(configuration.source);
     db = new DatabaseSync(storePath);
     db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000');
     const upsert = db.prepare('INSERT INTO records (id,payload,updated_at) VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at WHERE records.payload<>excluded.payload');
+    const encode=require('./shared-scan-store.cjs').writer(db);
     let batch = [];
     let sequence = 0;
     let lastProgress = 0;
     const containers = new Map();
-    const discoveredIds = new Set();
+    const discoveredIds = new Map(memberships.map(row=>[String(row.id),new Set()]));
     const isSeries = section.type.startsWith('serieses');
     const seriesType = seriesTypes[section.type.split('.')[1]] || 'series';
 
@@ -80,7 +86,7 @@ process.once('message', async configuration => {
       db.exec('BEGIN IMMEDIATE');
       try {
         const now = Date.now();
-        for (const record of records) upsert.run(record.id, JSON.stringify(record), now);
+        for (const record of records) upsert.run(record.id, encode(record), now);
         db.exec('COMMIT');
       } catch (error) { db.exec('ROLLBACK'); throw error; }
       progress.indexedItems += records.length;
@@ -91,9 +97,15 @@ process.once('message', async configuration => {
       lastProgress = Date.now();
     }
     async function addRecord(record) {
-      discoveredIds.add(record.id);
-      batch.push(record);
-      if (batch.length >= 50) await flush();
+      for(const membership of memberships){
+        const sectionId=String(membership.id);
+        const remap=id=>{if(id===null||id===undefined)return id;const identity=identities.get(id);if(!identity)throw Error('Missing scanner identity');return idFor(sectionId,identity.source,identity.kind,false);};
+        const shared={...record,id:remap(record.id),sectionId,inItem:remap(record.inItem),
+          files:record.files.map(file=>({...file,id:remap(file.id),itemId:remap(file.itemId)}))};
+        discoveredIds.get(sectionId).add(shared.id);
+        batch.push(shared);
+        if (batch.length >= 50) await flush();
+      }
     }
     function baseRecord(source, name, type, inItem, kind, createdAt) {
       return { id: idFor(section.id, source, kind), name, type, inItem, sectionId: section.id,
@@ -197,14 +209,17 @@ process.once('message', async configuration => {
     for (const record of containers.values()) await addRecord(record);
     await flush();
     await emitProgress(true);
-    let scope;
+    const scopes=[];
     if((section.type==='movies'||isSeries)&&successfulRoot&&!progress.warnings){
       // Recheck accessibility before reconciling; interrupted/partial scans never prune.
       const handle=await fs.opendir(root);await handle.close();
-      scope=require('./movie-scan-state.cjs').complete(db,section.id,root,[...discoveredIds]);
+      for(const membership of memberships){
+        const sectionId=String(membership.id);
+        scopes.push(require('./movie-scan-state.cjs').complete(db,sectionId,root,[...discoveredIds.get(sectionId)]));
+      }
     }
     db.close(); db = null;
-    await send({ type: 'done', status: successfulRoot && !progress.warnings ? 'completed' : 'partial', progress,scope });
+    await send({ type: 'done', status: successfulRoot && !progress.warnings ? 'completed' : 'partial', progress,scope:scopes[0],scopes });
   } catch (error) {
     if (db) { try { db.close(); } catch {} }
     await send({ type: 'done', status: 'failed', error: error.message, errorCode: error.code || 'SCAN_FAILED', progress }).catch(() => {});

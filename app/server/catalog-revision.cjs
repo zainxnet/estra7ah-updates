@@ -29,7 +29,7 @@ function changes(file,previous,limit=10000){let db;try{
  if(!current||current.identity!==previous.identity||current.revision<previous.revision)return null;
  const changed=db.prepare('SELECT id,deleted,deleted_revision FROM zain_catalog_changes WHERE revision>? ORDER BY revision LIMIT ?').all(previous.revision,limit+1);
  if(changed.length>limit||changed.some(row=>row.deleted||row.deleted_revision>previous.revision))return null;
- const records=db.prepare('SELECT r.id,r.payload FROM zain_catalog_changes c JOIN records r ON r.id=c.id WHERE c.revision>? ORDER BY r.rowid').all(previous.revision),rows=records.map(row=>JSON.parse(row.payload));
+ const records=db.prepare('SELECT r.id,r.payload FROM zain_catalog_changes c JOIN records r ON r.id=c.id WHERE c.revision>? ORDER BY r.rowid').all(previous.revision),hydrate=require('./shared-scan-store.cjs').reader(db),rows=records.map(row=>hydrate(row.payload));
  if(rows.some((row,i)=>row.id!==records[i].id))return null;
  if(rows.length!==changed.length)return null;
  return {cursor:current,rows};
