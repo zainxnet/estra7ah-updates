@@ -1,13 +1,22 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-module.exports=function({dir,items,sharedCatalog,topRows,safeItem,updateItems,removeItem,prepareExclusive=async()=>({imageKind:'poster'})}){
+module.exports=function({dir,items,sharedCatalog,topRows,safeItem,updateItems,removeItem,resolveId=id=>id,prepareExclusive=async()=>({imageKind:'poster'})}){
+ const scanReconcileVersion=1;let batching=false,batchDirty=false;
  const file=path.join(dir,'item-edits.json');let state=fs.existsSync(file)?JSON.parse(fs.readFileSync(file,'utf8')):{edits:{},deleted:[],pinned:[]};
  if(!state.edits||!Array.isArray(state.deleted)||!Array.isArray(state.pinned))throw Error('Invalid item edits store');
- function apply(){for(const [id,edit]of Object.entries(state.edits)){const item=items.get(id);if(item)updateItems([{...item,...edit}]);}for(const [id,selection]of Object.entries(state.scanFiles||{})){const item=items.get(id);if(!item)continue;const allowed=new Set(selection.ids),files=(item.files||[]).filter(file=>allowed.has(file.id));if(files.length!==(item.files||[]).length||item.pathSize!==selection.pathSize)updateItems([{...item,files,pathSize:selection.pathSize}]);}for(const id of [...state.deleted,...(state.scanDeleted||[])])removeItem(id);sharedCatalog?.load(state.sharedContent||{},state.edits);}
+ function apply(){for(const [id,edit]of Object.entries(state.edits)){const item=items.get(id);if(item)updateItems([{...item,...edit}]);}for(const [id,selection]of Object.entries(state.scanFiles||{})){const item=items.get(id);if(!item)continue;const allowed=new Set(selection.ids),files=(item.files||[]).filter(file=>allowed.has(file.id));if(files.length!==(item.files||[]).length||item.pathSize!==selection.pathSize)updateItems([{...item,files,pathSize:selection.pathSize}]);}for(const id of state.deleted){removeItem(id);const alias=resolveId(id);if(alias!==id)removeItem(alias);}for(const id of state.scanDeleted||[])removeItem(id);sharedCatalog?.load(state.sharedContent||{},state.edits);}
  function observe(ids){const present=new Set(ids),deleted=state.scanDeleted||[];if(!deleted.some(id=>present.has(id)))return;const scanFiles={...state.scanFiles};for(const id of deleted)if(present.has(id))delete scanFiles[id];save({...state,scanDeleted:deleted.filter(id=>!present.has(id)),scanFiles});}
- function reconcileScan(scope,removed,active){const gone=new Set(state.scanDeleted||[]),scanFiles={...state.scanFiles};for(const id of removed){gone.add(id);delete scanFiles[id];}for(const row of active){gone.delete(row.id);scanFiles[row.id]={ids:row.files.map(file=>file.id),pathSize:row.pathSize};}const key=require('./movie-scan-state.cjs').key(scope);save({...state,scanDeleted:[...gone],scanFiles,scanApplied:{...state.scanApplied,[key]:scope.stamp}});}
+ function reconcileScan(scope,removed,active){const gone=new Set(state.scanDeleted||[]),scanFiles={...state.scanFiles};for(const id of removed){gone.add(id);delete scanFiles[id];}for(const row of active){gone.delete(row.id);scanFiles[row.id]={ids:row.files.map(file=>file.id),pathSize:row.pathSize};}const key=require('./movie-scan-state.cjs').key(scope);save({...state,scanDeleted:[...gone],scanFiles,scanApplied:{...state.scanApplied,[key]:scope.stamp},scanAppliedVersion:{...state.scanAppliedVersion,[key]:scanReconcileVersion}});}
  let lastMetadataBackup=0;
- function save(next,{metadataId}={}){const metadataSave=metadataId!==undefined,now=Date.now();if(fs.existsSync(file)&&(!metadataSave||!lastMetadataBackup||now-lastMetadataBackup>=60000)){const folder=path.join(dir,'backups');fs.mkdirSync(folder,{recursive:true});fs.copyFileSync(file,path.join(folder,'item-edits-'+now+'-'+crypto.randomUUID()+'.json'));if(metadataSave)lastMetadataBackup=now;}const temporary=file+'.tmp';fs.writeFileSync(temporary,JSON.stringify(next));fs.renameSync(temporary,file);state=next;if(metadataSave){if(sharedCatalog)sharedCatalog.set(metadataId,state.sharedContent[sharedCatalog.key(metadataId)]);else{const item=items.get(metadataId);if(item)updateItems([{...item,...state.edits[metadataId]}]);}}else apply();}
+ function save(next,{metadataId}={}){if(batching){state=next;batchDirty=true;apply();return;}const metadataSave=metadataId!==undefined,now=Date.now();if(fs.existsSync(file)&&(!metadataSave||!lastMetadataBackup||now-lastMetadataBackup>=60000)){const folder=path.join(dir,'backups');fs.mkdirSync(folder,{recursive:true});fs.copyFileSync(file,path.join(folder,'item-edits-'+now+'-'+crypto.randomUUID()+'.json'));if(metadataSave)lastMetadataBackup=now;}const temporary=file+'.tmp';fs.writeFileSync(temporary,JSON.stringify(next));fs.renameSync(temporary,file);state=next;if(metadataSave){if(sharedCatalog)sharedCatalog.set(metadataId,state.sharedContent[sharedCatalog.key(metadataId)]);else{const item=items.get(metadataId);if(item)updateItems([{...item,...state.edits[metadataId]}]);}}else apply();}
+ // Startup reconciliation may cover many roots; persist one backed-up change.
+ function batchChanges(callback){
+  if(batching)throw Error('Nested catalog reconciliation');
+  const previous=state;batching=true;batchDirty=false;
+  try{callback();}catch(error){state=previous;batchDirty=false;throw error;}
+  finally{batching=false;}
+  if(batchDirty){const next=state;state=previous;batchDirty=false;save(next);}
+ }
  apply();
  state.exclusive=state.exclusive||[];
  const adminReads=new Set(['getItems','getPinedItems','getExclusiveItems','getItemSyncState']);const adminActions=new Set(['pinItem','delPinedItem','removeAllPinned','deleteItem','updateContent','addExclusiveItem','removeExclusiveItem','updateExclusiveItem']);
@@ -77,5 +86,5 @@ module.exports=function({dir,items,sharedCatalog,topRows,safeItem,updateItems,re
    next.edits[id]={...next.edits[id],...(body.name?{name:body.name.trim()}:{}),...(!sharedCatalog?{content}:{})};if(sharedCatalog){delete next.edits[id].content;next.sharedContent={...next.sharedContent,[sharedCatalog.key(id)]:content};}
   }
   save(next);return result({msg:'ok',...exclusiveResult});
- },apply,observe,reconcileScan,scanApplied:scope=>state.scanApplied?.[require('./movie-scan-state.cjs').key(scope)]===scope.stamp};
+ },apply,observe,reconcileScan,batchChanges,scanApplied:scope=>{const key=require('./movie-scan-state.cjs').key(scope);return state.scanApplied?.[key]===scope.stamp&&state.scanAppliedVersion?.[key]===scanReconcileVersion;}};
 };

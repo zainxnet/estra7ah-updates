@@ -51,6 +51,22 @@ function removeCatalogItem(id) {
 }
 function mergeScanned(rows, automatic=true) {
   const observed=[];
+  // A stored series can be absent while its legacy seasons still name it.
+  // Infer the parent alias before processing rows, independent of scan row order.
+  const parents=new Map(rows.filter(row=>row.recordKind==='folder'&&!row.inItem).map(row=>[row.id,row])),parentAliases=new Map();
+  for(const record of rows){
+    if(record.type!=='season'||!parents.has(record.inItem))continue;
+    const old=items.get(scannedAliases.get(record.id)||record.id)||items.get(byMediaPath.get(mediaKey(record)));
+    if(!old?.inItem||mediaKey(old)!==mediaKey(record))continue;
+    const parent=parents.get(record.inItem),previous=items.get(old.inItem);
+    if(previous&&mediaKey(previous)!==mediaKey(parent))continue;
+    if(!parentAliases.has(parent.id))parentAliases.set(parent.id,new Set());
+    parentAliases.get(parent.id).add(old.inItem);
+  }
+  for(const [parent,aliases]of parentAliases)if(aliases.size===1){
+    const alias=[...aliases][0],current=scannedAliases.get(parent);
+    if(!current||current===parent||current===alias)scannedAliases.set(parent,alias);
+  }
   for (const record of rows) {
     const fileOwner = (record.files || []).map(f => byFilePath.get(String(record.sectionId) + '|' + path.normalize(f.path || '').toLowerCase())).find(Boolean);
     // Stable scanner IDs take precedence: virtual seasons can share one folder.
@@ -68,20 +84,23 @@ function mergeScanned(rows, automatic=true) {
         if(owner&&owner.id!==record.id){old=owner;break;}parent=path.dirname(parent);
       }
     }
-    const id = old?.id || (record.scanRoot?scannedAliases.get(record.id):null) || record.id;
-    observed.push(id);
+    const savedAlias=scannedAliases.get(record.id);
+    const id = record.recordKind==='folder'&&savedAlias&&!items.has(savedAlias)
+      ? savedAlias : old?.id || (record.scanRoot?savedAlias:null) || record.id;
+    observed.push(record.id,id);
     scannedAliases.set(record.id, id);
     const x = { ...old, ...record, ...(old&&record.type==='movie'?{path:old.path}:{}), id, inItem: scannedAliases.get(record.inItem) || record.inItem };
     if (old) { x.name = old.name || record.name; x.content = old.content || record.content; x.views = old.views; x.downloads = old.downloads; x.createdAt = old.createdAt; }
     const additions = (record.files || []).map(f => ({ ...f, id: old?.files?.find(v => v.path?.toLowerCase() === f.path?.toLowerCase())?.id || f.id, itemId: id }));
     x.files = [...(old?.files || []).filter(f => !additions.some(v => v.id === f.id)), ...additions];
     if (old?.inItem) { x.inItem = old.inItem; if (record.inItem) scannedAliases.set(record.inItem, old.inItem); }
-    if(record.type==='movie'&&record.id!==id&&record.id.startsWith('sync-')&&items.has(record.id))removeCatalogItem(record.id);
     updateItems([x]);
     if (id !== record.id && children.has(record.id)) {
       for (const childId of [...children.get(record.id)]) { const child = items.get(childId); updateItems([{ ...child, inItem: id }]); }
       children.delete(record.id);
     }
+    // Reparent children before dropping a temporary scanner container.
+    if((record.recordKind==='folder'||record.type==='movie')&&record.id!==id&&record.id.startsWith('sync-')&&items.has(record.id))removeCatalogItem(record.id);
   }
   if(automatic)itemAdmin?.observe(observed);
   itemAdmin?.apply();
@@ -92,7 +111,7 @@ function reconcileMovieScan(scope){
  if(itemAdmin.scanApplied(scope))return;
  const records=services.movieScanRecords(scope),active=[],wanted=new Set(),all=new Set(),queue=[...(sectionItems.get(scope.sectionId)||[])];
  // Correct records might have been hidden by an older successful scan.
- mergeScanned(records,false);itemAdmin.observe(records.map(row=>scannedAliases.get(row.id)||row.id));
+ mergeScanned(records,false);itemAdmin.observe(records.flatMap(row=>[row.id,scannedAliases.get(row.id)||row.id]));
  mergeScanned(records,false);
  for(const record of records){const id=scannedAliases.get(record.id)||record.id,item=items.get(id);if(!item)continue;wanted.add(id);const paths=new Set(record.files.map(file=>path.normalize(file.path).toLowerCase()));active.push({id,files:(item.files||[]).filter(file=>paths.has(path.normalize(file.path).toLowerCase())),pathSize:record.pathSize});}
  while(queue.length){const id=queue.pop();if(all.has(id))continue;all.add(id);queue.push(...(children.get(id)||[]));}
@@ -388,8 +407,8 @@ server.listen(port, config.bind, async () => {
     else{startupMessage=startupCache.reason+'؛ جار قراءة العناصر المحفوظة';startupInfo={mode:'rebuild',reason:startupCache.reason};updateItems(JSON.parse(await fs.promises.readFile(path.join(base,'assets/db/estra7ah.items.json'),'utf8')).itemsData);startupMessage='جار تجهيز العناصر الجديدة وربط المجلدات';mergeScanned(await services.getStoredItems(),false);catalogItems.repairMovieFiles(items,updateItems);}
     content = require('./content-services.cjs')({ dir: data, source: { ...source, getItem: id => { const item = items.get(id); return item ? { ...safeItem(item), section: safeSection(sectionRow(item.sectionId)) } : null; } } });
     sharedCatalog=require('./shared-catalog.cjs')({items,rows:topRows(),updateItems});
-    itemAdmin = require('./item-admin.cjs')({dir:data,items,sharedCatalog,topRows,safeItem,updateItems,removeItem:removeCatalogItem,prepareExclusive:item=>exclusiveArtwork.prepare(item)});
-    for(const scope of services.movieScans())reconcileMovieScan(scope);
+    itemAdmin = require('./item-admin.cjs')({dir:data,items,sharedCatalog,topRows,safeItem,updateItems,removeItem:removeCatalogItem,resolveId:id=>scannedAliases.get(id)||id,prepareExclusive:item=>exclusiveArtwork.prepare(item)});
+    itemAdmin.batchChanges(()=>{for(const scope of services.movieScans())reconcileMovieScan(scope);});
     speed=require('./speed.cjs')({dir:data});
     backups=require('./backups.cjs')({base,isSyncing:()=>services.syncJobs().some(j=>['running','queued'].includes(j.status)),onEvent:(...args)=>admin?.recordEvent(...args)});
     gemini=require('./gemini-search.cjs')({dir:data});
