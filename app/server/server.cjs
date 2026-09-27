@@ -49,8 +49,7 @@ function removeCatalogItem(id) {
  for(const file of item.files||[]){if(files.get(file.id)?.itemId===id)files.delete(file.id);const key=String(item.sectionId)+'|'+path.normalize(file.path||'').toLowerCase();if(byFilePath.get(key)===id)byFilePath.delete(key);}
  items.delete(id);children.delete(id);sharedCatalog?.remove(id);
 }
-function mergeScanned(rows, automatic=true) {
-  const observed=[];
+function linkScanParents(rows) {
   // A stored series can be absent while its legacy seasons still name it.
   // Infer the parent alias before processing rows, independent of scan row order.
   const parents=new Map(rows.filter(row=>row.recordKind==='folder'&&!row.inItem).map(row=>[row.id,row])),parentAliases=new Map();
@@ -67,6 +66,9 @@ function mergeScanned(rows, automatic=true) {
     const alias=[...aliases][0],current=scannedAliases.get(parent);
     if(!current||current===parent||current===alias)scannedAliases.set(parent,alias);
   }
+}
+function mergeScanned(rows, automatic=true) {
+  const observed=[];linkScanParents(rows);
   for (const record of rows) {
     const fileOwner = (record.files || []).map(f => byFilePath.get(String(record.sectionId) + '|' + path.normalize(f.path || '').toLowerCase())).find(Boolean);
     // Stable scanner IDs take precedence: virtual seasons can share one folder.
@@ -103,16 +105,28 @@ function mergeScanned(rows, automatic=true) {
     if((record.recordKind==='folder'||record.type==='movie')&&record.id!==id&&record.id.startsWith('sync-')&&items.has(record.id))removeCatalogItem(record.id);
   }
   if(automatic)itemAdmin?.observe(observed);
-  itemAdmin?.apply();
+  itemAdmin?.apply(observed);
   // The scanner publishes immediately; metadata and cover downloads use their own queue.
   if(automatic)metadata?.enqueueMissing(rows.map(x=>scannedAliases.get(x.id)||x.id));
 }
-function reconcileMovieScan(scope){
+const startupTick=()=>new Promise(resolve=>setImmediate(resolve));
+async function mergeScannedBatches(rows,range=null){
+ linkScanParents(rows);
+ for(let at=0;at<rows.length;at+=500){
+  if(stopping)throw Error('توقف تجهيز الفهرس');
+  mergeScanned(rows.slice(at,at+500),false);
+  startupInfo.progress=(startupInfo.progress||0)+Math.min(500,rows.length-at);
+  const fraction=Math.min(rows.length,at+500)/rows.length;startupInfo.percent=range?Math.floor(range.start+range.span*fraction):Math.floor(100*fraction);
+  await startupTick();
+ }
+}
+async function reconcileMovieScan(scope,cooperative=false){
  if(itemAdmin.scanApplied(scope))return;
  const records=services.movieScanRecords(scope),active=[],wanted=new Set(),all=new Set(),queue=[...(sectionItems.get(scope.sectionId)||[])];
  // Correct records might have been hidden by an older successful scan.
- mergeScanned(records,false);itemAdmin.observe(records.flatMap(row=>[row.id,scannedAliases.get(row.id)||row.id]));
- mergeScanned(records,false);
+ if(cooperative)await mergeScannedBatches(records,{start:100*(startupInfo.scope-1)/startupInfo.totalScopes,span:45/startupInfo.totalScopes});else mergeScanned(records,false);
+ itemAdmin.observe(records.flatMap(row=>[row.id,scannedAliases.get(row.id)||row.id]));
+ if(cooperative)await mergeScannedBatches(records,{start:(100*(startupInfo.scope-1)+45)/startupInfo.totalScopes,span:45/startupInfo.totalScopes});else mergeScanned(records,false);
  for(const record of records){const id=scannedAliases.get(record.id)||record.id,item=items.get(id);if(!item)continue;wanted.add(id);const paths=new Set(record.files.map(file=>path.normalize(file.path).toLowerCase()));active.push({id,files:(item.files||[]).filter(file=>paths.has(path.normalize(file.path).toLowerCase())),pathSize:record.pathSize});}
  while(queue.length){const id=queue.pop();if(all.has(id))continue;all.add(id);queue.push(...(children.get(id)||[]));}
  const removed=[...all].filter(id=>{const item=items.get(id);return item&&item.path&&item.sectionId===scope.sectionId&&require('./movie-scan-state.cjs').contains(scope.root,item.path)&&!wanted.has(id);});
@@ -393,7 +407,12 @@ const server = http.createServer(async (req, res) => {
   } catch (e) { console.error(e.message); if (!res.headersSent) respond(res, { msg: 'error', error: e.status ? e.message : 'تعذر إكمال الطلب' }, e.status || 500); else res.destroy(); }
 });
 let stopping = false;
-async function shutdown() { if (stopping) return; stopping = true; admin?.recordEvent('إيقاف خادم الاستراحة','warning'); backups?.close(); metadata?.close(); await broadcast?.close(); artwork?.close(); scanArtwork?.close(); await services?.close(); await operations?.close(); server.close(() => process.exit(0)); setTimeout(() => { server.closeAllConnections(); process.exit(0); }, 4000).unref(); }
+const closeServer=require('./shutdown.cjs')({
+ cleanup:[()=>admin?.recordEvent('إيقاف خادم الاستراحة','warning'),()=>backups?.close(),()=>metadata?.close(),()=>broadcast?.close(),()=>artwork?.close(),()=>scanArtwork?.close(),()=>services?.close(),()=>operations?.close()],
+ close:()=>new Promise(resolve=>{server.close(resolve);server.closeIdleConnections?.();}),
+ forceClose:()=>server.closeAllConnections(),exit:code=>process.exit(code),report:message=>console.error(message)
+});
+function shutdown(){stopping=true;return closeServer();}
 server.listen(port, config.bind, async () => {
   fs.writeFileSync(path.join(data, 'launcher-control.json'), JSON.stringify({ token: controlToken, port, pid: process.pid }));
   try {
@@ -403,12 +422,21 @@ server.listen(port, config.bind, async () => {
     const bootStarted=Date.now(),startupCache=require('./startup-cache.cjs')(base);
     services = require('./services.cjs')({ dir: data, sections, onItems: mergeScanned,onMovieScan:reconcileMovieScan });
     const cachedCatalog=await startupCache.read();
-    if(cachedCatalog){({items,children,sectionItems,files,byMediaPath,byFilePath,scannedAliases}=cachedCatalog);catalogRevision++;mergeScanned(cachedCatalog.sourceChanges,false);startupInfo={mode:cachedCatalog.sourceChanges.length?'incremental':'cached',changedRecords:cachedCatalog.sourceChanges.length};}
-    else{startupMessage=startupCache.reason+'؛ جار قراءة العناصر المحفوظة';startupInfo={mode:'rebuild',reason:startupCache.reason};updateItems(JSON.parse(await fs.promises.readFile(path.join(base,'assets/db/estra7ah.items.json'),'utf8')).itemsData);startupMessage='جار تجهيز العناصر الجديدة وربط المجلدات';mergeScanned(await services.getStoredItems(),false);catalogItems.repairMovieFiles(items,updateItems);}
+    if(cachedCatalog){({items,children,sectionItems,files,byMediaPath,byFilePath,scannedAliases}=cachedCatalog);catalogRevision++;startupInfo={mode:cachedCatalog.sourceChanges.length?'incremental':'cached',changedRecords:cachedCatalog.sourceChanges.length};startupMessage='جار تحديث فهرس التشغيل';await mergeScannedBatches(cachedCatalog.sourceChanges);}
+    else{startupMessage=startupCache.reason+'؛ جار قراءة العناصر المحفوظة';startupInfo={mode:'rebuild',reason:startupCache.reason};updateItems(JSON.parse(await fs.promises.readFile(path.join(base,'assets/db/estra7ah.items.json'),'utf8')).itemsData);startupMessage='جار تجهيز العناصر الجديدة وربط المجلدات';await mergeScannedBatches(await services.getStoredItems());catalogItems.repairMovieFiles(items,updateItems);}
     content = require('./content-services.cjs')({ dir: data, source: { ...source, getItem: id => { const item = items.get(id); return item ? { ...safeItem(item), section: safeSection(sectionRow(item.sectionId)) } : null; } } });
     sharedCatalog=require('./shared-catalog.cjs')({items,rows:topRows(),updateItems});
     itemAdmin = require('./item-admin.cjs')({dir:data,items,sharedCatalog,topRows,safeItem,updateItems,removeItem:removeCatalogItem,resolveId:id=>scannedAliases.get(id)||id,prepareExclusive:item=>exclusiveArtwork.prepare(item)});
-    itemAdmin.batchChanges(()=>{for(const scope of services.movieScans())reconcileMovieScan(scope);});
+    const repairScopes=services.movieScans().filter(scope=>!itemAdmin.scanApplied(scope));
+    await itemAdmin.batchChanges(async()=>{
+      for(let index=0;index<repairScopes.length;index++){
+        startupMessage='جار إصلاح فهرس المكتبة — المسار '+(index+1)+' من '+repairScopes.length;
+        startupInfo.phase='reconcile';startupInfo.scope=index+1;startupInfo.totalScopes=repairScopes.length;startupInfo.progressLabel='معالجة المسارات';startupInfo.percent=Math.floor(index*100/repairScopes.length);
+        await startupTick();if(stopping)throw Error('توقف تجهيز الفهرس');
+        await reconcileMovieScan(repairScopes[index],true);startupInfo.percent=Math.floor((index+1)*100/repairScopes.length);
+      }
+    });
+    startupMessage='جار إكمال تشغيل الخدمات';startupInfo.phase='services';startupInfo.percent=null;await startupTick();if(stopping)throw Error('توقف تجهيز الفهرس');
     speed=require('./speed.cjs')({dir:data});
     backups=require('./backups.cjs')({base,isSyncing:()=>services.syncJobs().some(j=>['running','queued'].includes(j.status)),onEvent:(...args)=>admin?.recordEvent(...args)});
     gemini=require('./gemini-search.cjs')({dir:data});

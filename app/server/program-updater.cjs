@@ -10,6 +10,8 @@ function allowed(name){
  if(parts.some(p=>/^(data|logs?|backups?|local-backups|runtime|mubasher_db|mubasher_assets|node_modules|\.git|\.github)$/i.test(p))||/\.(?:db|sqlite(?:3)?|mdb|accdb|bak|log|pfx|key|env)$/i.test(name))return false;
  return /^server\/[\w.-]+\.(?:cjs|js|json|ps1)$/.test(name)||name==='server/update-public-key.pem'||/^interface\/(?:[\w .\u0600-\u06ff/-]+)\.(?:html|js|css|json|svg|ico|png|jpe?g|gif|webp|woff2?|ttf|eot|txt)$/.test(name)||['Zain-Launcher-x64.exe','estra7ah-server.ico'].includes(name);
 }
+
+function progress(phase,completed,total){return {phase,completed,total,percent:Number.isFinite(completed)&&Number.isFinite(total)&&total>0?Math.max(0,Math.min(100,Math.floor(completed*100/total))):null};}
 function target(root,name){if(!allowed(name))throw error('ملف محمي أو مسار غير مسموح: '+name);const full=path.resolve(root,...name.split('/')),relative=path.relative(root,full);if(relative.startsWith('..')||path.isAbsolute(relative))throw error('المسار خارج الاستراحة');let at=root;for(const segment of name.split('/')){at=path.join(at,segment);if(fs.existsSync(at)&&fs.lstatSync(at).isSymbolicLink())throw error('لا يدعم التحديث روابط المجلدات: '+name);}return full;}
 function atomic(file,bytes){fs.mkdirSync(path.dirname(file),{recursive:true});const temp=file+'.update-'+crypto.randomUUID();fs.writeFileSync(temp,bytes,{flag:'wx'});try{fs.renameSync(temp,file)}catch(e){fs.rmSync(temp,{force:true});throw e;}}
 function compareVersion(a,b){const aa=a.split('.').map(Number),bb=b.split('.').map(Number);for(let i=0;i<3;i++)if(aa[i]!==bb[i])return aa[i]-bb[i];return 0;}
@@ -29,21 +31,21 @@ function protectToken(text,decrypt=false){
 }
 function storedToken(root){const file=path.join(root,'data/update-settings.json');if(!fs.existsSync(file))return '';const value=JSON.parse(fs.readFileSync(file));return value.tokenProtected?protectToken(value.tokenProtected,true):'';}
 function gitToken(){try{const text=execFileSync('git',['-c','credential.interactive=never','credential','fill'],{input:'protocol=https\nhost=github.com\npath='+REPO+'.git\n\n',env:{...process.env,GIT_TERMINAL_PROMPT:'0',GCM_INTERACTIVE:'never'},encoding:'utf8',stdio:['pipe','pipe','pipe'],windowsHide:true,timeout:15000});return /^password=(.+)$/m.exec(text)?.[1]||'';}catch{return '';}}
-async function remote(url,token,{limit=MAX_FILE,accept='application/vnd.github+json'}={}){
+async function remote(url,token,{limit=MAX_FILE,accept='application/vnd.github+json',onProgress=()=>{}}={}){
  let u=new URL(url);for(let redirects=0;redirects<4;redirects++){
   if(u.protocol!=='https:'||!['api.github.com','release-assets.githubusercontent.com','objects.githubusercontent.com','raw.githubusercontent.com'].includes(u.hostname))throw error('عنوان تنزيل غير مسموح');
   const r=await fetch(u,{headers:{'User-Agent':'Estra7ah-Updater','Accept':accept,...(token&&u.hostname==='api.github.com'?{Authorization:'Bearer '+token}:{})},redirect:'manual',signal:AbortSignal.timeout(60000)});
   if([301,302,303,307,308].includes(r.status)){u=new URL(r.headers.get('location'),u);await r.body?.cancel();continue}
   if(!r.ok){await r.body?.cancel();throw error(r.status===404?'لم يوجد إصدار منشور أو لا توجد صلاحية قراءة المستودع الخاص.':r.status===401||r.status===403?'تعذر الوصول إلى GitHub؛ تحقق من صلاحية القراءة وحد الطلبات.':'تعذر تنزيل التحديث من GitHub ('+r.status+')');}
-  const chunks=[];let size=0;for await(const chunk of r.body){size+=chunk.length;if(size>limit)throw error('ملف التنزيل أكبر من الحجم المسموح');chunks.push(chunk)}return Buffer.concat(chunks);
+  const chunks=[];let size=0;for await(const chunk of r.body){size+=chunk.length;if(size>limit)throw error('ملف التنزيل أكبر من الحجم المسموح');chunks.push(chunk);onProgress(size)}return Buffer.concat(chunks);
  }throw error('تعذر الوصول إلى ملف الإصدار');
 }
 async function latest(token,publicKey){const r=JSON.parse((await remote('https://api.github.com/repos/'+REPO+'/releases/latest',token,{limit:2*1024*1024})).toString());const asset=r.assets?.find(a=>a.name==='update-manifest.json');if(!asset||!Number.isSafeInteger(asset.id))throw error('الإصدار المنشور لا يحتوي بيان تحديث');const envelope=JSON.parse((await remote('https://api.github.com/repos/'+REPO+'/releases/assets/'+asset.id,token,{limit:6*1024*1024,accept:'application/octet-stream'})).toString());const m=verifyEnvelope(envelope,publicKey);if(r.tag_name!=='v'+m.version)throw error('بيان التحديث لا يطابق الإصدار');return m;}
-async function downloadFile(m,f,token){if(!token)return remote('https://raw.githubusercontent.com/'+REPO+'/'+m.commit+'/app/'+f.path.split('/').map(encodeURIComponent).join('/'),'',{limit:f.size,accept:'application/octet-stream'});return remote('https://api.github.com/repos/'+REPO+'/contents/app/'+f.path.split('/').map(encodeURIComponent).join('/')+'?ref='+m.commit,token,{limit:f.size,accept:'application/vnd.github.raw+json'});}
+async function downloadFile(m,f,token,onProgress=()=>{}){if(!token)return remote('https://raw.githubusercontent.com/'+REPO+'/'+m.commit+'/app/'+f.path.split('/').map(encodeURIComponent).join('/'),'',{limit:f.size,accept:'application/octet-stream',onProgress});return remote('https://api.github.com/repos/'+REPO+'/contents/app/'+f.path.split('/').map(encodeURIComponent).join('/')+'?ref='+m.commit,token,{limit:f.size,accept:'application/vnd.github.raw+json',onProgress});}
 function workspace(root){const name='data/program-updates',folder=path.join(root,name);let at=root;for(const part of name.split('/')){at=path.join(at,part);if(fs.existsSync(at)&&fs.lstatSync(at).isSymbolicLink())throw error('مجلد التحديث رابط غير مسموح')}fs.mkdirSync(folder,{recursive:true});return folder;}
 async function stage(root,m,getFile,report=()=>{}){
  const p=plan(root,m),folder=path.join(workspace(root),crypto.randomUUID());fs.mkdirSync(folder);
- const entries=[];for(let i=0;i<p.files.length;i++){const f=p.files[i];report('تنزيل الملفات '+(i+1)+' / '+p.files.length);const bytes=await getFile(f);if(bytes.length!==f.size||hash(bytes)!==f.sha256)throw error('فشل التحقق من الملف: '+f.path);const file=path.join(folder,'new',f.path);fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,bytes);if(f.path==='server/release.json'&&JSON.parse(bytes.toString()).version!==m.version)throw error('رقم إصدار الملف لا يطابق البيان');entries.push(f);}
+ let downloaded=0;const entries=[];report('تنزيل الملفات',progress('التنزيل',0,p.bytes));for(let i=0;i<p.files.length;i++){const f=p.files[i],message='تنزيل الملفات '+(i+1)+' / '+p.files.length;report(message,progress('التنزيل',downloaded,p.bytes));const bytes=await getFile(f,count=>report(message,progress('التنزيل',downloaded+Math.min(f.size,Math.max(0,count)),p.bytes)));if(bytes.length!==f.size||hash(bytes)!==f.sha256)throw error('فشل التحقق من الملف: '+f.path);const file=path.join(folder,'new',f.path);fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,bytes);if(f.path==='server/release.json'&&JSON.parse(bytes.toString()).version!==m.version)throw error('رقم إصدار الملف لا يطابق البيان');entries.push(f);downloaded+=f.size;report(message,progress('التنزيل',downloaded,p.bytes));}
  return {folder,manifest:m,plan:p,entries};
 }
 function journalWrite(job,value){atomic(path.join(job.folder,'journal.json'),JSON.stringify(value,null,2));}
@@ -52,23 +54,80 @@ function restore(root,folder,journal){
  journal.phase='rolledBack';atomic(path.join(folder,'journal.json'),JSON.stringify(journal,null,2));
 }
 function recoverPending(root){const dir=workspace(root);for(const entry of fs.readdirSync(dir,{withFileTypes:true})){if(!entry.isDirectory()||!/^[\w-]+$/.test(entry.name))continue;const folder=path.join(dir,entry.name),file=path.join(folder,'journal.json');if(fs.existsSync(file)){const j=JSON.parse(fs.readFileSync(file));if(['applying','validating'].includes(j.phase)){restore(root,folder,j);}}}}
+
+function failureText(value){return String(value?.message||value||'خطأ غير معروف').replace(/Bearer\s+\S+|gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+/gi,'[محجوب]').replace(/\b(token|password|secret|api[_-]?key)\s*[:=]\s*\S+/gi,'$1=[محجوب]').slice(0,1500);}
+async function waitForReady(version,{health,processFailure=()=>'',report=()=>{},now=Date.now,sleep=delay,pollMs=1000,stallMs=5*60*1000,timeoutMs=30*60*1000}){
+ const started=now();let progressed=started,lastFingerprint='',lastMessage='انتظار اتصال الخادم';
+ while(now()-started<timeoutMs){
+  const failed=processFailure();if(failed)throw error(failureText(failed));
+  let h;try{h=await health();}catch(e){if(e.fatalHealth)throw e;}
+  if(h){
+   if(h.service!=='zain')throw error('المنفذ مستخدم من برنامج آخر');
+   if(h.version!==version)throw error('إصدار الخادم المشغّل لا يطابق التحديث المطلوب');
+   if(h.message?.startsWith('تعذر'))throw error(failureText(h.message));
+   if(h.ready){report('اكتمل تشغيل الخادم والتحقق من الإصدار '+version,progress('التحقق من التشغيل',1,1));return true;}
+   lastMessage=h.message||'جار تجهيز المكتبة';
+   const fingerprint=JSON.stringify([lastMessage,h.startup?.progress,h.startup?.phase,h.records]);
+   if(fingerprint!==lastFingerprint){lastFingerprint=fingerprint;progressed=now();}
+  }
+  const seconds=Math.floor((now()-started)/1000);
+  report('انتظار جاهزية الخادم — '+lastMessage+' — '+seconds+' ثانية',progress(h?.startup?.progressLabel||'تجهيز المكتبة',h?.startup?.percent,100));
+  if(now()-progressed>=stallMs)throw error('لم يظهر تقدم في تشغيل الخادم خلال '+Math.floor(stallMs/1000)+' ثانية. آخر حالة: '+failureText(lastMessage));
+  await sleep(pollMs);
+ }
+ throw error('انتهت مهلة تجهيز المكتبة ('+Math.floor(timeoutMs/60000)+' دقيقة). آخر حالة: '+failureText(lastMessage));
+}
+
 async function apply(root,job,{stop,start,healthy,stopNew,commit=async()=>{},report=()=>{}}){
  if(!job.entries.length)return {updated:false};
  const journal={phase:'prepared',version:job.manifest.version,entries:[]};
- // Capture all originals before any replacement.
- for(const entry of job.entries){const dest=target(root,entry.path),record={...entry,existed:fs.existsSync(dest)};if(record.existed){const bytes=fs.readFileSync(dest);record.oldHash=hash(bytes);const backup=path.join(job.folder,'old',entry.path);fs.mkdirSync(path.dirname(backup),{recursive:true});fs.writeFileSync(backup,bytes);}const incoming=fs.readFileSync(path.join(job.folder,'new',entry.path));if(incoming.length!==entry.size||hash(incoming)!==entry.sha256)throw error('تغير ملف التجهيز');journal.entries.push(record);}
- journalWrite(job,journal);await stop();let began=false;
- try{for(const entry of journal.entries){const dest=target(root,entry.path);if(fs.existsSync(dest)!==entry.existed||entry.existed&&hash(fs.readFileSync(dest))!==entry.oldHash)throw error('تغير ملف محلي أثناء تجهيز التحديث؛ أعد الفحص');}journal.phase='applying';journalWrite(job,journal);began=true;report('تثبيت ملفات البرنامج…');for(const entry of journal.entries)atomic(target(root,entry.path),fs.readFileSync(path.join(job.folder,'new',entry.path)));journal.phase='validating';journalWrite(job,journal);await start();if(!await healthy(job.manifest.version))throw error('لم يجتز الإصدار الجديد فحص التشغيل');await commit();journal.phase='complete';journalWrite(job,journal);return {updated:true,version:job.manifest.version,files:job.entries.length,bytes:job.plan.bytes};
- }catch(e){if(began){await stopNew();restore(root,job.folder,journal);await start();const old=JSON.parse(fs.readFileSync(path.join(root,'server/release.json'),'utf8')).version;if(!await healthy(old))throw error('أعيدت الملفات القديمة؛ يحتاج السيرفر مراجعة التشغيل.');throw error('لم ينجح التحديث؛ أعيد إصدار البرنامج السابق تلقائيًا.')}await start();throw e;}
+ for(const entry of job.entries){
+  const dest=target(root,entry.path),record={...entry,existed:fs.existsSync(dest)};
+  if(record.existed){const bytes=fs.readFileSync(dest);record.oldHash=hash(bytes);const backup=path.join(job.folder,'old',entry.path);fs.mkdirSync(path.dirname(backup),{recursive:true});fs.writeFileSync(backup,bytes);}
+  const incoming=fs.readFileSync(path.join(job.folder,'new',entry.path));if(incoming.length!==entry.size||hash(incoming)!==entry.sha256)throw error('تغير ملف التجهيز');journal.entries.push(record);
+ }
+ journalWrite(job,journal);report('إيقاف الخادم لتثبيت التحديث…');await stop();let began=false;
+ try{
+  for(const entry of journal.entries){const dest=target(root,entry.path);if(fs.existsSync(dest)!==entry.existed||entry.existed&&hash(fs.readFileSync(dest))!==entry.oldHash)throw error('تغير ملف محلي أثناء تجهيز التحديث؛ أعد الفحص');}
+  journal.phase='applying';journalWrite(job,journal);began=true;report('تثبيت ملفات البرنامج…');
+  let installed=0;report('تثبيت ملفات البرنامج…',progress('التثبيت',0,journal.entries.length));for(const entry of journal.entries){atomic(target(root,entry.path),fs.readFileSync(path.join(job.folder,'new',entry.path)));report('تثبيت ملفات البرنامج…',progress('التثبيت',++installed,journal.entries.length));}
+  journal.phase='validating';journalWrite(job,journal);report('تشغيل الإصدار الجديد وتجهيز المكتبة…');await start();
+  if(!await healthy(job.manifest.version))throw error('لم يجتز الإصدار الجديد فحص التشغيل');
+  await commit();journal.phase='complete';journalWrite(job,journal);return {updated:true,version:job.manifest.version,files:job.entries.length,bytes:job.plan.bytes};
+ }catch(e){
+  journal.failure={phase:journal.phase,message:failureText(e),at:new Date().toISOString()};journalWrite(job,journal);
+  if(began){
+   report('تعذر تشغيل التحديث؛ جار الرجوع إلى الإصدار السابق…');
+   try{await stopNew();restore(root,job.folder,journal);await start();const old=JSON.parse(fs.readFileSync(path.join(root,'server/release.json'),'utf8')).version;if(!await healthy(old))throw error('لم يكتمل تشغيل الإصدار السابق');}
+   catch(rollback){journal.rollbackFailure={message:failureText(rollback),at:new Date().toISOString()};journalWrite(job,journal);throw error('تعذر إكمال الرجوع: '+failureText(rollback)+'؛ سبب فشل التحديث: '+journal.failure.message);}
+   throw error('لم ينجح التحديث؛ أعيد إصدار البرنامج السابق تلقائيًا. السبب: '+journal.failure.message);
+  }
+  await start();throw e;
+ }
 }
 async function local(root,route,body){const config=JSON.parse(fs.readFileSync(path.join(root,'data/server-config.json'))),control=JSON.parse(fs.readFileSync(path.join(root,'data/launcher-control.json')));if(control.port!==config.port||typeof control.token!=='string')throw error('بيانات التحكم المحلي غير متوافقة');const r=await fetch('http://127.0.0.1:'+config.port+route,{method:'POST',headers:{Connection:'close','x-zain-control':control.token,'Content-Type':'application/json'},body:JSON.stringify(body||{}),signal:AbortSignal.timeout(7000)});const value=await r.json();if(!r.ok)throw error(value.error||'رفض السيرفر التحديث');return value;}
-function lifecycle(root){
- const config=JSON.parse(fs.readFileSync(path.join(root,'data/server-config.json')));let launched;
- async function health(){try{const r=await fetch('http://127.0.0.1:'+config.port+'/zain/health',{headers:{Connection:'close'},signal:AbortSignal.timeout(2000)});const data=await r.json();if(data.service!=='zain')throw error('المنفذ مستخدم من برنامج آخر');return data;}catch(e){if(e.cause?.code==='ECONNREFUSED')return null;throw e;}}
+function lifecycle(root,{report=()=>{},logDir,executable=path.join(root,'runtime/node.exe'),waitOptions={}}={}){
+ const config=JSON.parse(fs.readFileSync(path.join(root,'data/server-config.json')));let launched,spawnFailure='';
+ async function health(){try{const r=await fetch('http://127.0.0.1:'+config.port+'/zain/health',{headers:{Connection:'close'},signal:AbortSignal.timeout(2000)});const data=await r.json();if(data.service!=='zain')throw Object.assign(error('المنفذ مستخدم من برنامج آخر'),{fatalHealth:true});return data;}catch(e){if(e.cause?.code==='ECONNREFUSED')return null;throw e;}}
  return {async stopRecovery(){if(await health()){await local(root,'/zain/control/stop');for(let i=0;i<30;i++){if(!await health())return;await delay(300)}throw error('تعذر إيقاف السيرفر للاستعادة')}},async stop(){const h=await health();if(h){if(!h.ready)throw error('الاستراحة لم تكمل التشغيل بعد');await local(root,'/zain/control/update-stop');for(let i=0;i<25;i++){if(!await health())return;await delay(300)}throw error('لم تتوقف الخدمة؛ لم تُستبدل الملفات');}},
- async start(){if(await health())throw error('ظهر برنامج على المنفذ أثناء التحديث');launched=spawn(path.join(root,'runtime/node.exe'),[path.join(root,'server/server.cjs')],{cwd:root,windowsHide:true,detached:true,stdio:'ignore'});launched.unref();await delay(300);},
- async healthy(version){for(let i=0;i<180;i++){try{const h=await health();if(h?.ready)return h.version===version;if(h?.message?.startsWith('تعذر'))return false;}catch{}await delay(500)}return false;},
- async stopNew(){if(launched){try{await local(root,'/zain/control/stop')}catch{}for(let i=0;i<20;i++){if(!await health())return;await delay(250)}if(launched.exitCode===null)launched.kill();await delay(500);}}
+ async start(){
+  if(await health())throw error('ظهر برنامج على المنفذ أثناء التحديث');
+  const logs=logDir||path.join(workspace(root),'startup-logs');fs.mkdirSync(logs,{recursive:true});const label=Date.now()+'-'+crypto.randomUUID();
+  const out=fs.openSync(path.join(logs,label+'-stdout.log'),'a'),err=fs.openSync(path.join(logs,label+'-stderr.log'),'a');
+  spawnFailure='';
+  try{launched=spawn(executable,[path.join(root,'server/server.cjs')],{cwd:root,windowsHide:true,detached:true,stdio:['ignore',out,err]});launched.once('error',e=>{spawnFailure='تعذر بدء عملية الخادم: '+(e.code||e.message)});launched.unref();}
+  finally{fs.closeSync(out);fs.closeSync(err);}
+  await delay(300);if(spawnFailure)throw error(spawnFailure);
+ },
+ async healthy(version){return waitForReady(version,{...waitOptions,health,report,processFailure:()=>spawnFailure||(launched&&(launched.exitCode!==null||launched.signalCode!==null)?'خرجت عملية الخادم قبل اكتمال التشغيل ('+(launched.exitCode??launched.signalCode)+')':'')});},
+ async stopNew(){
+  if(!launched?.pid||spawnFailure||launched.exitCode!==null||launched.signalCode!==null)return;
+  try{await local(root,'/zain/control/stop')}catch{}
+  for(let i=0;i<20;i++){if(launched.exitCode!==null||launched.signalCode!==null)return;await delay(250);}
+  launched.kill();
+  for(let i=0;i<20;i++){if(launched.exitCode!==null||launched.signalCode!==null)return;await delay(250);}
+  throw error('تعذر إيقاف عملية الإصدار الجديد؛ لم تُستعد الملفات فوق عملية تعمل');
+ }
  };
 }
 function lock(root){const file=path.join(workspace(root),'lock.json');if(fs.existsSync(file)){const previous=JSON.parse(fs.readFileSync(file));if(!Number.isSafeInteger(previous.pid)||previous.pid<=0)throw error('بيانات قفل التحديث غير صالحة؛ راجع نافذة التحديث');try{process.kill(previous.pid,0);throw error('توجد نافذة تحديث أخرى تعمل');}catch(e){if(e.code!=='ESRCH')throw e;}fs.unlinkSync(file);}fs.writeFileSync(file,JSON.stringify({pid:process.pid,at:new Date().toISOString()}),{flag:'wx'});return ()=>{if(fs.existsSync(file)){const v=JSON.parse(fs.readFileSync(file));if(v.pid===process.pid)fs.unlinkSync(file)}};}
@@ -80,23 +139,23 @@ function releaseStaleLock(root){root=fs.realpathSync(root);if(pending(root))thro
 function browserOpen(url){spawn('powershell.exe',['-NoProfile','-NonInteractive','-Command',"Start-Process -FilePath '"+url.replace(/'/g,"''")+"'"],{windowsHide:true,stdio:'ignore'}).unref();}
 function page(nonce){
 return String.raw`<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>تحديث الاستراحة</title>
-<style>body{background:#101725;color:#edf2fa;font:17px "Segoe UI",sans-serif;max-width:880px;margin:5vh auto;padding:24px;line-height:1.8}h1{font-size:30px;margin-bottom:6px}.panel{background:#1e293f;border:1px solid #33415b;border-radius:16px;padding:24px;margin:20px 0}.muted{color:#b8c7df}button,input{font:inherit;border-radius:9px;padding:10px 17px}button{background:#675cf1;color:white;border:0;cursor:pointer;margin:8px 0 8px 10px;min-height:44px}button.secondary{background:#34465f}button:disabled{opacity:.45;cursor:default}input{display:block;box-sizing:border-box;width:100%;background:#0e1728;border:1px solid #617493;color:white;direction:ltr;text-align:left;margin-top:8px}#message{white-space:pre-wrap}#message[data-error=true]{color:#ffb3ad}.tag{background:#26354c;border-radius:6px;padding:5px 12px}a{color:#b6cfff}.row{display:flex;gap:14px;flex-wrap:wrap}.row div{flex:1;min-width:180px}</style>
+<style>body{background:#101725;color:#edf2fa;font:17px "Segoe UI",sans-serif;max-width:880px;margin:5vh auto;padding:24px;line-height:1.8}h1{font-size:30px;margin-bottom:6px}.panel{background:#1e293f;border:1px solid #33415b;border-radius:16px;padding:24px;margin:20px 0}.muted{color:#b8c7df}button,input{font:inherit;border-radius:9px;padding:10px 17px}button{background:#675cf1;color:white;border:0;cursor:pointer;margin:8px 0 8px 10px;min-height:44px}button.secondary{background:#34465f}button:disabled{opacity:.45;cursor:default}input{display:block;box-sizing:border-box;width:100%;background:#0e1728;border:1px solid #617493;color:white;direction:ltr;text-align:left;margin-top:8px}#message{white-space:pre-wrap}#message[data-error=true]{color:#ffb3ad}#progressBar{width:100%;height:20px;accent-color:#8179ff}#progressText{font-size:21px;font-weight:600;margin-bottom:6px}.tag{background:#26354c;border-radius:6px;padding:5px 12px}a{color:#b6cfff}.row{display:flex;gap:14px;flex-wrap:wrap}.row div{flex:1;min-width:180px}</style>
 <h1>تحديث الاستراحة</h1><div class="muted">تحديث ملفات البرنامج مع الاحتفاظ ببيانات جهازك.</div>
 <div class="panel"><div class="row"><div>الإصدار الحالي<br><b id="current">…</b></div><div>المصدر<br><span dir="ltr">zainxnet/estra7ah-updates</span></div></div>
-<p id="message" role="status" aria-live="polite">جاهز للفحص.</p><div id="summary"></div>
+<p id="message" role="status" aria-live="polite">جاهز للفحص.</p><div id="summary"></div><div id="progressPanel" hidden><div id="progressText" role="status"></div><progress id="progressBar" max="100" aria-label="تقدم المرحلة الحالية"></progress><div class="muted">النسبة للمرحلة الحالية؛ يكتمل التحديث بعد التحقق من تشغيل الخادم.</div></div>
 <button id="check">فحص التحديثات</button><button id="apply" disabled>تنزيل وتثبيت التحديث</button><button id="recover" hidden>استعادة إصدار البرنامج السابق</button></div>
 <div class="panel"><details><summary>الوصول إلى المستودع الخاص</summary><p class="muted">إن كان تسجيل الدخول إلى GitHub متاحًا لهذا الجهاز فسيُستخدم تلقائيًا. على السيرفر البعيد يمكنك إدخال رمز خاص بهذا المستودع بصلاحية Contents: Read-only. يُحفظ مشفرًا لحساب ويندوز الحالي عند الضغط على حفظ.</p>
 <label for="token">رمز الوصول إلى GitHub</label><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="لا ترسل الرمز في المحادثة">
 <button id="save" class="secondary">حفظ الوصول على هذا الجهاز</button><span id="credential" class="muted"></span></details></div>
 <p class="muted">يُنزّل المحدث الملفات المتغيّرة فقط، ويتحقق من توقيعها ثم يفحص تشغيل الإصدار. تظل قاعدة البيانات والصور والإعدادات والنسخ الاحتياطية على السيرفر كما هي. تثبيت التحديث يعيد تشغيل الخدمة؛ انتظر انتهاء المزامنة والنسخ الاحتياطي أولًا.</p>
-<button id="site" class="secondary">فتح الاستراحة</button><button id="launcher" class="secondary">العودة إلى المشغل</button>
+<p class="muted">إغلاق المتصفح لا يوقف التحديث. بعد انتهاء العملية يمكنك إنهاء جلسته بالزر أدناه.</p><button id="stop" class="secondary">إنهاء جلسة التحديث</button><button id="site" class="secondary">فتح الاستراحة</button><button id="launcher" class="secondary">العودة إلى المشغل</button>
 <script nonce="__NONCE__">
-(function(){'use strict';var key=location.hash.slice(1);history.replaceState(null,'',location.pathname);var state={},running=false;
+(function(){'use strict';var key=location.hash.slice(1);history.replaceState(null,'',location.pathname);var state={},running=false,finished=false;
 function el(id){return document.getElementById(id);}
-function render(s){state=s;el('current').textContent=s.current;el('message').textContent=s.message;el('message').dataset.error=String(!!s.error);el('check').disabled=s.busy||s.pending;el('apply').disabled=s.busy||s.pending||!s.changes;el('save').disabled=s.busy;el('recover').hidden=!s.pending;el('recover').disabled=s.busy;el('launcher').disabled=s.busy;el('site').disabled=s.busy;el('credential').textContent=s.credential?'توجد بيانات وصول محفوظة.':'لم تُحفظ بيانات وصول بعد.';el('summary').textContent=s.version?'الإصدار المتاح '+s.version+' — '+s.changes+' ملف متغيّر — '+(s.bytes/1048576).toFixed(2)+' ميجابايت':'';}
+function render(s){state=s;var p=s.progress,known=p&&typeof p.percent==='number';el('progressPanel').hidden=!s.busy&&!p;el('progressText').textContent=p?(p.phase+' — '+(known?p.percent+'%':'جار المعالجة…')):'جار التنفيذ…';if(known)el('progressBar').value=p.percent;else el('progressBar').removeAttribute('value');el('stop').disabled=s.busy||s.pending;el('current').textContent=s.current;el('message').textContent=s.message;el('message').dataset.error=String(!!s.error);el('check').disabled=s.busy||s.pending;el('apply').disabled=s.busy||s.pending||!s.changes;el('save').disabled=s.busy;el('recover').hidden=!s.pending;el('recover').disabled=s.busy;el('launcher').disabled=s.busy;el('site').disabled=s.busy;el('credential').textContent=s.credential?'توجد بيانات وصول محفوظة.':'لم تُحفظ بيانات وصول بعد.';el('summary').textContent=s.version?'الإصدار المتاح '+s.version+' — '+s.changes+' ملف متغيّر — '+(s.bytes/1048576).toFixed(2)+' ميجابايت':'';}
 function request(action,body){return fetch('/api/'+action,{method:'POST',headers:{'Content-Type':'application/json','X-Update-Session':key},body:JSON.stringify(body||{})}).then(function(r){return r.json().then(function(j){if(!r.ok)throw Error(j.error||'تعذر تنفيذ العملية');return j;});});}
-function poll(){if(running)return;running=true;request('state').then(render).catch(function(e){el('message').textContent=e.message;}).then(function(){running=false;});}
-['check','apply','recover','save','site','launcher'].forEach(function(action){el(action).onclick=function(){this.disabled=true;request(action,{token:el('token').value}).then(function(s){el('token').value='';render(s);if(action==='launcher')el('message').textContent='تم فتح المشغل. يمكنك إغلاق هذه الصفحة.';}).catch(function(e){el('message').textContent=e.message;el('message').dataset.error='true';poll();});};});poll();setInterval(poll,1000);
+function poll(){if(running||finished)return;running=true;request('state').then(render).catch(function(e){el('message').textContent=e.message;}).then(function(){running=false;});}
+['check','apply','recover','save','site','launcher','stop'].forEach(function(action){el(action).onclick=function(){this.disabled=true;request(action,{token:el('token').value}).then(function(s){if(action==='stop'){finished=true;el('message').textContent='انتهت جلسة التحديث. يمكنك إغلاق الصفحة وتشغيل الخادم من المشغل.';['check','apply','recover','save','site','launcher','stop'].forEach(function(id){el(id).disabled=true;});return;}el('token').value='';render(s);if(action==='launcher')el('message').textContent='تم فتح المشغل. يمكنك إغلاق هذه الصفحة.';}).catch(function(e){el('message').textContent=e.message;el('message').dataset.error='true';poll();});};});poll();setInterval(poll,1000);
 })();</script></html>`.replace('__NONCE__',nonce);
 }
 async function ui(root,{open=true}={}){
@@ -105,8 +164,8 @@ async function ui(root,{open=true}={}){
  if(state.pending)state.message='توجد عملية تحديث لم تكتمل. استعد الإصدار السابق قبل المتابعة.';
  let manifest,token='',origin,lastRequest=Date.now(),closing=false;try{token=storedToken(root)||gitToken()}catch{state.message='بيانات الوصول المحفوظة تخص حساب ويندوز آخر؛ أعد إدخالها.'}
  function respond(res,value,status=200){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}).end(JSON.stringify(value));}
- function report(message){state.message=message;}
- function task(work){if(state.busy)throw error('توجد عملية تحديث قيد التنفيذ');state.busy=true;state.error=false;Promise.resolve().then(work).catch(e=>{state.error=true;state.message=e.message;}).finally(()=>{state.busy=false;state.pending=pending(root);});}
+ function report(message,value=null){state.message=message;state.progress=value;}
+ function task(work){if(state.busy)throw error('توجد عملية تحديث قيد التنفيذ');state.busy=true;state.error=false;Promise.resolve().then(work).catch(e=>{state.error=true;state.progress=null;state.message=e.message;}).finally(()=>{state.current=JSON.parse(fs.readFileSync(path.join(root,'server/release.json'))).version;state.busy=false;state.pending=pending(root);});}
  const server=http.createServer(async(req,res)=>{
   try{
    if(req.headers.host!==new URL(origin).host)return respond(res,{error:'طلب غير صالح'},403);
@@ -130,9 +189,9 @@ async function ui(root,{open=true}={}){
     task(async()=>{state.changes=0;manifest=null;report('جارٍ فحص الإصدار المنشور في GitHub…');manifest=await latest(token,publicKey);const p=plan(root,manifest);Object.assign(state,{version:p.version,changes:p.files.length,bytes:p.bytes,message:p.files.length?'التحديث جاهز للتنزيل والتثبيت.':'ملفات البرنامج مطابقة لأحدث إصدار.'});});
    }else if(action==='apply'){
     if(state.pending||!manifest)throw error('افحص التحديثات أولًا');
-    task(async()=>{const job=await stage(root,manifest,f=>downloadFile(manifest,f,token),report),life=lifecycle(root);const result=await apply(root,job,{...life,report});state.current=JSON.parse(fs.readFileSync(path.join(root,'server/release.json'))).version;state.changes=0;state.bytes=0;report(result.updated?'تم تثبيت الإصدار '+result.version+' والتحقق من تشغيله بنجاح.':'ملفات البرنامج محدثة بالفعل.');});
+    task(async()=>{const job=await stage(root,manifest,(f,onProgress)=>downloadFile(manifest,f,token,onProgress),report),life=lifecycle(root,{report,logDir:job.folder});const result=await apply(root,job,{...life,report});state.current=JSON.parse(fs.readFileSync(path.join(root,'server/release.json'))).version;state.changes=0;state.bytes=0;report(result.updated?'تم تثبيت الإصدار '+result.version+' والتحقق من تشغيله بنجاح.':'ملفات البرنامج محدثة بالفعل.',progress('اكتمال التحديث',1,1));});
    }else if(action==='recover'){
-    task(async()=>{report('جارٍ استعادة ملفات البرنامج السابقة…');const life=lifecycle(root);await life.stopRecovery();recoverPending(root);await life.start();state.current=JSON.parse(fs.readFileSync(path.join(root,'server/release.json'))).version;if(!await life.healthy(state.current))throw error('أعيدت الملفات السابقة؛ راجع تشغيل السيرفر.');state.pending=false;report('اكتملت الاستعادة وتشغيل الإصدار السابق.');});
+    task(async()=>{report('جارٍ استعادة ملفات البرنامج السابقة…');const life=lifecycle(root,{report});await life.stopRecovery();recoverPending(root);await life.start();state.current=JSON.parse(fs.readFileSync(path.join(root,'server/release.json'))).version;if(!await life.healthy(state.current))throw error('أعيدت الملفات السابقة؛ راجع تشغيل السيرفر.');state.pending=false;report('اكتملت الاستعادة وتشغيل الإصدار السابق.');});
    }else if(action==='site'){const c=JSON.parse(fs.readFileSync(path.join(root,'data/server-config.json')));browserOpen('http://127.0.0.1:'+Number(c.port)+'/');}
    else if(action==='launcher'){if(state.pending)throw error('استعد الإصدار السابق أولًا');respond(res,state);releaseLock();server.close();spawn(path.join(root,'Zain-Launcher-x64.exe'),[],{cwd:root,detached:true,stdio:'ignore'}).unref();setTimeout(()=>process.exit(0),800);return;}
    else return respond(res,{error:'خيار غير موجود'},404);
@@ -149,3 +208,5 @@ if(require.main===module&&process.argv[2]==='ui')ui(process.argv[3]||path.resolv
 if(require.main===module&&process.argv[2]==='release-stale-lock'){try{console.log(JSON.stringify(releaseStaleLock(process.argv[3]||path.resolve(__dirname,'..'))));}catch(e){console.error(e.message);process.exitCode=1;}}
 
 module.exports.lifecycle=lifecycle;
+
+module.exports.waitForReady=waitForReady;
