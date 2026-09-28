@@ -38,13 +38,13 @@ function sourceKey(section, source) {
 }
 
 module.exports = function createServices(options) {
-  const { dir, sections, onItems = () => {}, onMovieScan = () => {} } = options;
+  const { dir, sections, onItems = () => {}, onMovieScan = () => {}, onCatalogCommit = async () => {} } = options;
   if (!Array.isArray(sections)) throw new TypeError('sections must be an array');
   const idleTimeoutMs = options.idleTimeoutMs ?? 20000;
   const maxPathMs = options.maxPathMs ?? 30 * 60 * 1000;
   const browseTimeoutMs = options.browseTimeoutMs ?? 20000;
   const concurrency = Math.max(1, Math.min(2, options.concurrency ?? 1));
-  const storePath = path.join(dir, 'sync-items.sqlite');
+  const storePath = options.catalogPath || path.join(dir, 'catalog.sqlite');
   fs.mkdirSync(dir, { recursive: true });
   const initialStore = new DatabaseSync(storePath);
   initialStore.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS records (id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at INTEGER NOT NULL)');
@@ -218,6 +218,7 @@ module.exports = function createServices(options) {
             const sectionIds=new Set(memberships.map(row=>String(row.id)));
             for(const scope of scopes){
               if(!sectionIds.delete(scope.sectionId)||sourceKey(section,scope.root)!==sourceKey(section,task.path))throw failure('نطاق مزامنة غير صالح','BAD_SCOPE');
+          if(message.status==='completed')await onCatalogCommit();
             }
             if(sectionIds.size)throw failure('نطاق مزامنة غير مكتمل','BAD_SCOPE');
             for(const scope of scopes){if(finished)return;await onMovieScan(scope);}
@@ -234,7 +235,7 @@ module.exports = function createServices(options) {
       setImmediate(pump);
     });
     const describe=row=>({id:String(row.id),name:String(row.name||''),type:String(row.type||'')});
-    child.send({ source: task.path, section: describe(section), sections:memberships.map(describe), storePath });
+    child.send({ source: task.path, section: describe(section), sections:memberships.map(describe), storePath, folderOnly:options.folderOnly===true });
   }
 
   function selectedSections(sectionId) {

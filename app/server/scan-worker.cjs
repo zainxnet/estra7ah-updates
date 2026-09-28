@@ -56,7 +56,7 @@ process.once('message', async configuration => {
   let db;
   const progress = { files: 0, discoveredBytes: 0, indexedItems: 0, scannedDirectories: 0, warnings: 0, currentPath: configuration.source };
   try {
-    const { section, storePath } = configuration;
+    const { section, storePath } = configuration, folderOnly=configuration.folderOnly===true;
     if(section.type==='main'||section.type==='linked')throw Error('هذا قسم تجميعي؛ تزامن أقسام المحتوى الفرعية فقط');
     const memberships=Array.isArray(configuration.sections)&&configuration.sections.length?configuration.sections:[section];
     if(memberships.some(row=>row.type!==section.type)||new Set(memberships.map(row=>String(row.id))).size!==memberships.length)throw Error('Invalid shared scan sections');
@@ -172,7 +172,7 @@ process.once('message', async configuration => {
           const fullPath = path.join(directory, entry.name);
           if (entry.isSymbolicLink()) { progress.warnings++; continue; }
           if (entry.isDirectory()) { await addFolder(fullPath);directories.push(fullPath); await emitProgress(); continue; }
-          if (!entry.isFile()) continue;
+          if (folderOnly || !entry.isFile()) continue;
           const extension = path.extname(entry.name).slice(1).toLowerCase();
           const mime = types[extension];
           if (!mime || !allowed(section.type, mime, extension)) { await emitProgress(); continue; }

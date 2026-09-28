@@ -3,6 +3,7 @@ const fs = require('fs'), path = require('path'), http = require('http'), crypto
 const release=require('./release.json');
 const base = path.resolve(__dirname, '..'), web = path.join(base, 'interface'), data = path.join(base, 'data');
 for (const name of ['data', 'logs']) fs.mkdirSync(path.join(base, name), { recursive: true });
+const catalogStore=require('./catalog-store.cjs')(base);
 require('./backups.cjs').applyPending(base);
 const configFile = path.join(data, 'server-config.json');
 const config = fs.existsSync(configFile) ? JSON.parse(fs.readFileSync(configFile, 'utf8')) : { port: 80, bind: '0.0.0.0' };
@@ -14,6 +15,7 @@ let items = new Map(), children = new Map(), sectionItems = new Map(), files = n
 let byMediaPath = new Map(), scannedAliases = new Map();
 let byFilePath = new Map(), sharedCatalog;
 const mediaKey = x => x.path ? String(x.sectionId) + '|' + String(x.type) + '|' + path.normalize(x.path).toLowerCase().replace(/[\\/]+$/, '') : '';
+const catalogSnapshot=()=>({items,children,sectionItems,files,byMediaPath,byFilePath,scannedAliases});
 const controlToken = crypto.randomBytes(32).toString('hex');
 const log = fs.createWriteStream(path.join(base, 'logs/requests.log'), { flags: 'a' });
 const types = { ".webp": "image/webp", '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.json': 'application/json', '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.webm': 'video/webm', '.mkv': 'video/x-matroska', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.ogg': 'audio/ogg', '.vtt': 'text/vtt; charset=utf-8', '.pdf': 'application/pdf' };
@@ -419,14 +421,14 @@ server.listen(port, config.bind, async () => {
     const source = JSON.parse(await fs.promises.readFile(path.join(base, 'assets/db/estra7ah.json'), 'utf8'));
     sections = source.sectionsData;
     settings = { ...pick(source.settings || {}, ['isApprove', 'main_name', 'main_desc', 'main_phone', 'main_facebook', 'mubasher_port', 'is_stop_constraction', 'is_only_app', 'estra7ah_type', 'show_movies', 'show_series', 'show_tvs', 'show_s_r', 'show_anime', 'show_kids', 'show_m_d', 'show_sports', 'show_learn']), main_name: 'استراحة زين' };
-    const bootStarted=Date.now(),startupCache=require('./startup-cache.cjs')(base);
-    services = require('./services.cjs')({ dir: data, sections, onItems: mergeScanned,onMovieScan:reconcileMovieScan });
-    const cachedCatalog=await startupCache.read();
-    if(cachedCatalog){({items,children,sectionItems,files,byMediaPath,byFilePath,scannedAliases}=cachedCatalog);catalogRevision++;startupInfo={mode:cachedCatalog.sourceChanges.length?'incremental':'cached',changedRecords:cachedCatalog.sourceChanges.length};startupMessage='جار تحديث فهرس التشغيل';await mergeScannedBatches(cachedCatalog.sourceChanges);}
-    else{startupMessage=startupCache.reason+'؛ جار قراءة العناصر المحفوظة';startupInfo={mode:'rebuild',reason:startupCache.reason};updateItems(JSON.parse(await fs.promises.readFile(path.join(base,'assets/db/estra7ah.items.json'),'utf8')).itemsData);startupMessage='جار تجهيز العناصر الجديدة وربط المجلدات';await mergeScannedBatches(await services.getStoredItems());catalogItems.repairMovieFiles(items,updateItems);}
+    const bootStarted=Date.now();let cachedCatalog=catalogStore.read();
+    if(!cachedCatalog)catalogStore.importLegacy();
+    services = require('./services.cjs')({ dir: data, sections, catalogPath:catalogStore.file, folderOnly:settings.estra7ah_type==='caffe', onItems: mergeScanned,onMovieScan:reconcileMovieScan,onCatalogCommit:async()=>catalogStore.write(catalogSnapshot()) });
+    if(cachedCatalog){({items,children,sectionItems,files,byMediaPath,byFilePath,scannedAliases}=cachedCatalog);catalogRevision++;startupInfo={mode:'catalog',changedRecords:0};startupMessage='جار فتح كتالوج الاستراحة';}
+    else{startupMessage='جار ترحيل الفهرس السابق إلى قاعدة الكتالوج';startupInfo={mode:'migration'};updateItems(JSON.parse(await fs.promises.readFile(path.join(base,'assets/db/estra7ah.items.json'),'utf8')).itemsData);startupMessage='جار دمج نتائج المزامنة السابقة';await mergeScannedBatches(await services.getStoredItems());catalogItems.repairMovieFiles(items,updateItems);}
     content = require('./content-services.cjs')({ dir: data, source: { ...source, getItem: id => { const item = items.get(id); return item ? { ...safeItem(item), section: safeSection(sectionRow(item.sectionId)) } : null; } } });
     sharedCatalog=require('./shared-catalog.cjs')({items,rows:topRows(),updateItems});
-    itemAdmin = require('./item-admin.cjs')({dir:data,items,sharedCatalog,topRows,safeItem,updateItems,removeItem:removeCatalogItem,resolveId:id=>scannedAliases.get(id)||id,prepareExclusive:item=>exclusiveArtwork.prepare(item)});
+    itemAdmin = require('./item-admin.cjs')({dir:data,items,sharedCatalog,topRows,safeItem,updateItems,removeItem:removeCatalogItem,resolveId:id=>scannedAliases.get(id)||id,prepareExclusive:item=>exclusiveArtwork.prepare(item),catalogStore,onCatalogChange:()=>catalogStore.write(catalogSnapshot())});
     const repairScopes=services.movieScans().filter(scope=>!itemAdmin.scanApplied(scope));
     await itemAdmin.batchChanges(async()=>{
       for(let index=0;index<repairScopes.length;index++){
@@ -465,7 +467,7 @@ server.listen(port, config.bind, async () => {
     indexImages(); ready = true;
     startupInfo.sharedCatalog=sharedCatalog.stats();startupInfo.durationMs=Date.now()-bootStarted;
     console.log('Startup catalog: '+startupInfo.mode+'; '+startupInfo.durationMs+'ms; '+(startupInfo.changedRecords||0)+' changed records');
-    if(!cachedCatalog){const signature=startupCache.signature();setImmediate(async()=>{admin.recordEvent('جار تجهيز فهرس التشغيل السريع في الخلفية','success');const saved=await startupCache.write({items,children,sectionItems,files,byMediaPath,byFilePath,scannedAliases},signature);admin.recordEvent(saved?'اكتمل فهرس التشغيل السريع؛ سيكون جاهزًا عند التشغيل التالي':'لم يكتمل الفهرس أو تغيرت المكتبة أثناء التجهيز؛ ستُقرأ القاعدة الأصلية عند التشغيل التالي',saved?'success':'warning');});}
+    if(!cachedCatalog){catalogStore.write(catalogSnapshot());admin.recordEvent('اكتمل ترحيل الكتالوج إلى قاعدة SQLite الموحدة','success');}
  admin.recordEvent('تم تشغيل الاستراحة على المنفذ '+port+' والبث على '+settings.mubasher_port,'success'); console.log('Zain ready: http://127.0.0.1:' + port + '/; ' + items.size + ' records');
   } catch (e) { startupError = 'تعذر تحميل ملفات الخادم: ' + e.message; console.error(startupError); }
 });
