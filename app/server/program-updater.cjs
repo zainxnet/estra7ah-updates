@@ -109,7 +109,7 @@ async function local(root,route,body){const config=JSON.parse(fs.readFileSync(pa
 function closeLauncher(root){
  if(process.platform!=='win32')return;
  const target=path.join(fs.realpathSync(root),'Zain-Launcher-x64.exe');
- const script="$ErrorActionPreference='Stop'; $target=$env:ZAIN_UPDATE_LAUNCHER; Get-Process -Name Zain-Launcher-x64 -ErrorAction SilentlyContinue | ForEach-Object { if($_.Path -eq $target) { Stop-Process -Id $_.Id -ErrorAction Stop; if(-not $_.WaitForExit(10000)){throw 'Launcher did not exit'} } }";
+ const script="$ErrorActionPreference='Stop'; $target=$env:ZAIN_UPDATE_LAUNCHER; Get-Process | Where-Object { $_.ProcessName -eq 'Zain-Launcher-x64' } | ForEach-Object { if($_.Path -eq $target) { Stop-Process -Id $_.Id -ErrorAction Stop; if(-not $_.WaitForExit(10000)){throw 'Launcher did not exit'} } }";
  try{execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',script],{windowsHide:true,stdio:'pipe',timeout:20000,env:{...process.env,ZAIN_UPDATE_LAUNCHER:target}});}catch{throw error('تعذر إغلاق مشغل هذه النسخة؛ لم يبدأ استبدال الملفات. أغلق المشغل ثم أعد المحاولة');}
 }
 function lifecycle(root,{report=()=>{},logDir,executable=path.join(root,'runtime/node.exe'),waitOptions={}}={}){
