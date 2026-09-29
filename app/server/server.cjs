@@ -3,14 +3,18 @@ const fs = require('fs'), path = require('path'), http = require('http'), crypto
 const release=require('./release.json');
 const base = path.resolve(__dirname, '..'), web = path.join(base, 'interface'), data = path.join(base, 'data');
 for (const name of ['data', 'logs']) fs.mkdirSync(path.join(base, name), { recursive: true });
+const startupStatusFile=path.join(data,'startup-status.json');let lastStartupStatusAt=0;
+function reportStartup(status,force=false){const now=Date.now();if(!force&&now-lastStartupStatusAt<1000)return;lastStartupStatusAt=now;try{const temp=startupStatusFile+'.tmp';fs.writeFileSync(temp,JSON.stringify({...status,updatedAt:new Date().toISOString()}));fs.renameSync(temp,startupStatusFile);}catch{}}
+reportStartup({state:'starting',phase:'restore',message:'جار تطبيق النسخة الاحتياطية إن وجدت'},true);
 const catalogStore=require('./catalog-store.cjs')(base);
-require('./backups.cjs').applyPending(base);
+require('./backups.cjs').applyPending(base,progress=>reportStartup({state:'running',...progress},true));
+reportStartup({state:'starting',phase:'catalog-open',message:'جار فتح قاعدة الاستراحة'},true);
 const configFile = path.join(data, 'server-config.json');
 const config = fs.existsSync(configFile) ? JSON.parse(fs.readFileSync(configFile, 'utf8')) : { port: 80, bind: '0.0.0.0' };
 const port = config.port;
 let gemini;
 let ready = false, startupError = '', startupMessage='جار فتح قاعدة الاستراحة',startupInfo={}, sections = [], settings = {}, admin, services, content, operations, artwork, scanArtwork, uiCompat, speed, itemAdmin, backups, broadcast, metadata, posters, actorImages, exclusiveArtwork;
-const responseCache=require('./browse-cache.cjs')();let catalogRevision=0,topCacheRevision=-1,topCache=[];const normalizedNames=new WeakMap();
+const responseCache=require('./browse-cache.cjs')();let catalogRevision=0,topCacheRevision=-1,topCache=[],monitorCache=null,monitorCacheAt=0;const normalizedNames=new WeakMap();
 let items = new Map(), children = new Map(), sectionItems = new Map(), files = new Map();
 let byMediaPath = new Map(), scannedAliases = new Map();
 let byFilePath = new Map(), sharedCatalog;
@@ -25,7 +29,13 @@ const publicCatalog=require('./public-catalog.cjs'),catalogItems=require('./cata
 const safeItem = item => {const x=sharedCatalog?.view(item)||item;return x ? { ...pick(x, ['id', 'name', 'type', 'inItem', 'views', 'downloads', 'sectionId', 'createdAt', 'content', 'pathSize']),type:publicCatalog.publicType(x.type), files: (x.files || []).map(safeFile) } : null;};
 const detailItem = x => x ? {...safeItem(x),content:publicCatalog.detailContent((sharedCatalog?.view(x)||x).content), ...(settings.estra7ah_type === 'caffe' ? {path:'/zain/folder/'+encodeURIComponent(x.id)} : {})} : null;
 const safeSection = x => x ? pick(x, ['id', 'name', 'views', 'in_section', 'type', 'downloadActive', 'order', 'linkedId', 'is_hidden', 'NumOfEps', 'createdAt', 'updatedAt', 'isVIP', 'star']) : null;
-function respond(res, body, status = 200) { if (!res.destroyed) res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }).end(JSON.stringify(body)); }
+function monitorSnapshot() {
+  const now=Date.now();if(monitorCache&&now-monitorCacheAt<3000)return monitorCache;
+  const jobs=services?.syncJobs?.()||[],active=jobs.find(job=>job.status==='running')||jobs.find(job=>job.status==='queued'),metadataJobs=metadata?.jobs?.()||[],activeMetadata=metadataJobs.find(job=>job.status==='running')||metadataJobs.find(job=>job.status==='queued');
+  let disk=null;try{const stat=fs.statfsSync(data),free=Number(stat.bavail)*Number(stat.bsize),total=Number(stat.blocks)*Number(stat.bsize);disk={freeBytes:free,totalBytes:total,freePercent:total?Math.floor(free*100/total):null,warning:free<5*1024**3||(total&&free/total<0.1)};}catch{}
+  const sync=active?{running:jobs.filter(job=>job.status==='running').length,queued:jobs.filter(job=>job.status==='queued').length,section:(sections.find(section=>String(section.id)===String(active.sectionId))||{}).name||'',status:active.status,files:Number(active.files)||0,directories:Number(active.scannedDirectories)||0,warnings:Number(active.warnings)||0}: {running:0,queued:jobs.filter(job=>job.status==='queued').length};
+  monitorCache={sync,metadata:activeMetadata?{running:metadataJobs.filter(job=>job.status==='running').length,queued:metadataJobs.filter(job=>job.status==='queued').length,processed:Number(activeMetadata.processed)||0,total:Number(activeMetadata.total)||0,status:activeMetadata.status}: {running:0,queued:metadataJobs.filter(job=>job.status==='queued').length},backup:backups?.monitor?.()||null,network:{...(operations?.monitor?.()||{}),...(speed?.monitor?.()||{})},disk,warnings:admin?.monitor?.()||[],sampledAt:now};monitorCacheAt=now;return monitorCache;
+}function respond(res, body, status = 200) { if (!res.destroyed) res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }).end(JSON.stringify(body)); }
 function normalize(value) { return String(value || '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/[ؤئ]/g, 'ء').replace(/ى/g, 'ي').toLowerCase(); }
 function list(rows, start, count) { const at = Math.max(0, Number(start) || 0); return rows.slice(at, at + Math.min(200, Math.max(1, Number(count) || 100))); }
 function updateItems(rows) {
@@ -35,7 +45,7 @@ function updateItems(rows) {
     if (!x.id) continue;
     const old = items.get(x.id);
     if (old) { if (old.inItem) children.get(old.inItem)?.delete(old.id); else sectionItems.get(old.sectionId)?.delete(old.id); for (const f of old.files || []) if(files.get(f.id)?.itemId===old.id)files.delete(f.id); }
-    items.set(x.id, x);
+    items.set(x.id, x);catalogStore.markDirty?.(x.id);
     sharedCatalog?.add(x);
     if (mediaKey(x)) byMediaPath.set(mediaKey(x), x.id);
     const map = x.inItem ? children : sectionItems, key = x.inItem || x.sectionId;
@@ -49,7 +59,7 @@ function removeCatalogItem(id) {
  if(byMediaPath.get(mediaKey(item))===id)byMediaPath.delete(mediaKey(item));
  if(item.inItem)children.get(item.inItem)?.delete(id);else sectionItems.get(item.sectionId)?.delete(id);
  for(const file of item.files||[]){if(files.get(file.id)?.itemId===id)files.delete(file.id);const key=String(item.sectionId)+'|'+path.normalize(file.path||'').toLowerCase();if(byFilePath.get(key)===id)byFilePath.delete(key);}
- items.delete(id);children.delete(id);sharedCatalog?.remove(id);
+ items.delete(id);catalogStore.markDirty?.(id);children.delete(id);sharedCatalog?.remove(id);
 }
 function linkScanParents(rows) {
   // A stored series can be absent while its legacy seasons still name it.
@@ -119,6 +129,7 @@ async function mergeScannedBatches(rows,range=null){
   mergeScanned(rows.slice(at,at+500),false);
   startupInfo.progress=(startupInfo.progress||0)+Math.min(500,rows.length-at);
   const fraction=Math.min(rows.length,at+500)/rows.length;startupInfo.percent=range?Math.floor(range.start+range.span*fraction):Math.floor(100*fraction);
+  reportStartup({state:'running',phase:startupInfo.phase||'catalog-merge',message:startupMessage,current:startupInfo.progress,total:startupInfo.total||rows.length,percent:startupInfo.percent},false);
   await startupTick();
  }
 }
@@ -129,7 +140,7 @@ async function reconcileMovieScan(scope,cooperative=false){
  if(cooperative)await mergeScannedBatches(records,{start:100*(startupInfo.scope-1)/startupInfo.totalScopes,span:45/startupInfo.totalScopes});else mergeScanned(records,false);
  itemAdmin.observe(records.flatMap(row=>[row.id,scannedAliases.get(row.id)||row.id]));
  if(cooperative)await mergeScannedBatches(records,{start:(100*(startupInfo.scope-1)+45)/startupInfo.totalScopes,span:45/startupInfo.totalScopes});else mergeScanned(records,false);
- for(const record of records){const id=scannedAliases.get(record.id)||record.id,item=items.get(id);if(!item)continue;wanted.add(id);const paths=new Set(record.files.map(file=>path.normalize(file.path).toLowerCase()));active.push({id,files:(item.files||[]).filter(file=>paths.has(path.normalize(file.path).toLowerCase())),pathSize:record.pathSize});}
+ for(const record of records){const id=scannedAliases.get(record.id)||record.id,item=items.get(id);if(!item)continue;wanted.add(id);const paths=new Set(record.files.map(file=>path.normalize(file.path).toLowerCase()));active.push({id,files:settings.estra7ah_type==='caffe'?require('./compact-catalog-store.cjs').projection(item).files:(item.files||[]).filter(file=>paths.has(path.normalize(file.path).toLowerCase())),pathSize:settings.estra7ah_type==='caffe'?0:record.pathSize});}
  while(queue.length){const id=queue.pop();if(all.has(id))continue;all.add(id);queue.push(...(children.get(id)||[]));}
  const removed=[...all].filter(id=>{const item=items.get(id);return item&&item.path&&item.sectionId===scope.sectionId&&require('./movie-scan-state.cjs').contains(scope.root,item.path)&&!wanted.has(id);});
  itemAdmin.reconcileScan(scope,removed,active);
@@ -317,7 +328,7 @@ const server = http.createServer(async (req, res) => {
     try { route = decodeURIComponent(url.pathname); } catch { return respond(res, {}, 400); }
     res.setHeader('Content-Security-Policy', "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; frame-src 'none'");
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    if (route === '/zain/health') return respond(res, { service: 'zain', instanceId:crypto.createHash('sha256').update(controlToken).digest('hex'), version:release.version, ready, message: startupError || (ready ? 'الخادم يعمل' : startupMessage), startup:startupInfo, records: items.size, sections: sections.length, broadcast:broadcast?.status() });
+    if (route === '/zain/health') return respond(res, { service: 'zain', instanceId:crypto.createHash('sha256').update(controlToken).digest('hex'), version:release.version, ready, message: startupError || (ready ? 'الخادم يعمل' : startupMessage), startup:startupInfo, records: items.size, sections: sections.length, broadcast:broadcast?.status(), monitor:ready?monitorSnapshot():null });
     if (route === '/zain/control/stop') {
       if (req.method !== 'POST' || !['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress) || req.headers['x-zain-control'] !== controlToken) return respond(res, {}, 403);
       respond(res, { ok: true }); setTimeout(shutdown, 100); return;
@@ -410,7 +421,7 @@ const server = http.createServer(async (req, res) => {
 });
 let stopping = false;
 const closeServer=require('./shutdown.cjs')({
- cleanup:[()=>admin?.recordEvent('إيقاف خادم الاستراحة','warning'),()=>backups?.close(),()=>metadata?.close(),()=>broadcast?.close(),()=>artwork?.close(),()=>scanArtwork?.close(),()=>services?.close(),()=>operations?.close()],
+ cleanup:[()=>admin?.recordEvent('إيقاف خادم الاستراحة','warning'),()=>backups?.close(),()=>metadata?.close(),()=>broadcast?.close(),()=>artwork?.close(),()=>scanArtwork?.close(),()=>services?.close(),()=>operations?.close(),()=>catalogStore.close?.()],
  close:()=>new Promise(resolve=>{server.close(resolve);server.closeIdleConnections?.();}),
  forceClose:()=>server.closeAllConnections(),exit:code=>process.exit(code),report:message=>console.error(message)
 });
@@ -422,10 +433,10 @@ server.listen(port, config.bind, async () => {
     sections = source.sectionsData;
     settings = { ...pick(source.settings || {}, ['isApprove', 'main_name', 'main_desc', 'main_phone', 'main_facebook', 'mubasher_port', 'is_stop_constraction', 'is_only_app', 'estra7ah_type', 'show_movies', 'show_series', 'show_tvs', 'show_s_r', 'show_anime', 'show_kids', 'show_m_d', 'show_sports', 'show_learn']), main_name: 'استراحة زين' };
     const bootStarted=Date.now();let cachedCatalog=catalogStore.read();
-    if(!cachedCatalog)catalogStore.importLegacy();
+    if(!cachedCatalog){startupMessage='جار استيراد سجل المزامنة السابق';startupInfo={mode:'migration',phase:'legacy-import',percent:0,current:0,total:0};reportStartup({state:'running',phase:startupInfo.phase,message:startupMessage,percent:0,current:0,total:0},true);catalogStore.importLegacy(progress=>{startupInfo={...startupInfo,...progress};startupMessage=progress.message||startupMessage;reportStartup({state:'running',phase:startupInfo.phase,message:startupMessage,current:startupInfo.current,total:startupInfo.total,percent:startupInfo.percent},false);});}
     services = require('./services.cjs')({ dir: data, sections, catalogPath:catalogStore.file, folderOnly:settings.estra7ah_type==='caffe', onItems: mergeScanned,onMovieScan:reconcileMovieScan,onCatalogCommit:async()=>catalogStore.write(catalogSnapshot()) });
     if(cachedCatalog){({items,children,sectionItems,files,byMediaPath,byFilePath,scannedAliases}=cachedCatalog);catalogRevision++;startupInfo={mode:'catalog',changedRecords:0};startupMessage='جار فتح كتالوج الاستراحة';}
-    else{startupMessage='جار ترحيل الفهرس السابق إلى قاعدة الكتالوج';startupInfo={mode:'migration'};updateItems(JSON.parse(await fs.promises.readFile(path.join(base,'assets/db/estra7ah.items.json'),'utf8')).itemsData);startupMessage='جار دمج نتائج المزامنة السابقة';await mergeScannedBatches(await services.getStoredItems());catalogItems.repairMovieFiles(items,updateItems);}
+    else{startupMessage='جار ترحيل الفهرس السابق إلى قاعدة الكتالوج';startupInfo={mode:'migration',phase:'legacy-items',percent:0};reportStartup({state:'running',phase:startupInfo.phase,message:startupMessage,percent:0},true);const legacyItems=JSON.parse(await fs.promises.readFile(path.join(base,'assets/db/estra7ah.items.json'),'utf8')).itemsData;updateItems(legacyItems);startupMessage='جار دمج نتائج المزامنة السابقة';const storedItems=await services.getStoredItems();startupInfo={...startupInfo,phase:'catalog-merge',progress:0,total:storedItems.length,percent:0};reportStartup({state:'running',phase:startupInfo.phase,message:startupMessage,current:0,total:storedItems.length,percent:0},true);await mergeScannedBatches(storedItems);catalogItems.repairMovieFiles(items,updateItems);}
     content = require('./content-services.cjs')({ dir: data, source: { ...source, getItem: id => { const item = items.get(id); return item ? { ...safeItem(item), section: safeSection(sectionRow(item.sectionId)) } : null; } } });
     sharedCatalog=require('./shared-catalog.cjs')({items,rows:topRows(),updateItems});
     itemAdmin = require('./item-admin.cjs')({dir:data,items,sharedCatalog,topRows,safeItem,updateItems,removeItem:removeCatalogItem,resolveId:id=>scannedAliases.get(id)||id,prepareExclusive:item=>exclusiveArtwork.prepare(item),catalogStore,onCatalogChange:()=>catalogStore.write(catalogSnapshot())});
@@ -438,7 +449,7 @@ server.listen(port, config.bind, async () => {
         await reconcileMovieScan(repairScopes[index],true);startupInfo.percent=Math.floor((index+1)*100/repairScopes.length);
       }
     });
-    startupMessage='جار إكمال تشغيل الخدمات';startupInfo.phase='services';startupInfo.percent=null;await startupTick();if(stopping)throw Error('توقف تجهيز الفهرس');
+    startupMessage='جار إكمال تشغيل الخدمات';startupInfo.phase='services';startupInfo.percent=null;reportStartup({state:'running',phase:'services',message:startupMessage},true);await startupTick();if(stopping)throw Error('توقف تجهيز الفهرس');
     speed=require('./speed.cjs')({dir:data});
     backups=require('./backups.cjs')({base,isSyncing:()=>services.syncJobs().some(j=>['running','queued'].includes(j.status)),onEvent:(...args)=>admin?.recordEvent(...args)});
     gemini=require('./gemini-search.cjs')({dir:data});
@@ -464,12 +475,13 @@ server.listen(port, config.bind, async () => {
     settings.mubasher_port=String(config.broadcastPort||Number(settings.mubasher_port)||3333);
     if(Number(settings.mubasher_port)===port)throw Error('منفذ البث يجب أن يختلف عن منفذ الاستراحة');
     broadcast=require('./broadcast.cjs')({base,port:Number(settings.mubasher_port),mainPort:port,authorize:req=>admin.authorize(req),allowedHost,onEvent:admin.recordEvent});
-    indexImages(); ready = true;
+    indexImages();
     startupInfo.sharedCatalog=sharedCatalog.stats();startupInfo.durationMs=Date.now()-bootStarted;
     console.log('Startup catalog: '+startupInfo.mode+'; '+startupInfo.durationMs+'ms; '+(startupInfo.changedRecords||0)+' changed records');
-    if(!cachedCatalog){catalogStore.write(catalogSnapshot());admin.recordEvent('اكتمل ترحيل الكتالوج إلى قاعدة SQLite الموحدة','success');}
+    if(!cachedCatalog){startupInfo.phase='catalog-save';startupInfo.percent=null;reportStartup({state:'running',phase:'catalog-save',message:'جار حفظ قاعدة المكتبة'},true);catalogStore.write(catalogSnapshot());admin.recordEvent('اكتمل ترحيل الكتالوج إلى قاعدة SQLite الموحدة','success');}
+ ready=true;reportStartup({state:'completed',phase:'completed',message:'اكتمل تجهيز المكتبة',percent:100,records:items.size,sections:sections.length},true);
  admin.recordEvent('تم تشغيل الاستراحة على المنفذ '+port+' والبث على '+settings.mubasher_port,'success'); console.log('Zain ready: http://127.0.0.1:' + port + '/; ' + items.size + ' records');
-  } catch (e) { startupError = 'تعذر تحميل ملفات الخادم: ' + e.message; console.error(startupError); }
+  } catch (e) { startupError = 'تعذر تحميل ملفات الخادم: ' + e.message;reportStartup({state:'failed',phase:'failed',message:startupError,error:String(e.message||e),percent:null},true);console.error(startupError); }
 });
 server.on('error', error => { console.error(error.message); process.exit(1); });
 process.on('SIGTERM', shutdown); process.on('SIGINT', shutdown);

@@ -1032,3 +1032,95 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   });
   poll();
 })();
+(function () {
+  'use strict';
+
+  var panel,
+    timer,
+    stopped = false,
+    last;
+  function render(r) {
+    if (!r) return;
+    last = r;
+    if (!panel || !panel.isConnected) {
+      panel = document.createElement('div');
+      panel.id = 'zain-restore-progress';
+      panel.dir = 'rtl';
+      panel.setAttribute('role', 'status');
+      panel.style.cssText = 'position:fixed;bottom:16px;left:16px;z-index:2147483000;max-width:540px;padding:16px;background:#202a40;color:white;border:2px solid #716aff;border-radius:10px;font:15px Arial;line-height:1.8';
+      document.body.appendChild(panel);
+    }
+    var labels = {
+      'restore-apply': 'جار تطبيق ملفات النسخة',
+      'legacy-import': 'جار استيراد سجلات المزامنة',
+      'legacy-items': 'جار تحميل فهرس المحتويات',
+      'catalog-merge': 'جار دمج المكتبة',
+      'services': 'جار تشغيل الخدمات',
+      'catalog-save': 'جار حفظ قاعدة المكتبة',
+      completed: 'اكتملت الاستعادة وتجهيز المكتبة'
+    };
+    var text = labels[r.phase] || r.message || 'الاستعادة جارية';
+    if (r.percent != null) text += ' — تقدم المرحلة ' + r.percent + '%';
+    if (r.total > 0) {
+      var fmt = n => r.unit === 'bytes' ? (n / 1048576).toFixed(1) + ' MB' : Number(n).toLocaleString() + ' سجل';
+      text += ' — تم ' + fmt(r.current || 0) + ' من ' + fmt(r.total) + '؛ المتبقي ' + fmt(Math.max(0, r.total - (r.current || 0)));
+    }
+    panel.textContent = text;
+    panel.style.borderColor = r.state === 'failed' ? '#e55555' : r.state === 'completed' ? '#42b777' : '#716aff';
+  }
+  function poll() {
+    return _poll3.apply(this, arguments);
+  }
+  function _poll3() {
+    _poll3 = _asyncToGenerator(_regenerator().m(function _callee0() {
+      var response, data, _t1;
+      return _regenerator().w(function (_context1) {
+        while (1) switch (_context1.p = _context1.n) {
+          case 0:
+            if (!stopped) {
+              _context1.n = 1;
+              break;
+            }
+            return _context1.a(2);
+          case 1:
+            _context1.p = 1;
+            _context1.n = 2;
+            return fetch('/admin/api/backupStatus', {
+              credentials: 'same-origin',
+              cache: 'no-store'
+            });
+          case 2:
+            response = _context1.v;
+            if (!response.ok) {
+              _context1.n = 4;
+              break;
+            }
+            _context1.n = 3;
+            return response.json();
+          case 3:
+            data = _context1.v;
+            render(data.restore);
+          case 4:
+            _context1.n = 6;
+            break;
+          case 5:
+            _context1.p = 5;
+            _t1 = _context1.v;
+            if (last && panel) panel.textContent = 'انقطع اتصال الخادم؛ انتظار عودته لمتابعة الاستعادة. آخر حالة: ' + (last.message || last.phase);
+          case 6:
+            _context1.p = 6;
+            if (!stopped) timer = setTimeout(poll, 2000);
+            return _context1.f(6);
+          case 7:
+            return _context1.a(2);
+        }
+      }, _callee0, null, [[1, 5, 6, 7]]);
+    }));
+    return _poll3.apply(this, arguments);
+  }
+  window.addEventListener('pagehide', () => {
+    stopped = true;
+    clearTimeout(timer);
+  });
+  poll();
+})();

@@ -5,6 +5,10 @@ module.exports=function({dir,items,sharedCatalog,topRows,safeItem,updateItems,re
  const file=path.join(dir,'item-edits.json'),legacy=fs.existsSync(file)?JSON.parse(fs.readFileSync(file,'utf8')):{edits:{},deleted:[],pinned:[]};let state=catalogStore?.readState('item-edits')||legacy;if(catalogStore&&!catalogStore.readState('item-edits'))catalogStore.writeState('item-edits',state);
  if(!state.edits||!Array.isArray(state.deleted)||!Array.isArray(state.pinned))throw Error('Invalid item edits store');
 
+ const pinsFile=path.join(dir,'item-pins.json');
+ const savedPins=catalogStore?.readState('item-pins')||(fs.existsSync(pinsFile)?JSON.parse(fs.readFileSync(pinsFile,'utf8')):null);
+ if(savedPins&&Array.isArray(savedPins.pinned))state.pinned=savedPins.pinned;
+ function savePins(pinned){const value={pinned};if(catalogStore)catalogStore.writeState('item-pins',value);else{fs.writeFileSync(pinsFile+'.tmp',JSON.stringify(value));fs.renameSync(pinsFile+'.tmp',pinsFile);}state={...state,pinned};}
  let appliedEdits,appliedShared,manualSource,scanSource,manualDeleted=new Set(),scanDeleted=new Set();
  function apply(ids){
   if(manualSource!==state.deleted){manualSource=state.deleted;manualDeleted=new Set(state.deleted);}
@@ -40,7 +44,7 @@ module.exports=function({dir,items,sharedCatalog,topRows,safeItem,updateItems,re
  state.exclusive=state.exclusive||[];
  const adminReads=new Set(['getItems','getPinedItems','getExclusiveItems','getItemSyncState']);const adminActions=new Set(['pinItem','delPinedItem','removeAllPinned','deleteItem','updateContent','addExclusiveItem','removeExclusiveItem','updateExclusiveItem']);
  function exclusiveItems(){return state.exclusive.map(id=>{const item=items.get(id);if(!item)return null;const edit=state.exclusiveEdits?.[id]||{};let content={};try{content=JSON.parse(item.content?.contentJSON||'{}')}catch{}return {...safeItem(item),...(edit.name?{name:edit.name}:{}),content:{...item.content,contentJSON:JSON.stringify({...content,...edit.content})},...(edit.image?{exclusiveImage:'/zain/exclusive-custom-image?id='+encodeURIComponent(id)+'&v='+edit.version}:{})};}).filter(Boolean);}
- return {exclusiveItems,exclusiveFile:id=>{const name=state.exclusiveEdits?.[id]?.image;return state.exclusive.includes(id)&&items.has(id)&&/^[a-f0-9-]+\.(png|jpg|webp|gif)$/.test(name||'')?path.join(dir,'promotional-media',name):null;},readBody:(req,action)=>action==='updateExclusiveItem'?require('./multipart.cjs')(req,{limit:9*1024*1024}):require('./text-body.cjs')(req),saveContent:(id,content)=>{if(!items.has(id))return;const next=sharedCatalog?{...state,sharedContent:{...state.sharedContent,[sharedCatalog.key(id)]:content}}:{...state,edits:{...state.edits,[id]:{...state.edits[id],content}}};save(next,{metadataId:id});},pinnedItems:()=>{const rows=state.pinned.map(id=>items.get(id)).filter(Boolean);return (sharedCatalog?sharedCatalog.unique(rows):rows).map(safeItem)},adminReads,adminActions,async admin(action,args,body,method){
+ return {exclusiveItems,exclusiveFile:id=>{const name=state.exclusiveEdits?.[id]?.image;return state.exclusive.includes(id)&&items.has(id)&&/^[a-f0-9-]+\.(png|jpg|webp|gif)$/.test(name||'')?path.join(dir,'promotional-media',name):null;},readBody:(req,action)=>action==='updateExclusiveItem'?require('./multipart.cjs')(req,{limit:9*1024*1024}):require('./text-body.cjs')(req),saveContent:(id,content)=>{if(!items.has(id))return;const next=sharedCatalog?{...state,sharedContent:{...state.sharedContent,[sharedCatalog.key(id)]:content}}:{...state,edits:{...state.edits,[id]:{...state.edits[id],content}}};save(next,{metadataId:id});},pinnedItems:()=>{const rows=[...state.pinned].reverse().map(id=>items.get(id)).filter(Boolean);return (sharedCatalog?sharedCatalog.unique(rows):rows).map(safeItem)},adminReads,adminActions,async admin(action,args,body,method){
   const result=(body,status=200)=>({body,status}),error=(message,status=400)=>result({msg:'error',error:message},status);
   if(adminReads.has(action)&&method!=='GET')return error('طريقة الطلب غير صالحة',405);
   if(action==='getExclusiveItems')return result({items:exclusiveItems()});
@@ -62,7 +66,7 @@ module.exports=function({dir,items,sharedCatalog,topRows,safeItem,updateItems,re
    if(q&&!['null','undefined'].includes(q))rows=rows.filter(item=>String(item.name).toLowerCase().includes(q));
    if(sharedCatalog)rows=sharedCatalog.unique(rows);const at=Math.max(0,parseInt(offset)||0);return result({total:[{count:rows.length}],items:rows.slice(at,at+100).map(safeItem)});
   }
-  if(action==='removeAllPinned'){if(method!=='POST')return error('طريقة الطلب غير صالحة',405);const next=structuredClone(state);next.pinned=[];save(next);return result({msg:'ok'});}
+  if(action==='removeAllPinned'){if(method!=='POST')return error('طريقة الطلب غير صالحة',405);savePins([]);return result({msg:'ok'});}
   if(!adminActions.has(action))return null;const id=args[0],item=items.get(id);if(!item)return error('العنصر غير موجود',404);
   if(action==='updateExclusiveItem'){
    if(method!=='POST')return error('طريقة الطلب غير صالحة',405);
@@ -84,6 +88,13 @@ module.exports=function({dir,items,sharedCatalog,topRows,safeItem,updateItems,re
    if(!['movie','film','series'].includes(item.type))return error('اختر فيلماً أو مسلسلاً');
    exclusiveResult=await prepareExclusive(item);
    if(!items.has(id))return error('العنصر لم يعد موجوداً',404);
+  }
+  if(action==='pinItem'||action==='delPinedItem'){
+   const related=new Set(sharedCatalog?.related(id)||[id]);let pinned=state.pinned;
+   if(action==='pinItem'){if(!pinned.some(value=>related.has(value)))pinned=[...pinned,id];}
+   else pinned=pinned.filter(value=>!related.has(value));
+   if(pinned!==state.pinned)savePins(pinned);
+   return result({msg:'ok'});
   }
   const next=structuredClone(state);
   if(action==='addExclusiveItem'){if(!['movie','film','series'].includes(item.type))return error('اختر فيلماً أو مسلسلاً');if(!next.exclusive.includes(id))next.exclusive.push(id);}

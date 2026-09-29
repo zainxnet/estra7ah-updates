@@ -16,7 +16,7 @@ module.exports = function createOperations({ dir, items, sections, services = {}
   const startedAt = new Date().toISOString();
   const visitors = new Map();
   const samples = [];
-  let pendingBytes = 0, lastSample = Date.now(), cached = null, cacheAt = 0, cachedCount = -1;
+  let pendingBytes = 0, lastSample = Date.now(), cached = null, cacheAt = 0, cachedCount = -1, monitorCached = null, monitorAt = 0;
   const rows = () => items.values();
   const getItem = id => items instanceof Map ? items.get(id) : items.find(item => String(item.id) === id);
   const count = () => items instanceof Map ? items.size : items.length;
@@ -76,10 +76,10 @@ module.exports = function createOperations({ dir, items, sections, services = {}
     let visitor = visitors.get(address);
     if (!visitor) {
       if (visitors.size >= 10000) visitors.delete(visitors.keys().next().value);
-      visitor = { lastSeen: now, device: device(req.headers?.['user-agent']), lastViews: new Map() };
+      visitor = { lastSeen: now, device: device(req.headers?.['user-agent']), requests: 0, lastViews: new Map() };
       visitors.set(address, visitor);
     }
-    visitor.lastSeen = now;
+    visitor.lastSeen = now; visitor.requests = numeric(visitor.requests) + 1; monitorCached = null;
     const match = /^\/api\/(getItemData|getSecType)\/([^/]+)\/?$/.exec(pathname);
     if (!match) return;
     const isItem = match[1] === 'getItemData', id = match[2];
@@ -127,7 +127,13 @@ module.exports = function createOperations({ dir, items, sections, services = {}
     cached = result; cacheAt = now; cachedCount = count();
     return result;
   }
-  async function admin(action, args = [], body = {}, method = 'GET') {
+  function monitor() {
+    const now = Date.now(); if (monitorCached && now-monitorAt < 3000) return structuredClone(monitorCached);
+    pruneVisitors(now); let top = null;
+    for (const visitor of visitors.values()) if (!top || numeric(visitor.requests) > numeric(top.requests)) top = { device: visitor.device, requests: numeric(visitor.requests) };
+    monitorCached = { visitors: visitors.size, topClient: top, sampledAt: now }; monitorAt = now;
+    return structuredClone(monitorCached);
+  }  async function admin(action, args = [], body = {}, method = 'GET') {
     if (!adminReads.has(action) && !adminActions.has(action)) return null;
     if (adminReads.has(action) && method !== 'GET') return { status: 405, body: { msg: 'error', error: 'هذه الخدمة للقراءة' } };
     if (adminActions.has(action) && !['GET', 'POST'].includes(method)) return { status: 405, body: { msg: 'error' } };
@@ -169,5 +175,5 @@ module.exports = function createOperations({ dir, items, sections, services = {}
     clearInterval(timer); clearInterval(saveTimer);
     sample(); flush(); visitors.clear();
   }
-  return { adminReads, adminActions, admin, trackRequest, trackTransfer, close };
+  return { adminReads, adminActions, admin, trackRequest, trackTransfer, monitor, close };
 };

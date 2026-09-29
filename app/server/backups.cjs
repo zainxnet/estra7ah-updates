@@ -2,7 +2,7 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{fork}=require('node:child_process');
 module.exports=function({base,onEvent=()=>{},isSyncing=()=>false}){
  const dir=path.join(base,'data'),root=path.join(dir,'local-backups');fs.mkdirSync(root,{recursive:true});let busy=false,lastError='',lastAutomatic=0;
- const backupJobs=[];
+ const backupJobs=[];const restoreProgress=require('./restore-progress.cjs')(base);
 
  const maintenance={running:false,action:null,phase:'idle',error:'',report:null,backup:null};
  function maintenanceWorker(optimize){return new Promise((resolve,reject)=>{const child=fork(path.join(__dirname,'database-maintenance-worker.cjs'),[],{windowsHide:true,stdio:['ignore','ignore','ignore','ipc']});let done=false;const timer=setTimeout(()=>finish(Error('انتهت مهلة فحص القاعدة')),15*60*1000);function finish(error,result){if(done)return;done=true;clearTimeout(timer);child.kill();error?reject(error):resolve(result)}child.on('error',finish);child.on('exit',()=>finish(Error('توقفت عملية فحص القاعدة؛ لم تكتمل الصيانة')));child.on('message',r=>finish(r.ok?null:Error(r.error),r.result));child.send({base,optimize});})}
@@ -11,14 +11,20 @@ module.exports=function({base,onEvent=()=>{},isSyncing=()=>false}){
  async function worker(action,file){const stage=path.join(root,'work-'+crypto.randomUUID());return new Promise((resolve,reject)=>{const c=fork(path.join(__dirname,'backup-worker.cjs'),[],{windowsHide:true,stdio:['ignore','ignore','ignore','ipc']});let done=false;const timer=setTimeout(()=>finish(Error('انتهت مهلة النسخ الاحتياطي')),15*60*1000);function finish(e,r){if(done)return;done=true;clearTimeout(timer);c.kill();e?reject(e):resolve({...r,stage});}c.on('error',finish);c.on('exit',()=>finish(Error('توقفت عملية النسخ الاحتياطي')));c.on('message',r=>finish(r.ok?null:Error(r.error),r));c.send({base,action,file,stage});});}
  const existingBackups=fs.readdirSync(root).filter(n=>/^zain-[\w-]+\.zain\.gz$/.test(n));for(const name of existingBackups)lastAutomatic=Math.max(lastAutomatic,fs.statSync(path.join(root,name)).mtimeMs);
  async function create(internal=false){if(busy||maintenance.running&&!internal)throw Object.assign(Error('توجد عملية نسخ احتياطي قيد التنفيذ'),{status:409});busy=true;lastError='';const job={id:crypto.randomUUID(),status:'running',name:'',size:0,error:''};backupJobs.push(job);if(backupJobs.length>8)backupJobs.shift();onEvent('بدأ إنشاء نسخة احتياطية','success');try{const name='zain-'+new Date().toISOString().replace(/[:.]/g,'-')+'.zain.gz',tmp=path.join(root,name+'.partial');const archive=await worker('create',tmp);fs.renameSync(tmp,path.join(root,name));lastAutomatic=Date.now();Object.assign(job,{status:'completed',name,fileCount:archive.files.length,size:fs.statSync(path.join(root,name)).size});onEvent('تم حفظ النسخة الاحتياطية: '+name,'success');return name;}catch(e){lastError=e.message;Object.assign(job,{status:'failed',error:e.message});onEvent('تعذر النسخ الاحتياطي: '+e.message,'warning');throw e;}finally{busy=false;}}
- async function handle(req,res,action,args){const json=(v,s=200)=>res.writeHead(s,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}).end(JSON.stringify(v));
+ const maxRestoreUpload=16*1024**3;
+ async function saveRawBackup(req,file){
+  const declared=Number(req.headers['content-length']||0);if(!Number.isFinite(declared)||declared<1)throw Object.assign(Error('حجم ملف النسخة غير معروف'),{status:400});
+  if(declared>maxRestoreUpload)throw Object.assign(Error('حجم الرفع يتجاوز 16 جيجابايت'),{status:413});
+  let fd,total=0;try{fd=fs.openSync(file,'wx');for await(const chunk of req){total+=chunk.length;if(total>maxRestoreUpload)throw Object.assign(Error('حجم الرفع يتجاوز 16 جيجابايت'),{status:413});fs.writeSync(fd,chunk);restoreProgress.set({state:'running',phase:'upload',message:'جار استقبال النسخة الاحتياطية',unit:'bytes',current:total,total:declared,percent:Math.floor(total*100/declared)},false);}if(!total)throw Object.assign(Error('اختر ملف النسخة الاحتياطية'),{status:400});}
+  catch(error){try{if(fd!==undefined)fs.closeSync(fd)}catch{};try{fs.rmSync(file,{force:true})}catch{};throw error;}finally{try{if(fd!==undefined)fs.closeSync(fd)}catch{}}
+ } async function handle(req,res,action,args){const json=(v,s=200)=>res.writeHead(s,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}).end(JSON.stringify(v));
  try{
   if(action==='databaseMaintenanceStatus'){if(req.method!=='GET')return json({msg:'error'},405);return json(maintenance);}
   if(action==='scanDatabase'||action==='optimizeDatabase'){if(req.method!=='POST')return json({msg:'error'},405);return json(startMaintenance(action==='optimizeDatabase'));}
   if(maintenance.running&&['restoreBackup','saveDatabase','backupNow'].includes(action))return json({msg:'error',error:'انتظر انتهاء فحص أو تحسين القاعدة'},409);
   if(action==='remoteBackups')return json([]);
   if(action==='localBackups'){const rows=fs.readdirSync(root).filter(n=>/^zain-[\w-]+\.zain\.gz$/.test(n)).map(name=>{const s=fs.statSync(path.join(root,name));return {name,size:s.size,modifiedTime:s.mtime.toISOString()};});return json(rows.sort((a,b)=>b.modifiedTime.localeCompare(a.modifiedTime)));}
-  if(action==='backupStatus'){const id=new URL(req.url||'/','http://localhost').searchParams.get('jobId'),job=id?backupJobs.find(j=>j.id===id):backupJobs.at(-1);return json({busy,lastError,job:job||null,pendingRestart:fs.existsSync(path.join(dir,'pending-restore.json'))});}
+  if(action==='backupStatus'){const id=new URL(req.url||'/','http://localhost').searchParams.get('jobId'),job=id?backupJobs.find(j=>j.id===id):backupJobs.at(-1);return json({restore:restoreProgress.read(),busy,lastError,job:job||null,pendingRestart:fs.existsSync(path.join(dir,'pending-restore.json'))});}
   if(action==='saveDatabase'){
    if(req.method==='POST'&&new URL(req.url||'/','http://localhost').searchParams.get('background')==='1'){
     if(busy||maintenance.running)return json({msg:'error',error:'توجد عملية نسخ أو صيانة قيد التنفيذ؛ انتظر انتهاءها'},409);
@@ -31,17 +37,20 @@ module.exports=function({base,onEvent=()=>{},isSyncing=()=>false}){
   if(action==='download')return download(args[0],res);
   if(action==='restoreBackup'){
    if(req.method!=='POST')return json({msg:'error'},405);if(busy)return json({msg:'error',error:'انتظر انتهاء النسخ الحالي'},409);
-   const {files}=await require('./multipart.cjs')(req,{limit:256*1024*1024});const upload=files.backupFile;if(!upload)throw Error('اختر ملف النسخة الاحتياطية');
+   restoreProgress.set({state:'running',phase:'upload',message:'بدأ استقبال النسخة الاحتياطية',percent:null,startedAt:new Date().toISOString()});onEvent('بدأ استرجاع النسخة الاحتياطية','success');
+   const file=path.join(root,'upload-'+crypto.randomUUID()+'.zain.gz'),type=String(req.headers['content-type']||'').toLowerCase();
+   if(type.startsWith('application/octet-stream'))await saveRawBackup(req,file);
+   else {const {files}=await require('./multipart.cjs')(req,{limit:512*1024*1024}),upload=files.backupFile;if(!upload)throw Error('اختر ملف النسخة الاحتياطية');fs.writeFileSync(file,upload.bytes,{flag:'wx'});}
    if(busy||maintenance.running)return json({msg:'error',error:'انتظر انتهاء العملية الحالية'},409);
-   const file=path.join(root,'upload-'+crypto.randomUUID()+'.zain.gz');fs.writeFileSync(file,upload.bytes,{flag:'wx'});
-   busy=true;let checked;try{checked=await worker('restore',file);}finally{busy=false;}
-   const before=await create();fs.writeFileSync(path.join(dir,'pending-restore.json'),JSON.stringify({stage:checked.stage,files:checked.files,before}));
+   busy=true;let checked;restoreProgress.set({state:'running',phase:'verify',message:'جار فك ضغط النسخة والتحقق من سلامتها؛ انتظر اكتمال الفحص',percent:null});try{checked=await worker('restore',file);}finally{busy=false;}
+   restoreProgress.set({state:'running',phase:'safety-backup',message:'جار حفظ نسخة أمان قبل تطبيق الاستعادة',percent:null});const before=await create();fs.writeFileSync(path.join(dir,'pending-restore.json'),JSON.stringify({stage:checked.stage,files:checked.files,before}));
+   restoreProgress.set({state:'waiting-restart',phase:'waiting-restart',message:'نجح فحص النسخة؛ أوقف الخادم ثم شغله لتطبيقها',percent:null});onEvent('نجح فحص النسخة الاحتياطية؛ جاهزة للتطبيق بعد إعادة تشغيل الخادم','success');
    return json({msg:'ok',restartRequired:true,message:'تم التحقق وحفظ نسخة قبل الاستعادة. أوقف الخادم وشغله لتطبيق النسخة.'});
   }
- }catch(e){return json({msg:'error',error:e.message},e.status||400);}
+ }catch(e){if(action==='restoreBackup'){restoreProgress.set({state:'failed',phase:'failed',message:'فشل الاسترجاع: '+e.message,percent:null});onEvent('فشل الاسترجاع: '+e.message,'warning');}return json({msg:'error',error:e.message},e.status||400);}
  }
  function download(name,res){if(!/^zain-[\w-]+\.zain\.gz$/.test(name||''))throw Error('اسم نسخة غير صالح');const file=path.join(root,name),s=fs.statSync(file);res.writeHead(200,{'Content-Type':'application/gzip','Content-Length':s.size,'Content-Disposition':'attachment; filename="'+name+'"','Cache-Control':'no-store'});const input=fs.createReadStream(file);input.on('error',()=>res.destroy());res.on('close',()=>input.destroy());input.pipe(res);}
  const timer=setInterval(()=>{try{const s=JSON.parse(fs.readFileSync(path.join(dir,'speed.json'),'utf8'));if(s.isAutoBackup==='yes'&&!busy&&!maintenance.running&&Date.now()-lastAutomatic>=24*3600000){lastAutomatic=Date.now();create().catch(e=>{lastError=e.message});}}catch{}},60000);timer.unref();
- return {handle,create,isBusy:()=>busy||maintenance.running,isMaintaining:()=>maintenance.running,close:()=>clearInterval(timer),rawActions:new Set(['remoteBackups','localBackups','saveDatabase','backupNow','download','restoreBackup','backupStatus','scanDatabase','optimizeDatabase','databaseMaintenanceStatus'])};
+ return {handle,create,monitor:()=>({restore:restoreProgress.read(),busy,lastError,maintenance:{running:maintenance.running,action:maintenance.action,phase:maintenance.phase,error:maintenance.error}}),isBusy:()=>busy||maintenance.running,isMaintaining:()=>maintenance.running,close:()=>clearInterval(timer),rawActions:new Set(['remoteBackups','localBackups','saveDatabase','backupNow','download','restoreBackup','backupStatus','scanDatabase','optimizeDatabase','databaseMaintenanceStatus'])};
 };
 module.exports.applyPending=require('./restore-state.cjs');
