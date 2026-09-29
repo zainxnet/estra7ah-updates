@@ -106,10 +106,16 @@ async function apply(root,job,{stop,start,healthy,stopNew,commit=async()=>{},rep
  }
 }
 async function local(root,route,body){const config=JSON.parse(fs.readFileSync(path.join(root,'data/server-config.json'))),control=JSON.parse(fs.readFileSync(path.join(root,'data/launcher-control.json')));if(control.port!==config.port||typeof control.token!=='string')throw error('بيانات التحكم المحلي غير متوافقة');const r=await fetch('http://127.0.0.1:'+config.port+route,{method:'POST',headers:{Connection:'close','x-zain-control':control.token,'Content-Type':'application/json'},body:JSON.stringify(body||{}),signal:AbortSignal.timeout(7000)});const value=await r.json();if(!r.ok)throw error(value.error||'رفض السيرفر التحديث');return value;}
+function closeLauncher(root){
+ if(process.platform!=='win32')return;
+ const target=path.join(fs.realpathSync(root),'Zain-Launcher-x64.exe');
+ const script="$ErrorActionPreference='Stop'; $target=$env:ZAIN_UPDATE_LAUNCHER; Get-Process -Name Zain-Launcher-x64 -ErrorAction SilentlyContinue | ForEach-Object { if($_.Path -eq $target) { Stop-Process -Id $_.Id -ErrorAction Stop; if(-not $_.WaitForExit(10000)){throw 'Launcher did not exit'} } }";
+ try{execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',script],{windowsHide:true,stdio:'pipe',timeout:20000,env:{...process.env,ZAIN_UPDATE_LAUNCHER:target}});}catch{throw error('تعذر إغلاق مشغل هذه النسخة؛ لم يبدأ استبدال الملفات. أغلق المشغل ثم أعد المحاولة');}
+}
 function lifecycle(root,{report=()=>{},logDir,executable=path.join(root,'runtime/node.exe'),waitOptions={}}={}){
  const config=JSON.parse(fs.readFileSync(path.join(root,'data/server-config.json')));let launched,spawnFailure='';
  async function health(){try{const r=await fetch('http://127.0.0.1:'+config.port+'/zain/health',{headers:{Connection:'close'},signal:AbortSignal.timeout(2000)});const data=await r.json();if(data.service!=='zain')throw Object.assign(error('المنفذ مستخدم من برنامج آخر'),{fatalHealth:true});return data;}catch(e){if(e.cause?.code==='ECONNREFUSED')return null;throw e;}}
- return {async stopRecovery(){if(await health()){await local(root,'/zain/control/stop');for(let i=0;i<30;i++){if(!await health())return;await delay(300)}throw error('تعذر إيقاف السيرفر للاستعادة')}},async stop(){const h=await health();if(h){if(!h.ready)throw error('الاستراحة لم تكمل التشغيل بعد');await local(root,'/zain/control/update-stop');for(let i=0;i<25;i++){if(!await health())return;await delay(300)}throw error('لم تتوقف الخدمة؛ لم تُستبدل الملفات');}},
+ return {async stopRecovery(){if(await health()){await local(root,'/zain/control/stop');for(let i=0;i<30;i++){if(!await health()){closeLauncher(root);return;}await delay(300)}throw error('تعذر إيقاف السيرفر للاستعادة')}closeLauncher(root);},async stop(){const h=await health();if(h){if(!h.ready)throw error('الاستراحة لم تكمل التشغيل بعد');await local(root,'/zain/control/update-stop');for(let i=0;i<25;i++){if(!await health()){closeLauncher(root);return;}await delay(300)}throw error('لم تتوقف الخدمة؛ لم تُستبدل الملفات');}closeLauncher(root);},
  async start(){
   if(await health())throw error('ظهر برنامج على المنفذ أثناء التحديث');
   const logs=logDir||path.join(workspace(root),'startup-logs');fs.mkdirSync(logs,{recursive:true});const label=Date.now()+'-'+crypto.randomUUID();
