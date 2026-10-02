@@ -36,7 +36,7 @@ function monitorSnapshot() {
   const sync=active?{running:jobs.filter(job=>job.status==='running').length,queued:jobs.filter(job=>job.status==='queued').length,section:(sections.find(section=>String(section.id)===String(active.sectionId))||{}).name||'',status:active.status,files:Number(active.files)||0,directories:Number(active.scannedDirectories)||0,warnings:Number(active.warnings)||0}: {running:0,queued:jobs.filter(job=>job.status==='queued').length};
   monitorCache={sync,metadata:activeMetadata?{running:metadataJobs.filter(job=>job.status==='running').length,queued:metadataJobs.filter(job=>job.status==='queued').length,processed:Number(activeMetadata.processed)||0,total:Number(activeMetadata.total)||0,status:activeMetadata.status}: {running:0,queued:metadataJobs.filter(job=>job.status==='queued').length},backup:backups?.monitor?.()||null,network:{...(operations?.monitor?.()||{}),...(speed?.monitor?.()||{})},disk,warnings:admin?.monitor?.()||[],sampledAt:now};monitorCacheAt=now;return monitorCache;
 }function respond(res, body, status = 200) { if (!res.destroyed) res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }).end(JSON.stringify(body)); }
-function normalize(value) { return String(value || '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/[ؤئ]/g, 'ء').replace(/ى/g, 'ي').toLowerCase(); }
+function normalize(value) { return String(value || '').trim().replace(/\s+/g, ' ').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/[ؤئ]/g, 'ء').replace(/ى/g, 'ي').toLowerCase(); }
 function list(rows, start, count) { const at = Math.max(0, Number(start) || 0); return rows.slice(at, at + Math.min(200, Math.max(1, Number(count) || 100))); }
 function updateItems(rows) {
   catalogRevision++;
