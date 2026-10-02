@@ -82,7 +82,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   }
   function _createBackup() {
     _createBackup = _asyncToGenerator(_regenerator().m(function _callee2(button) {
-      var disabled, started, expires, result, job, panel, link, _t;
+      var disabled, started, expires, result, job, panel, link, _t, _t2;
       return _regenerator().w(function (_context2) {
         while (1) switch (_context2.p = _context2.n) {
           case 0:
@@ -105,35 +105,52 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             expires = Date.now() + 16 * 60 * 1000;
           case 4:
             if (!(Date.now() < expires)) {
-              _context2.n = 10;
+              _context2.n = 14;
               break;
             }
             _context2.n = 5;
-            return sleep(700);
+            return sleep(2000);
           case 5:
-            _context2.n = 6;
+            result = void 0;
+            _context2.p = 6;
+            _context2.n = 7;
             return api('backupStatus?jobId=' + encodeURIComponent(started.jobId));
-          case 6:
-            result = _context2.v;
-            job = result.job;
-            if (job) {
-              _context2.n = 7;
-              break;
-            }
-            throw Error('تعذر متابعة النسخة؛ راجع قائمة النسخ المحلية أو أعد المحاولة.');
           case 7:
-            if (!(job.status === 'failed')) {
-              _context2.n = 8;
-              break;
-            }
-            throw Error(job.error || 'تعذر تجهيز النسخة الاحتياطية');
+            result = _context2.v;
+            _context2.n = 10;
+            break;
           case 8:
-            if (!(job.status !== 'completed')) {
+            _context2.p = 8;
+            _t = _context2.v;
+            if (!(_t.name === 'AbortError' || _t instanceof TypeError)) {
               _context2.n = 9;
               break;
             }
+            status('تأخر الاتصال؛ ما زالت متابعة النسخ جارية، لا تبدأ نسخة أخرى.');
             return _context2.a(3, 4);
           case 9:
+            throw _t;
+          case 10:
+            job = result.job;
+            if (job) {
+              _context2.n = 11;
+              break;
+            }
+            throw Error('تعذر متابعة النسخة؛ راجع قائمة النسخ المحلية أو أعد المحاولة.');
+          case 11:
+            if (!(job.status === 'failed')) {
+              _context2.n = 12;
+              break;
+            }
+            throw Error(job.error || 'تعذر تجهيز النسخة الاحتياطية');
+          case 12:
+            if (!(job.status !== 'completed')) {
+              _context2.n = 13;
+              break;
+            }
+            status('النسخ الاحتياطي جارٍ — ' + (job.phase || 'تجهيز النسخة') + (job.total > 0 ? ' — تقدم المرحلة ' + Math.floor(job.current * 100 / job.total) + '%' : ''));
+            return _context2.a(3, 4);
+          case 13:
             panel = status('اكتملت النسخة المضغوطة (' + (Number(job.size) / 1024 / 1024).toLocaleString('ar', {
               maximumFractionDigits: 2
             }) + ' ميجابايت، ' + job.fileCount + ' ملفًا). تم طلب تنزيلها؛ إذا لم يبدأ استخدم الرابط التالي. '), link = document.createElement('a');
@@ -150,25 +167,92 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
               }
             }));
             return _context2.a(2);
-          case 10:
+          case 14:
             throw Error('تأخر تجهيز النسخة؛ راجع قائمة النسخ المحلية وحالة النسخ قبل إعادة المحاولة.');
-          case 11:
-            _context2.p = 11;
-            _t = _context2.v;
-            status(_t.name === 'AbortError' ? 'تأخر الرد من الخادم؛ راجع قائمة النسخ المحلية قبل إعادة المحاولة.' : _t.message);
-          case 12:
-            _context2.p = 12;
+          case 15:
+            _context2.p = 15;
+            _t2 = _context2.v;
+            status(_t2.name === 'AbortError' ? 'تأخر الرد من الخادم؛ راجع قائمة النسخ المحلية قبل إعادة المحاولة.' : _t2.message);
+          case 16:
+            _context2.p = 16;
             creating = false;
             button.disabled = disabled;
             button.removeAttribute('aria-busy');
-            return _context2.f(12);
-          case 13:
+            return _context2.f(16);
+          case 17:
             return _context2.a(2);
         }
-      }, _callee2, null, [[2, 11, 12, 13]]);
+      }, _callee2, null, [[6, 8], [2, 15, 16, 17]]);
     }));
     return _createBackup.apply(this, arguments);
   }
+  var lastJobView = '',
+    checkingBackup = false;
+  function followBackup() {
+    return _followBackup.apply(this, arguments);
+  }
+  function _followBackup() {
+    _followBackup = _asyncToGenerator(_regenerator().m(function _callee3() {
+      var r, j, key, panel, a, _t3;
+      return _regenerator().w(function (_context3) {
+        while (1) switch (_context3.p = _context3.n) {
+          case 0:
+            if (!(creating || checkingBackup || !/^\/admin(?:\/|$)/.test(location.pathname))) {
+              _context3.n = 1;
+              break;
+            }
+            return _context3.a(2);
+          case 1:
+            checkingBackup = true;
+            _context3.p = 2;
+            _context3.n = 3;
+            return api('backupStatus');
+          case 3:
+            r = _context3.v;
+            j = r.job;
+            if (j) {
+              _context3.n = 4;
+              break;
+            }
+            return _context3.a(2);
+          case 4:
+            key = JSON.stringify(j);
+            if (!(key === lastJobView && box && box.isConnected)) {
+              _context3.n = 5;
+              break;
+            }
+            return _context3.a(2);
+          case 5:
+            lastJobView = key;
+            if (j.status === 'running') {
+              status('النسخ الاحتياطي جارٍ — ' + (j.phase || 'تجهيز الملفات') + (j.total > 0 ? ' — تقدم المرحلة ' + Math.floor(j.current * 100 / j.total) + '%' : ''));
+            } else if (j.status === 'failed') {
+              status('فشل النسخ الاحتياطي: ' + j.error);
+            } else if (j.status === 'completed') {
+              panel = status('اكتمل حفظ النسخة الاحتياطية — ' + (j.size / 1048576).toFixed(2) + ' ميجابايت. '), a = document.createElement('a');
+              a.textContent = 'تنزيل النسخة';
+              a.href = '/admin/api/download/' + encodeURIComponent(j.name);
+              a.style.color = '#b7ddff';
+              panel.appendChild(a);
+            }
+            _context3.n = 7;
+            break;
+          case 6:
+            _context3.p = 6;
+            _t3 = _context3.v;
+          case 7:
+            _context3.p = 7;
+            checkingBackup = false;
+            return _context3.f(7);
+          case 8:
+            return _context3.a(2);
+        }
+      }, _callee3, null, [[2, 6, 7, 8]]);
+    }));
+    return _followBackup.apply(this, arguments);
+  }
+  setInterval(followBackup, 3000);
+  followBackup();
   document.addEventListener('click', event => {
     if (!/^\/admin(?:\/|$)/.test(location.pathname) || event.button !== 0) return;
     var anchor = event.target.closest && event.target.closest('a[href]'),
@@ -371,15 +455,15 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     return _request.apply(this, arguments);
   }
   function _request() {
-    _request = _asyncToGenerator(_regenerator().m(function _callee3(url, options) {
+    _request = _asyncToGenerator(_regenerator().m(function _callee4(url, options) {
       var controller, timeout, response, error, data;
-      return _regenerator().w(function (_context3) {
-        while (1) switch (_context3.p = _context3.n) {
+      return _regenerator().w(function (_context4) {
+        while (1) switch (_context4.p = _context4.n) {
           case 0:
             controller = new AbortController();
             timeout = setTimeout(() => controller.abort(), 8000);
-            _context3.p = 1;
-            _context3.n = 2;
+            _context4.p = 1;
+            _context4.n = 2;
             return fetch(url, _objectSpread({
               credentials: 'same-origin',
               cache: 'no-store',
@@ -387,34 +471,34 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
               redirect: 'error'
             }, options));
           case 2:
-            response = _context3.v;
+            response = _context4.v;
             if (!(response.status === 401 || response.status === 403)) {
-              _context3.n = 3;
+              _context4.n = 3;
               break;
             }
             error = new Error('سجّل الدخول لعرض المزامنة');
             error.auth = true;
             throw error;
           case 3:
-            _context3.n = 4;
+            _context4.n = 4;
             return response.json();
           case 4:
-            data = _context3.v;
+            data = _context4.v;
             if (!(!response.ok || data.msg === 'error')) {
-              _context3.n = 5;
+              _context4.n = 5;
               break;
             }
             throw new Error(data.error || 'تعذر الاتصال بخادم المزامنة');
           case 5:
-            return _context3.a(2, data);
+            return _context4.a(2, data);
           case 6:
-            _context3.p = 6;
+            _context4.p = 6;
             clearTimeout(timeout);
-            return _context3.f(6);
+            return _context4.f(6);
           case 7:
-            return _context3.a(2);
+            return _context4.a(2);
         }
-      }, _callee3, null, [[1,, 6, 7]]);
+      }, _callee4, null, [[1,, 6, 7]]);
     }));
     return _request.apply(this, arguments);
   }
@@ -441,85 +525,85 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     return _cancelAll.apply(this, arguments);
   }
   function _cancelAll() {
-    _cancelAll = _asyncToGenerator(_regenerator().m(function _callee4() {
-      var failures, sent, data, pending, _iterator3, _step3, job, message, _t2, _t3, _t4;
-      return _regenerator().w(function (_context4) {
-        while (1) switch (_context4.p = _context4.n) {
+    _cancelAll = _asyncToGenerator(_regenerator().m(function _callee5() {
+      var failures, sent, data, pending, _iterator3, _step3, job, message, _t4, _t5, _t6;
+      return _regenerator().w(function (_context5) {
+        while (1) switch (_context5.p = _context5.n) {
           case 0:
             if (!stoppingAll) {
-              _context4.n = 1;
+              _context5.n = 1;
               break;
             }
-            return _context4.a(2);
+            return _context5.a(2);
           case 1:
             stoppingAll = true;
             updateStopControls(knownJobs);
             failures = 0, sent = 0;
-            _context4.p = 2;
-            _context4.n = 3;
+            _context5.p = 2;
+            _context5.n = 3;
             return request('/admin/api/syncStatus');
           case 3:
-            data = _context4.v;
+            data = _context5.v;
             knownJobs = data.jobs;
             pending = knownJobs.filter(j => activeStatuses.has(j.status) && !j.cancelRequested);
             _iterator3 = _createForOfIteratorHelper(pending);
-            _context4.p = 4;
+            _context5.p = 4;
             _iterator3.s();
           case 5:
             if ((_step3 = _iterator3.n()).done) {
-              _context4.n = 10;
+              _context5.n = 10;
               break;
             }
             job = _step3.value;
-            _context4.p = 6;
-            _context4.n = 7;
+            _context5.p = 6;
+            _context5.n = 7;
             return request('/admin/api/cancelSync/' + encodeURIComponent(job.id || job.jobId), {
               method: 'POST'
             });
           case 7:
             job.cancelRequested = true;
             sent++;
-            _context4.n = 9;
+            _context5.n = 9;
             break;
           case 8:
-            _context4.p = 8;
-            _t2 = _context4.v;
+            _context5.p = 8;
+            _t4 = _context5.v;
             failures++;
           case 9:
-            _context4.n = 5;
+            _context5.n = 5;
             break;
           case 10:
-            _context4.n = 12;
+            _context5.n = 12;
             break;
           case 11:
-            _context4.p = 11;
-            _t3 = _context4.v;
-            _iterator3.e(_t3);
+            _context5.p = 11;
+            _t5 = _context5.v;
+            _iterator3.e(_t5);
           case 12:
-            _context4.p = 12;
+            _context5.p = 12;
             _iterator3.f();
-            return _context4.f(12);
+            return _context5.f(12);
           case 13:
             message = failures ? 'تعذر إيقاف بعض المهام؛ أعد المحاولة.' : sent ? 'أُرسل طلب إيقاف المزامنة. تبقى النتائج المحفوظة متاحة.' : 'لا توجد مزامنة جارية لإيقافها.';
             showNotice(message);
             syncToast(message, !failures);
-            _context4.n = 15;
+            _context5.n = 15;
             break;
           case 14:
-            _context4.p = 14;
-            _t4 = _context4.v;
-            showNotice(_t4.message);
-            syncToast(_t4.message, false);
+            _context5.p = 14;
+            _t6 = _context5.v;
+            showNotice(_t6.message);
+            syncToast(_t6.message, false);
           case 15:
-            _context4.p = 15;
+            _context5.p = 15;
             stoppingAll = false;
             render(knownJobs);
             if (!busy) schedule(100);
-            return _context4.f(15);
+            return _context5.f(15);
           case 16:
-            return _context4.a(2);
+            return _context5.a(2);
         }
-      }, _callee4, null, [[6, 8], [4, 11, 12, 13], [2, 14, 15, 16]]);
+      }, _callee5, null, [[6, 8], [4, 11, 12, 13], [2, 14, 15, 16]]);
     }));
     return _cancelAll.apply(this, arguments);
   }
@@ -527,22 +611,22 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     return _cancel.apply(this, arguments);
   }
   function _cancel() {
-    _cancel = _asyncToGenerator(_regenerator().m(function _callee5(id) {
-      var job, _t5;
-      return _regenerator().w(function (_context5) {
-        while (1) switch (_context5.p = _context5.n) {
+    _cancel = _asyncToGenerator(_regenerator().m(function _callee6(id) {
+      var job, _t7;
+      return _regenerator().w(function (_context6) {
+        while (1) switch (_context6.p = _context6.n) {
           case 0:
             if (!cancelling.has(id)) {
-              _context5.n = 1;
+              _context6.n = 1;
               break;
             }
-            return _context5.a(2);
+            return _context6.a(2);
           case 1:
             cancelling.add(id);
             render(knownJobs);
             showNotice('');
-            _context5.p = 2;
-            _context5.n = 3;
+            _context6.p = 2;
+            _context6.n = 3;
             return request('/admin/api/cancelSync/' + encodeURIComponent(id), {
               method: 'POST'
             });
@@ -550,22 +634,22 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             job = knownJobs.find(value => String(value.id || value.jobId) === id);
             if (job) job.cancelRequested = true;
             showNotice('أُرسل طلب الإيقاف. تبقى النتائج التي حُفظت متاحة.');
-            _context5.n = 5;
+            _context6.n = 5;
             break;
           case 4:
-            _context5.p = 4;
-            _t5 = _context5.v;
-            showNotice(_t5.name === 'AbortError' ? 'لم يصل تأكيد الإيقاف؛ تُحدّث الحالة تلقائياً.' : _t5.message);
+            _context6.p = 4;
+            _t7 = _context6.v;
+            showNotice(_t7.name === 'AbortError' ? 'لم يصل تأكيد الإيقاف؛ تُحدّث الحالة تلقائياً.' : _t7.message);
           case 5:
-            _context5.p = 5;
+            _context6.p = 5;
             cancelling.delete(id);
             render(knownJobs);
             if (!busy) schedule(100);
-            return _context5.f(5);
+            return _context6.f(5);
           case 6:
-            return _context5.a(2);
+            return _context6.a(2);
         }
-      }, _callee5, null, [[2, 4, 5, 6]]);
+      }, _callee6, null, [[2, 4, 5, 6]]);
     }));
     return _cancel.apply(this, arguments);
   }
@@ -714,34 +798,34 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     return _poll.apply(this, arguments);
   }
   function _poll() {
-    _poll = _asyncToGenerator(_regenerator().m(function _callee6() {
-      var authenticationRequired, data, _iterator4, _step4, job, id, previous, sections, _t6, _t7;
-      return _regenerator().w(function (_context6) {
-        while (1) switch (_context6.p = _context6.n) {
+    _poll = _asyncToGenerator(_regenerator().m(function _callee7() {
+      var authenticationRequired, data, _iterator4, _step4, job, id, previous, sections, _t8, _t9;
+      return _regenerator().w(function (_context7) {
+        while (1) switch (_context7.p = _context7.n) {
           case 0:
             if (!(disposed || busy)) {
-              _context6.n = 1;
+              _context7.n = 1;
               break;
             }
-            return _context6.a(2);
+            return _context7.a(2);
           case 1:
             if (/^\/admin(?:\/|$)/.test(location.pathname)) {
-              _context6.n = 2;
+              _context7.n = 2;
               break;
             }
             host.hidden = true;
             schedule(document.hidden ? 15000 : 2000);
-            return _context6.a(2);
+            return _context7.a(2);
           case 2:
             busy = true;
             authenticationRequired = false;
-            _context6.p = 3;
-            _context6.n = 4;
+            _context7.p = 3;
+            _context7.n = 4;
             return request('/admin/api/syncStatus');
           case 4:
-            data = _context6.v;
+            data = _context7.v;
             if (Array.isArray(data.jobs)) {
-              _context6.n = 5;
+              _context7.n = 5;
               break;
             }
             throw new Error('تعذر قراءة حالة المزامنة');
@@ -762,33 +846,33 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             firstStatusLoad = false;
             knownJobs = data.jobs;
             if (!(knownJobs.length && Date.now() - namesLoadedAt > 60000)) {
-              _context6.n = 9;
+              _context7.n = 9;
               break;
             }
-            _context6.p = 6;
-            _context6.n = 7;
+            _context7.p = 6;
+            _context7.n = 7;
             return request('/admin/api/getAllJustSections');
           case 7:
-            sections = _context6.v;
+            sections = _context7.v;
             if (Array.isArray(sections)) {
               sectionNames.clear();
               sections.forEach(section => sectionNames.set(String(section.id), String(section.name || section.id)));
               namesLoadedAt = Date.now();
             }
-            _context6.n = 9;
+            _context7.n = 9;
             break;
           case 8:
-            _context6.p = 8;
-            _t6 = _context6.v;
+            _context7.p = 8;
+            _t8 = _context7.v;
           case 9:
             showNotice('');
             render(knownJobs);
-            _context6.n = 11;
+            _context7.n = 11;
             break;
           case 10:
-            _context6.p = 10;
-            _t7 = _context6.v;
-            if (_t7.auth) {
+            _context7.p = 10;
+            _t9 = _context7.v;
+            if (_t9.auth) {
               authenticationRequired = true;
               host.hidden = true;
               knownJobs = [];
@@ -798,14 +882,14 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
               showNotice('تعذر تحديث الحالة الآن. آخر نتائج معروضة؛ سنحاول تلقائياً.');
             }
           case 11:
-            _context6.p = 11;
+            _context7.p = 11;
             busy = false;
             schedule(document.hidden || authenticationRequired ? 15000 : 2000);
-            return _context6.f(11);
+            return _context7.f(11);
           case 12:
-            return _context6.a(2);
+            return _context7.a(2);
         }
-      }, _callee6, null, [[6, 8], [3, 10, 11, 12]]);
+      }, _callee7, null, [[6, 8], [3, 10, 11, 12]]);
     }));
     return _poll.apply(this, arguments);
   }
@@ -842,49 +926,49 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     return _poll2.apply(this, arguments);
   }
   function _poll2() {
-    _poll2 = _asyncToGenerator(_regenerator().m(function _callee9() {
-      var eventsList, response, data, summary, stop, _iterator5, _step5, _loop, _t9, _t0;
-      return _regenerator().w(function (_context0) {
-        while (1) switch (_context0.p = _context0.n) {
+    _poll2 = _asyncToGenerator(_regenerator().m(function _callee0() {
+      var eventsList, response, data, summary, stop, _iterator5, _step5, _loop, _t1, _t10;
+      return _regenerator().w(function (_context1) {
+        while (1) switch (_context1.p = _context1.n) {
           case 0:
-            _context0.p = 0;
+            _context1.p = 0;
             if (!(location.pathname !== '/admin/events')) {
-              _context0.n = 1;
+              _context1.n = 1;
               break;
             }
             if (panel) panel.remove();
             panel = null;
-            return _context0.a(2);
+            return _context1.a(2);
           case 1:
             eventsList = document.querySelector('.localevents-cont .cont-ev');
             if (eventsList) {
-              _context0.n = 2;
+              _context1.n = 2;
               break;
             }
-            return _context0.a(2);
+            return _context1.a(2);
           case 2:
-            _context0.n = 3;
+            _context1.n = 3;
             return fetch('/admin/api/metadataStatus', {
               credentials: 'same-origin',
               cache: 'no-store'
             });
           case 3:
-            response = _context0.v;
+            response = _context1.v;
             if (response.ok) {
-              _context0.n = 4;
+              _context1.n = 4;
               break;
             }
-            return _context0.a(2);
+            return _context1.a(2);
           case 4:
-            _context0.n = 5;
+            _context1.n = 5;
             return response.json();
           case 5:
-            data = _context0.v;
+            data = _context1.v;
             if (data.jobs.length) {
-              _context0.n = 6;
+              _context1.n = 6;
               break;
             }
-            return _context0.a(2);
+            return _context1.a(2);
           case 6:
             if (!panel) {
               panel = document.createElement('section');
@@ -902,47 +986,47 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
               stop = document.createElement('button');
               stop.textContent = 'إلغاء جميع مهام مزامنة البيانات';
               stop.style.cssText = 'background:#cf303d;color:white;border:0;border-radius:6px;padding:10px 18px;font-weight:bold;cursor:pointer';
-              stop.onclick = _asyncToGenerator(_regenerator().m(function _callee7() {
-                var result, _t8;
-                return _regenerator().w(function (_context7) {
-                  while (1) switch (_context7.p = _context7.n) {
+              stop.onclick = _asyncToGenerator(_regenerator().m(function _callee8() {
+                var result, _t0;
+                return _regenerator().w(function (_context8) {
+                  while (1) switch (_context8.p = _context8.n) {
                     case 0:
                       stop.disabled = true;
-                      _context7.p = 1;
-                      _context7.n = 2;
+                      _context8.p = 1;
+                      _context8.n = 2;
                       return fetch('/admin/api/cancelAllMetadata', {
                         method: 'POST',
                         credentials: 'same-origin'
                       });
                     case 2:
-                      result = _context7.v;
+                      result = _context8.v;
                       if (result.ok) {
-                        _context7.n = 3;
+                        _context8.n = 3;
                         break;
                       }
                       throw Error('تعذر إلغاء المزامنة');
                     case 3:
                       poll();
-                      _context7.n = 5;
+                      _context8.n = 5;
                       break;
                     case 4:
-                      _context7.p = 4;
-                      _t8 = _context7.v;
-                      stop.textContent = _t8.message;
+                      _context8.p = 4;
+                      _t0 = _context8.v;
+                      stop.textContent = _t0.message;
                       stop.disabled = false;
                     case 5:
-                      return _context7.a(2);
+                      return _context8.a(2);
                   }
-                }, _callee7, null, [[1, 4]]);
+                }, _callee8, null, [[1, 4]]);
               }));
               panel.appendChild(stop);
             }
             _iterator5 = _createForOfIteratorHelper(data.jobs.slice(-5).reverse());
-            _context0.p = 7;
+            _context1.p = 7;
             _loop = _regenerator().m(function _loop() {
               var job, row, cancel, _iterator6, _step6, error, line;
-              return _regenerator().w(function (_context9) {
-                while (1) switch (_context9.n) {
+              return _regenerator().w(function (_context0) {
+                while (1) switch (_context0.n) {
                   case 0:
                     job = _step5.value;
                     row = document.createElement('p');
@@ -952,11 +1036,11 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
                       cancel = document.createElement('button');
                       cancel.textContent = 'إلغاء المزامنة';
                       cancel.style.cssText = 'background:#ad4c4c;color:white;border:0;border-radius:18px;padding:8px 18px;cursor:pointer';
-                      cancel.onclick = _asyncToGenerator(_regenerator().m(function _callee8() {
-                        return _regenerator().w(function (_context8) {
-                          while (1) switch (_context8.n) {
+                      cancel.onclick = _asyncToGenerator(_regenerator().m(function _callee9() {
+                        return _regenerator().w(function (_context9) {
+                          while (1) switch (_context9.n) {
                             case 0:
-                              _context8.n = 1;
+                              _context9.n = 1;
                               return fetch('/admin/api/cancelMetadata/' + encodeURIComponent(job.id), {
                                 method: 'POST',
                                 credentials: 'same-origin'
@@ -964,9 +1048,9 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
                             case 1:
                               poll();
                             case 2:
-                              return _context8.a(2);
+                              return _context9.a(2);
                           }
-                        }, _callee8);
+                        }, _callee9);
                       }));
                       panel.appendChild(cancel);
                     }
@@ -984,45 +1068,45 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
                       _iterator6.f();
                     }
                   case 1:
-                    return _context9.a(2);
+                    return _context0.a(2);
                 }
               }, _loop);
             });
             _iterator5.s();
           case 8:
             if ((_step5 = _iterator5.n()).done) {
-              _context0.n = 10;
+              _context1.n = 10;
               break;
             }
-            return _context0.d(_regeneratorValues(_loop()), 9);
+            return _context1.d(_regeneratorValues(_loop()), 9);
           case 9:
-            _context0.n = 8;
+            _context1.n = 8;
             break;
           case 10:
-            _context0.n = 12;
+            _context1.n = 12;
             break;
           case 11:
-            _context0.p = 11;
-            _t9 = _context0.v;
-            _iterator5.e(_t9);
+            _context1.p = 11;
+            _t1 = _context1.v;
+            _iterator5.e(_t1);
           case 12:
-            _context0.p = 12;
+            _context1.p = 12;
             _iterator5.f();
-            return _context0.f(12);
+            return _context1.f(12);
           case 13:
-            _context0.n = 15;
+            _context1.n = 15;
             break;
           case 14:
-            _context0.p = 14;
-            _t0 = _context0.v;
+            _context1.p = 14;
+            _t10 = _context1.v;
           case 15:
-            _context0.p = 15;
+            _context1.p = 15;
             if (!closed) timer = setTimeout(poll, 3000);
-            return _context0.f(15);
+            return _context1.f(15);
           case 16:
-            return _context0.a(2);
+            return _context1.a(2);
         }
-      }, _callee9, null, [[7, 11, 12, 13], [0, 14, 15, 16]]);
+      }, _callee0, null, [[7, 11, 12, 13], [0, 14, 15, 16]]);
     }));
     return _poll2.apply(this, arguments);
   }
@@ -1072,49 +1156,49 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     return _poll3.apply(this, arguments);
   }
   function _poll3() {
-    _poll3 = _asyncToGenerator(_regenerator().m(function _callee0() {
-      var response, data, _t1;
-      return _regenerator().w(function (_context1) {
-        while (1) switch (_context1.p = _context1.n) {
+    _poll3 = _asyncToGenerator(_regenerator().m(function _callee1() {
+      var response, data, _t11;
+      return _regenerator().w(function (_context10) {
+        while (1) switch (_context10.p = _context10.n) {
           case 0:
             if (!stopped) {
-              _context1.n = 1;
+              _context10.n = 1;
               break;
             }
-            return _context1.a(2);
+            return _context10.a(2);
           case 1:
-            _context1.p = 1;
-            _context1.n = 2;
+            _context10.p = 1;
+            _context10.n = 2;
             return fetch('/admin/api/backupStatus', {
               credentials: 'same-origin',
               cache: 'no-store'
             });
           case 2:
-            response = _context1.v;
+            response = _context10.v;
             if (!response.ok) {
-              _context1.n = 4;
+              _context10.n = 4;
               break;
             }
-            _context1.n = 3;
+            _context10.n = 3;
             return response.json();
           case 3:
-            data = _context1.v;
+            data = _context10.v;
             render(data.restore);
           case 4:
-            _context1.n = 6;
+            _context10.n = 6;
             break;
           case 5:
-            _context1.p = 5;
-            _t1 = _context1.v;
+            _context10.p = 5;
+            _t11 = _context10.v;
             if (last && panel) panel.textContent = 'انقطع اتصال الخادم؛ انتظار عودته لمتابعة الاستعادة. آخر حالة: ' + (last.message || last.phase);
           case 6:
-            _context1.p = 6;
+            _context10.p = 6;
             if (!stopped) timer = setTimeout(poll, 2000);
-            return _context1.f(6);
+            return _context10.f(6);
           case 7:
-            return _context1.a(2);
+            return _context10.a(2);
         }
-      }, _callee0, null, [[1, 5, 6, 7]]);
+      }, _callee1, null, [[1, 5, 6, 7]]);
     }));
     return _poll3.apply(this, arguments);
   }

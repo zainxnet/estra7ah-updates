@@ -7,6 +7,7 @@ module.exports={allowed,fixed,mediaDirs,run};
 async function run({base,action,file,stage}){
  fs.mkdirSync(stage,{recursive:true});
  if(action==='create'){
+  let lastProgress=0;const report=(phase,current,total,force=false)=>{if(!force&&Date.now()-lastProgress<1000)return;lastProgress=Date.now();process.send?.({progress:{phase,current,total,updatedAt:new Date().toISOString()}});};report('تجهيز الملفات',0,0,true);
   for(const n of ['assets/db/estra7ah.json','assets/db/estra7ah.items.json','data/admin.json'])if(!fs.existsSync(path.join(base,n)))throw Error('تعذر إنشاء نسخة كاملة؛ ملف قاعدة البيانات مفقود: '+n);
   const catalog=path.join(base,'data/catalog.sqlite'),small=fs.existsSync(catalog)&&require('./compact-catalog-store.cjs').present(catalog);
   const names=fixed.filter(n=>fs.existsSync(path.join(base,n))&&(!small||!['assets/db/estra7ah.items.json','data/sync-items.sqlite','data/item-edits.json'].includes(n)));
@@ -17,12 +18,13 @@ async function run({base,action,file,stage}){
   const posters=path.join(base,'data/poster-cache');if(fs.existsSync(posters))for(const n of fs.readdirSync(posters))if(allowed('data/poster-cache/'+n))names.push('data/poster-cache/'+n);
   const backdrops=path.join(base,'data/backdrop-cache');if(fs.existsSync(backdrops))for(const n of fs.readdirSync(backdrops))if(allowed('data/backdrop-cache/'+n))names.push('data/backdrop-cache/'+n);
   for(const folder of mediaDirs.filter(n=>n.startsWith('assets/'))){const full=path.join(base,folder);if(fs.existsSync(full))for(const n of fs.readdirSync(full))if(allowed(folder+'/'+n))names.push(folder+'/'+n);}
-  for(const n of names){if(small&&n==='assets/db/estra7ah.items.json')continue;const dst=path.join(stage,n);fs.mkdirSync(path.dirname(dst),{recursive:true});if(n.endsWith('.sqlite')){const {DatabaseSync,backup}=require('node:sqlite'),db=new DatabaseSync(path.join(base,n),{readOnly:true});try{await backup(db,dst);}finally{db.close();}}else await fs.promises.copyFile(path.join(base,n),dst);}
+  let prepared=0;for(const n of names){report('تجهيز الملفات',prepared++,names.length);if(small&&n==='assets/db/estra7ah.items.json')continue;const dst=path.join(stage,n);fs.mkdirSync(path.dirname(dst),{recursive:true});if(n.endsWith('.sqlite')){const {DatabaseSync,backup}=require('node:sqlite'),db=new DatabaseSync(path.join(base,n),{readOnly:true});try{await backup(db,dst);}finally{db.close();}}else await fs.promises.copyFile(path.join(base,n),dst);}
+  const totalBytes=names.reduce((sum,n)=>sum+fs.statSync(path.join(stage,n)).size,0);let processed=0;report('ضغط النسخة',0,totalBytes,true);
   const gzip=zlib.createGzip({level:6}),out=fs.createWriteStream(file,{flags:'wx'});gzip.pipe(out);let failure;out.on('error',e=>{failure=e;gzip.destroy(e)});gzip.on('error',e=>{failure=e;});
   const write=async value=>{if(failure)throw failure;if(!gzip.write(JSON.stringify(value)+'\n'))await once(gzip,'drain');};
   await write({format:'zain-backup',version:1,createdAt:new Date().toISOString()});
-  for(const n of names){const hash=crypto.createHash('sha256');let size=0;await write({file:n});for await(const chunk of fs.createReadStream(path.join(stage,n),{highWaterMark:65536})){hash.update(chunk);size+=chunk.length;await write({data:chunk.toString('base64')});}await write({end:n,size,sha256:hash.digest('hex')});}
-  await write({complete:true,files:names.length});gzip.end();await once(out,'finish');return {files:names};
+  for(const n of names){const hash=crypto.createHash('sha256');let size=0;await write({file:n});for await(const chunk of fs.createReadStream(path.join(stage,n),{highWaterMark:65536})){hash.update(chunk);size+=chunk.length;processed+=chunk.length;report('ضغط النسخة',processed,totalBytes);await write({data:chunk.toString('base64')});}await write({end:n,size,sha256:hash.digest('hex')});}
+  await write({complete:true,files:names.length});report('إنهاء ملف النسخة',processed,totalBytes,true);gzip.end();await once(out,'finish');return {files:names};
  }
  const header=Buffer.alloc(4),handle=fs.openSync(file,'r');try{fs.readSync(handle,header,0,4,0)}finally{fs.closeSync(handle)}
  if(header.readUInt32LE(0)===0x04034b50)return require('./legacy-backup.cjs')({base,file,stage});

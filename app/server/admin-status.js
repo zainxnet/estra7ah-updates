@@ -23,10 +23,10 @@
     try{
       const started=await api('saveDatabase?background=1','POST');const expires=Date.now()+16*60*1000;
       while(Date.now()<expires){
-        await sleep(700);const result=await api('backupStatus?jobId='+encodeURIComponent(started.jobId)),job=result.job;
+        await sleep(2000);let result;try{result=await api('backupStatus?jobId='+encodeURIComponent(started.jobId));}catch(error){if(error.name==='AbortError'||error instanceof TypeError){status('تأخر الاتصال؛ ما زالت متابعة النسخ جارية، لا تبدأ نسخة أخرى.');continue;}throw error;}const job=result.job;
         if(!job)throw Error('تعذر متابعة النسخة؛ راجع قائمة النسخ المحلية أو أعد المحاولة.');
         if(job.status==='failed')throw Error(job.error||'تعذر تجهيز النسخة الاحتياطية');
-        if(job.status!=='completed')continue;
+        if(job.status!=='completed'){status('النسخ الاحتياطي جارٍ — '+(job.phase||'تجهيز النسخة')+(job.total>0?' — تقدم المرحلة '+Math.floor(job.current*100/job.total)+'%':''));continue;}
         const panel=status('اكتملت النسخة المضغوطة ('+(Number(job.size)/1024/1024).toLocaleString('ar',{maximumFractionDigits:2})+' ميجابايت، '+job.fileCount+' ملفًا). تم طلب تنزيلها؛ إذا لم يبدأ استخدم الرابط التالي. '),link=document.createElement('a');
         link.href='/admin/api/download/'+encodeURIComponent(job.name);link.download=job.name;link.textContent='تنزيل النسخة مرة أخرى';
         link.style.cssText='color:#b7ddff;text-decoration:underline';panel.appendChild(link);link.click();
@@ -36,6 +36,9 @@
     }catch(error){status(error.name==='AbortError'?'تأخر الرد من الخادم؛ راجع قائمة النسخ المحلية قبل إعادة المحاولة.':error.message)}
     finally{creating=false;button.disabled=disabled;button.removeAttribute('aria-busy')}
   }
+  let lastJobView='',checkingBackup=false;
+  async function followBackup(){if(creating||checkingBackup||!/^\/admin(?:\/|$)/.test(location.pathname))return;checkingBackup=true;try{const r=await api('backupStatus'),j=r.job;if(!j)return;const key=JSON.stringify(j);if(key===lastJobView&&box&&box.isConnected)return;lastJobView=key;if(j.status==='running'){status('النسخ الاحتياطي جارٍ — '+(j.phase||'تجهيز الملفات')+(j.total>0?' — تقدم المرحلة '+Math.floor(j.current*100/j.total)+'%':''));}else if(j.status==='failed'){status('فشل النسخ الاحتياطي: '+j.error);}else if(j.status==='completed'){const panel=status('اكتمل حفظ النسخة الاحتياطية — '+(j.size/1048576).toFixed(2)+' ميجابايت. '),a=document.createElement('a');a.textContent='تنزيل النسخة';a.href='/admin/api/download/'+encodeURIComponent(j.name);a.style.color='#b7ddff';panel.appendChild(a);}}catch{}finally{checkingBackup=false;}}
+  setInterval(followBackup,3000);followBackup();
   // Both legacy controls previously either opened an empty tab or only saved on
   // the server. Capture the action before React's handler navigates away.
   document.addEventListener('click',event=>{
