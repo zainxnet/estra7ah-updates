@@ -17,7 +17,7 @@ module.exports=function({settingsDir,items,getKey,saveContent,savePoster,saveAct
  const alreadySynced=item=>hasContent(item)||relatedIds(item.id).some(id=>{const related=items.get(id);return related&&hasContent(related);});
  function newestSharedFirst(rows){return rows.map((item,index)=>({item,index,added:relatedIds(item.id).reduce((latest,id)=>{const related=id===item.id?item:items.get(id);return related?Math.max(latest,addedAt(related)):latest;},addedAt(item))})).sort((a,b)=>b.added-a.added||b.index-a.index).map(entry=>entry.item);}
  const fail=(message,status=400)=>Object.assign(Error(message),{status});
- const normal=value=>String(value||'').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
+ const normal=require('./metadata-titles.cjs').normalize;
  const isArabic=value=>{if(typeof value!=='string')return false;const letters=value.match(/\p{L}/gu)||[];return letters.length>0&&letters.filter(c=>/\p{Script=Arabic}/u.test(c)).length/letters.length>=.3;};
  const cancelled=()=>Object.assign(Error('أوقفت مزامنة البيانات'),{code:'CANCELLED'});
  function check(job){if(closed||job.cancelled||job.status==='interrupted'||controllers.get(job.id)?.signal.aborted)throw cancelled();}
@@ -58,13 +58,28 @@ module.exports=function({settingsDir,items,getKey,saveContent,savePoster,saveAct
   const lookupName=getLookupName?getLookupName(item):item.name;
   const kind=mediaType(item.type)==='series'||/^series\./.test(mediaType(item.type))||/\bS\d{1,3}(?:E\d{1,3})?\b/i.test(lookupName)?'tv':'movie';
   const year=/\b(19\d{2}|20\d{2})\b/.exec(lookupName)?.[0],query=cleanTitle(lookupName),params={query,language:'en-US',include_adult:'false'};if(year&&kind==='movie')params.year=year;
-  const known=!getLookupName&&existing.tmdbType===kind&&/^\d+$/.test(String(existing.content_id));
-  const found=known?{results:[{id:Number(existing.content_id),title:query}]}:await api('search/'+kind,params,job);
-  const exact=[...new Map((found.results||[]).filter(row=>[row.title,row.original_title,row.name,row.original_name].some(name=>normal(name)===normal(query))&&(known||kind!=='movie'||!year||!row.release_date||row.release_date.startsWith(year))).map(row=>[row.id,row])).values()];
-  if(!exact.length)throw fail('لم توجد نتيجة مطابقة لاسم المجلد: '+lookupName,404);
-  if(exact.length>1)onEvent('مطابقة تلقائية باسم المجلد '+lookupName+': اختيرت أول نتيجة مطابقة في TMDB (رقم '+exact[0].id+') من '+exact.length+' نتائج','warning');
-  const id=exact[0].id;
+  const known=existing.tmdbType===kind&&/^\d+$/.test(String(existing.content_id));
+  const verified=!known&&require('./metadata-titles.cjs').verified(query,year,kind);
+  let id;
+  if(known)id=Number(existing.content_id);
+  else if(verified)id=verified.id;
+  else{
+   const found=await api('search/'+kind,params,job);
+   const candidates=new Map((found.results||[]).map(row=>[row.id,row]));
+   const match=row=>[row.title,row.original_title,row.name,row.original_name].some(name=>normal(name)===normal(query))&&(kind!=='movie'||!year||!row.release_date||row.release_date.startsWith(year));
+   let exact=[...candidates.values()].filter(match);
+   if(!exact.length&&isArabic(query)){const arabic=await api('search/'+kind,{...params,language:'ar-SA'},job);for(const row of arabic.results||[])candidates.set(row.id,row);exact=[...candidates.values()].filter(match);
+    if(!exact.length){for(const row of [...candidates.values()].slice(0,5)){const aliases=await api(kind+'/'+row.id+'/alternative_titles',{},job);if((aliases.results||aliases.titles||[]).some(a=>normal(a.title)===normal(query)))exact.push(row);}}
+   }
+   exact=[...new Map(exact.map(row=>[row.id,row])).values()];
+   if(exact.length>1&&year){const dated=exact.filter(r=>String(r.first_air_date||r.release_date||'').startsWith(year));if(dated.length)exact=dated;}
+   if(!exact.length)throw fail('لم توجد نتيجة مطابقة لاسم المجلد: '+lookupName,404);
+   if(exact.length>1)throw fail('توجد عدة أعمال بهذا الاسم؛ يلزم تحديد العمل الصحيح: '+lookupName,409);
+   id=exact[0].id;
+  }
   const [en,ar]=await Promise.all([api(kind+'/'+id,{language:'en-US',append_to_response:'credits'},job),api(kind+'/'+id,{language:'ar-SA'},job)]);
+  if(verified&&(normal(en.original_name)!==normal(verified.original)||!(en.origin_country||[]).includes('TR')||!String(en.first_air_date||'').startsWith(verified.year)))throw fail('تعذر التحقق من هوية المسلسل التركي؛ لم تحفظ بيانات غير مؤكدة',409);
+
   const data={...existing,descArabic:'',descEnglish:en.overview||existing.descEnglish||'',content_id:String(id),Runtime:String(en.runtime||en.episode_run_time?.[0]||''),ReleaseDate:en.release_date||en.first_air_date||'',castEnglish:(en.credits?.cast||[]).slice(0,20).map(actor=>actor.name),directedByEnglish:(en.credits?.crew||[]).filter(actor=>actor.job==='Director').map(actor=>actor.name),tagsArabic:(ar.genres||[]).map(genre=>genre.name),imdbRating:String(en.vote_average||0),imdbVotes:String(en.vote_count||0),tmdbType:kind};
   if(en.poster_path)data.poster_path=en.poster_path;
   await fillDescription(data,existing,ar.overview,item,job);check(job);
