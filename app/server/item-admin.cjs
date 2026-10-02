@@ -55,16 +55,16 @@ module.exports=function({dir,items,sharedCatalog,topRows,safeItem,updateItems,re
   }
   if(action==='getItems'){
    const [section,filter,type,offset,...queryParts]=args,q=queryParts.join('/').toLowerCase();
-   if(items.queryTop&&!sharedCatalog&&filter!=='pined'){const normalized=q.replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/[ؤئ]/g,'ء').replace(/ى/g,'ي'),filters={section:section&&section!=='all'?section:undefined,types:type&&type!=='all'?[type]:undefined,keys:q&&!['null','undefined'].includes(q)?[normalized]:undefined,missing:filter==='no-content'};return result({total:[{count:items.countTop(filters)}],items:items.queryTop({...filters,offset:Math.max(0,parseInt(offset)||0),limit:100,newest:filter==='no-content'}).map(safeItem)});}
+   if(items.queryTop&&!sharedCatalog&&filter!=='pined'&&filter!=='no-content'){const normalized=q.replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/[ؤئ]/g,'ء').replace(/ى/g,'ي'),filters={section:section&&section!=='all'?section:undefined,types:type&&type!=='all'?[type]:undefined,keys:q&&!['null','undefined'].includes(q)?[normalized]:undefined,missing:filter==='no-content'};return result({total:[{count:items.countTop(filters)}],items:items.queryTop({...filters,offset:Math.max(0,parseInt(offset)||0),limit:100,newest:true}).map(safeItem)});}
    let rows=filter==='pined'
     ? [...new Set(state.pinned.flatMap(id=>sharedCatalog?.related(id)||[id]))].map(id=>items.get(id)).filter(item=>item&&(!item.inItem||item.inItem==='null')&&require('./catalog-items.cjs').visible(item))
     : (topRows?topRows():[...items.values()].filter(item=>(!item.inItem||item.inItem==='null')&&require('./catalog-items.cjs').visible(item)));
    if(section&&section!=='all')rows=rows.filter(item=>item.sectionId===section);
    if(type&&type!=='all')rows=rows.filter(item=>item.type===type);
    if(filter==='pined')rows=rows.filter(item=>(sharedCatalog?.related(item.id)||[item.id]).some(id=>state.pinned.includes(id)));
-   if(filter==='no-content')rows=require('./metadata.cjs').newestFirst(rows.filter(item=>!(sharedCatalog?sharedCatalog.hasContent(item):require('./metadata.cjs').hasContent(item))));
+   if(filter==='no-content')rows=require('./metadata.cjs').newestFirst(rows.filter(item=>require('./metadata.cjs').supportsMetadata(item)&&!(sharedCatalog?sharedCatalog.hasContent(item):require('./metadata.cjs').hasContent(item))));
    if(q&&!['null','undefined'].includes(q))rows=rows.filter(item=>String(item.name).toLowerCase().includes(q));
-   if(sharedCatalog)rows=sharedCatalog.unique(rows);const at=Math.max(0,parseInt(offset)||0);return result({total:[{count:rows.length}],items:rows.slice(at,at+100).map(safeItem)});
+   if(filter!=='no-content')rows=require('./metadata.cjs').newestFirst(rows);if(sharedCatalog)rows=sharedCatalog.unique(rows);const at=Math.max(0,parseInt(offset)||0);return result({total:[{count:rows.length}],items:rows.slice(at,at+100).map(safeItem)});
   }
   if(action==='removeAllPinned'){if(method!=='POST')return error('طريقة الطلب غير صالحة',405);savePins([]);return result({msg:'ok'});}
   if(!adminActions.has(action))return null;const id=args[0],item=items.get(id);if(!item)return error('العنصر غير موجود',404);

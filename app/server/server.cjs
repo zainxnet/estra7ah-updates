@@ -5,6 +5,8 @@ const base = path.resolve(__dirname, '..'), web = path.join(base, 'interface'), 
 for (const name of ['data', 'logs']) fs.mkdirSync(path.join(base, name), { recursive: true });
 const startupStatusFile=path.join(data,'startup-status.json');let lastStartupStatusAt=0;
 function reportStartup(status,force=false){const now=Date.now();if(!force&&now-lastStartupStatusAt<1000)return;lastStartupStatusAt=now;try{const temp=startupStatusFile+'.tmp';fs.writeFileSync(temp,JSON.stringify({...status,updatedAt:new Date().toISOString()}));fs.renameSync(temp,startupStatusFile);}catch{}}
+function reportFatal(error){const message=String(error&&error.message||error);reportStartup({state:'failed',phase:'failed',message:'تعذر تشغيل الخادم: '+message,error:message},true);try{const log=path.join(base,'logs','startup-errors.log');if(fs.existsSync(log)&&fs.statSync(log).size>1024*1024)fs.renameSync(log,log+'.previous');fs.appendFileSync(log,new Date().toISOString()+' '+String(error&&error.stack||error)+'\n');}catch{}}
+process.on('uncaughtExceptionMonitor',reportFatal);
 reportStartup({state:'starting',phase:'restore',message:'جار تطبيق النسخة الاحتياطية إن وجدت'},true);
 const catalogStore=require('./catalog-store.cjs')(base);
 require('./backups.cjs').applyPending(base,progress=>reportStartup({state:'running',...progress},true));
@@ -483,5 +485,5 @@ server.listen(port, config.bind, async () => {
  admin.recordEvent('تم تشغيل الاستراحة على المنفذ '+port+' والبث على '+settings.mubasher_port,'success'); console.log('Zain ready: http://127.0.0.1:' + port + '/; ' + items.size + ' records');
   } catch (e) { startupError = 'تعذر تحميل ملفات الخادم: ' + e.message;reportStartup({state:'failed',phase:'failed',message:startupError,error:String(e.message||e),percent:null},true);console.error(startupError); }
 });
-server.on('error', error => { console.error(error.message); process.exit(1); });
+server.on('error', error => { reportFatal(error); console.error(error.message); process.exit(1); });
 process.on('SIGTERM', shutdown); process.on('SIGINT', shutdown);

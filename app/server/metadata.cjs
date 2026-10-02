@@ -3,6 +3,7 @@ const crypto=require('node:crypto');
 function hasContent(item){try{const c=JSON.parse(item.content?.contentJSON||'{}');return Boolean(c.descArabic||c.descEnglish||c.content_id||c.Runtime||c.ReleaseDate);}catch{return false;}}
 function addedAt(item){for(const value of [item.addedAt,item.createdAt]){if(value===undefined||value===null||value==='')continue;const number=Number(value);if(Number.isFinite(number)&&number>0)return number<1e12?number*1000:number;const date=Date.parse(value);if(Number.isFinite(date))return date;}return 0;}
 function newestFirst(rows){return rows.map((item,index)=>({item,index})).sort((a,b)=>addedAt(b.item)-addedAt(a.item)||b.index-a.index).map(entry=>entry.item);}
+function supportsMetadata(item){return !!item&&!/\.(?:mp3|wav|ogg|aac|m4a|flac|wma|opus)$/i.test(item.path||'')&&require('./catalog-items.cjs').visible(item)&&(['movie','series'].includes(require('./public-catalog.cjs').publicType(item.type))||/^series\./.test(require('./public-catalog.cjs').publicType(item.type)))&&(!item.inItem||item.inItem==='null')}
 module.exports=function({settingsDir,items,getKey,saveContent,savePoster,saveActors,hasArtwork,getLookupName,getCanonicalId=id=>id,getRelatedIds=id=>[id],getCandidateIds=()=>items.keys(),request,translateDescription,canTranslateDescription,onEvent=()=>{},concurrency=3,requestIntervalMs=100,retryDelayMs=1000}){
  const fs=require('node:fs'),path=require('node:path'),settingsFile=settingsDir&&path.join(settingsDir,'metadata-settings.json');
  let automaticEnabled=true;
@@ -11,7 +12,7 @@ module.exports=function({settingsDir,items,getKey,saveContent,savePoster,saveAct
  const jobs=[],queue=[],controllers=new Map();const workers=Math.max(1,Math.min(3,Number(concurrency)||3));
  let running=false,closed=false,nextRequestAt=0,cooldownUntil=0,requestGate=Promise.resolve();
  const mediaType=type=>require('./public-catalog.cjs').publicType(type);
- const supported=item=>require('./catalog-items.cjs').visible(item)&&(['movie','series'].includes(mediaType(item.type))||/^series\./.test(mediaType(item.type)))&&(!item.inItem||item.inItem==='null');
+ const supported=supportsMetadata;
  const canonicalId=id=>getCanonicalId(id)??id;
  const relatedIds=id=>[...new Set([id,...(getRelatedIds(id)||[])])];
  const alreadySynced=item=>hasContent(item)||relatedIds(item.id).some(id=>{const related=items.get(id);return related&&hasContent(related);});
@@ -120,3 +121,5 @@ module.exports=function({settingsDir,items,getKey,saveContent,savePoster,saveAct
 module.exports.hasContent=hasContent;module.exports.addedAt=addedAt;module.exports.newestFirst=newestFirst;
 function cleanTitle(name){return String(name||'').replace(/\b(?:19\d{2}|20\d{2})\b/g,'').replace(/\bS\d{1,2}(?:E\d{1,3})?\b/gi,'').replace(/\b(?:480p|720p|1080p|2160p|4k|webrip|web[ ._-]?dl|bluray|brrip|dvdrip|x264|x265|hevc)\b.*$/i,'').replace(/[()._\[\]]/g,' ').replace(/\s+/g,' ').replace(/^[\s-]+|[\s-]+$/g,'');}
 module.exports.cleanTitle=cleanTitle;
+
+module.exports.supportsMetadata=supportsMetadata;
