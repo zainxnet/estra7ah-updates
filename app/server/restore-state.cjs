@@ -6,7 +6,7 @@ module.exports=function(base,onProgress=()=>{}){
  const progress=(phase,current,total,message,file='')=>{try{onProgress({phase,current,total,percent:total?Math.floor(current*100/total):100,message,file})}catch{}};
  const contained=(root,value)=>{const rel=path.relative(path.resolve(root),path.resolve(value));if(!rel||rel==='..'||rel.startsWith('..'+path.sep)||path.isAbsolute(rel))throw Error('مسار استعادة غير صالح');return path.resolve(value)};
  const stage=contained(root,job.stage);if(!Array.isArray(job.files)||job.files.some(n=>!allowed(n))||new Set(job.files).size!==job.files.length)throw Error('ملفات استعادة غير صالحة');
- const managed=[...fixed,...mediaDirs,'data/sync-items.sqlite-wal','data/sync-items.sqlite-shm','data/catalog.sqlite-wal','data/catalog.sqlite-shm'];
+ const managed=[...fixed,...(job.mode==='quick'?[]:mediaDirs),'data/sync-items.sqlite-wal','data/sync-items.sqlite-shm','data/catalog.sqlite-wal','data/catalog.sqlite-shm'];
  const exists=p=>fs.existsSync(p);
  function move(from,to){contained(base,from);contained(base,to);fs.mkdirSync(path.dirname(to),{recursive:true});fs.renameSync(from,to)}
  function rollback(tx){const failed=contained(root,tx.rollback+'-failed');for(const n of managed){const dest=contained(base,path.join(base,n)),old=contained(tx.rollback,path.join(tx.rollback,n));if(exists(old)){if(exists(dest))move(dest,path.join(failed,n));move(old,dest)}else if(!tx.present.includes(n)&&exists(dest))move(dest,path.join(failed,n));}}

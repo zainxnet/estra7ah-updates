@@ -17,11 +17,11 @@
       if(!response.ok||data.msg==='error'||data.msg==='login')throw Error(data.error||(response.status===401?'سجّل الدخول إلى لوحة التحكم ثم حاول مجددًا':'تعذر إنشاء النسخة الاحتياطية'));return data;
     }finally{clearTimeout(timer)}
   }
-  async function createBackup(button){
+  async function createBackup(button,mode='quick'){
     if(creating)return;creating=true;const disabled=button.disabled;button.disabled=true;button.setAttribute('aria-busy','true');
-    status('جارٍ تجهيز نسخة مضغوطة كاملة لقاعدة البيانات… سيبدأ تنزيلها تلقائيًا عند الانتهاء.');
+    status(mode==='full'?'جار تجهيز ZIP كامل يشمل القاعدة والصور والوسائط…':'جار تجهيز ZIP سريع للقاعدة والإعدادات دون الصور…');
     try{
-      const started=await api('saveDatabase?background=1','POST');const expires=Date.now()+16*60*1000;
+      const started=await api('saveDatabase?background=1&mode='+encodeURIComponent(mode),'POST');const expires=Date.now()+16*60*1000;
       while(Date.now()<expires){
         await sleep(2000);let result;try{result=await api('backupStatus?jobId='+encodeURIComponent(started.jobId));}catch(error){if(error.name==='AbortError'||error instanceof TypeError){status('تأخر الاتصال؛ ما زالت متابعة النسخ جارية، لا تبدأ نسخة أخرى.');continue;}throw error;}const job=result.job;
         if(!job)throw Error('تعذر متابعة النسخة؛ راجع قائمة النسخ المحلية أو أعد المحاولة.');
@@ -39,6 +39,8 @@
   let lastJobView='',checkingBackup=false;
   async function followBackup(){if(creating||checkingBackup||!/^\/admin(?:\/|$)/.test(location.pathname))return;checkingBackup=true;try{const r=await api('backupStatus'),j=r.job;if(!j)return;const key=JSON.stringify(j);if(key===lastJobView&&box&&box.isConnected)return;lastJobView=key;if(j.status==='running'){status('النسخ الاحتياطي جارٍ — '+(j.phase||'تجهيز الملفات')+(j.total>0?' — تقدم المرحلة '+Math.floor(j.current*100/j.total)+'%':''));}else if(j.status==='failed'){status('فشل النسخ الاحتياطي: '+j.error);}else if(j.status==='completed'){const panel=status('اكتمل حفظ النسخة الاحتياطية — '+(j.size/1048576).toFixed(2)+' ميجابايت. '),a=document.createElement('a');a.textContent='تنزيل النسخة';a.href='/admin/api/download/'+encodeURIComponent(j.name);a.style.color='#b7ddff';panel.appendChild(a);}}catch{}finally{checkingBackup=false;}}
   setInterval(followBackup,3000);followBackup();
+  function backupChoices(){if(location.pathname.replace(/\/$/,'')!=='/admin/backups'||document.getElementById('zain-backup-choices'))return;const host=document.querySelector('.backups-cont');if(!host)return;const panel=document.createElement('div');panel.id='zain-backup-choices';panel.dir='rtl';panel.style.cssText='padding:16px;margin:12px 0;background:#202a40;border-radius:10px;color:white';const note=document.createElement('p');note.textContent='النسخ التلقائي عند تفعيله: نسخة سريعة يوميًا مع الاحتفاظ بأحدث 10 نسخ تلقائية. النسخ اليدوية لا تُحذف تلقائيًا. استعادة النسخة السريعة تحافظ على الصور الموجودة.';panel.appendChild(note);for(const mode of ['quick','full']){const b=document.createElement('button');b.type='button';b.textContent=mode==='quick'?'نسخة ZIP سريعة — القاعدة والإعدادات':'نسخة ZIP كاملة — تشمل الصور والوسائط';b.style.cssText='background:#348858;color:white;border:0;border-radius:8px;margin:6px;padding:12px;cursor:pointer';b.onclick=()=>createBackup(b,mode);panel.appendChild(b);}host.prepend(panel);}
+  setInterval(backupChoices,1500);backupChoices();
   // Both legacy controls previously either opened an empty tab or only saved on
   // the server. Capture the action before React's handler navigates away.
   document.addEventListener('click',event=>{

@@ -81,7 +81,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     return _createBackup.apply(this, arguments);
   }
   function _createBackup() {
-    _createBackup = _asyncToGenerator(_regenerator().m(function _callee2(button) {
+    _createBackup = _asyncToGenerator(_regenerator().m(function _callee2(button, mode = 'quick') {
       var disabled, started, expires, result, job, panel, link, _t, _t2;
       return _regenerator().w(function (_context2) {
         while (1) switch (_context2.p = _context2.n) {
@@ -96,10 +96,10 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             disabled = button.disabled;
             button.disabled = true;
             button.setAttribute('aria-busy', 'true');
-            status('جارٍ تجهيز نسخة مضغوطة كاملة لقاعدة البيانات… سيبدأ تنزيلها تلقائيًا عند الانتهاء.');
+            status(mode === 'full' ? 'جار تجهيز ZIP كامل يشمل القاعدة والصور والوسائط…' : 'جار تجهيز ZIP سريع للقاعدة والإعدادات دون الصور…');
             _context2.p = 2;
             _context2.n = 3;
-            return api('saveDatabase?background=1', 'POST');
+            return api('saveDatabase?background=1&mode=' + encodeURIComponent(mode), 'POST');
           case 3:
             started = _context2.v;
             expires = Date.now() + 16 * 60 * 1000;
@@ -253,6 +253,33 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   }
   setInterval(followBackup, 3000);
   followBackup();
+  function backupChoices() {
+    if (location.pathname.replace(/\/$/, '') !== '/admin/backups' || document.getElementById('zain-backup-choices')) return;
+    var host = document.querySelector('.backups-cont');
+    if (!host) return;
+    var panel = document.createElement('div');
+    panel.id = 'zain-backup-choices';
+    panel.dir = 'rtl';
+    panel.style.cssText = 'padding:16px;margin:12px 0;background:#202a40;border-radius:10px;color:white';
+    var note = document.createElement('p');
+    note.textContent = 'النسخ التلقائي عند تفعيله: نسخة سريعة يوميًا مع الاحتفاظ بأحدث 10 نسخ تلقائية. النسخ اليدوية لا تُحذف تلقائيًا. استعادة النسخة السريعة تحافظ على الصور الموجودة.';
+    panel.appendChild(note);
+    var _loop = function _loop() {
+      var mode = _arr[_i];
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = mode === 'quick' ? 'نسخة ZIP سريعة — القاعدة والإعدادات' : 'نسخة ZIP كاملة — تشمل الصور والوسائط';
+      b.style.cssText = 'background:#348858;color:white;border:0;border-radius:8px;margin:6px;padding:12px;cursor:pointer';
+      b.onclick = () => createBackup(b, mode);
+      panel.appendChild(b);
+    };
+    for (var _i = 0, _arr = ['quick', 'full']; _i < _arr.length; _i++) {
+      _loop();
+    }
+    host.prepend(panel);
+  }
+  setInterval(backupChoices, 1500);
+  backupChoices();
   document.addEventListener('click', event => {
     if (!/^\/admin(?:\/|$)/.test(location.pathname) || event.button !== 0) return;
     var anchor = event.target.closest && event.target.closest('a[href]'),
@@ -342,7 +369,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   host.id = 'zain-sync-status';
   host.dir = 'rtl';
   host.hidden = true;
-  for (var _i = 0, _Object$entries = Object.entries({
+  for (var _i2 = 0, _Object$entries = Object.entries({
       position: 'fixed',
       left: '12px',
       right: 'auto',
@@ -350,8 +377,8 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
       top: 'auto',
       margin: '0',
       zIndex: '1000'
-    }); _i < _Object$entries.length; _i++) {
-    var _Object$entries$_i = _slicedToArray(_Object$entries[_i], 2),
+    }); _i2 < _Object$entries.length; _i2++) {
+    var _Object$entries$_i = _slicedToArray(_Object$entries[_i2], 2),
       key = _Object$entries$_i[0],
       value = _Object$entries$_i[1];
     host.style.setProperty(key === 'zIndex' ? 'z-index' : key, value, 'important');
@@ -506,8 +533,8 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     var active = jobs.filter(j => activeStatuses.has(j.status)),
       pending = active.some(j => !j.cancelRequested);
     var label = stoppingAll || active.length && !pending ? 'جارٍ الإيقاف…' : 'إيقاف المزامنة';
-    for (var _i2 = 0, _arr = [stopAll, inlineStop]; _i2 < _arr.length; _i2++) {
-      var button = _arr[_i2];
+    for (var _i3 = 0, _arr2 = [stopAll, inlineStop]; _i3 < _arr2.length; _i3++) {
+      var button = _arr2[_i3];
       button.disabled = stoppingAll || !pending;
       button.textContent = label;
       button.style.opacity = button.disabled ? '.6' : '1';
@@ -927,7 +954,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   }
   function _poll2() {
     _poll2 = _asyncToGenerator(_regenerator().m(function _callee0() {
-      var eventsList, response, data, summary, stop, _iterator5, _step5, _loop, _t1, _t10;
+      var eventsList, response, data, summary, stop, _iterator5, _step5, _loop2, _t1, _t10;
       return _regenerator().w(function (_context1) {
         while (1) switch (_context1.p = _context1.n) {
           case 0:
@@ -1023,7 +1050,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             }
             _iterator5 = _createForOfIteratorHelper(data.jobs.slice(-5).reverse());
             _context1.p = 7;
-            _loop = _regenerator().m(function _loop() {
+            _loop2 = _regenerator().m(function _loop2() {
               var job, row, cancel, _iterator6, _step6, error, line;
               return _regenerator().w(function (_context0) {
                 while (1) switch (_context0.n) {
@@ -1070,7 +1097,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
                   case 1:
                     return _context0.a(2);
                 }
-              }, _loop);
+              }, _loop2);
             });
             _iterator5.s();
           case 8:
@@ -1078,7 +1105,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
               _context1.n = 10;
               break;
             }
-            return _context1.d(_regeneratorValues(_loop()), 9);
+            return _context1.d(_regeneratorValues(_loop2()), 9);
           case 9:
             _context1.n = 8;
             break;
