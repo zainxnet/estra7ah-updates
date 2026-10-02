@@ -451,7 +451,7 @@ server.listen(port, config.bind, async () => {
     });
     startupMessage='جار إكمال تشغيل الخدمات';startupInfo.phase='services';startupInfo.percent=null;reportStartup({state:'running',phase:'services',message:startupMessage},true);await startupTick();if(stopping)throw Error('توقف تجهيز الفهرس');
     speed=require('./speed.cjs')({dir:data});
-    backups=require('./backups.cjs')({base,isSyncing:()=>services.syncJobs().some(j=>['running','queued'].includes(j.status)),onEvent:(...args)=>admin?.recordEvent(...args)});
+    backups=require('./backups.cjs')({base,isSyncing:()=>[...services.syncJobs(),...(metadata?.jobs()||[])].some(j=>['running','queued'].includes(j.status)),onEvent:(...args)=>admin?.recordEvent(...args)});
     gemini=require('./gemini-search.cjs')({dir:data});
     const extensions = [content,itemAdmin,speed,gemini,require('./path-checks.cjs')({sections,services})];
     admin = require('./admin.cjs')({ dir: data, sections, settings, port, services, extensions, backups });

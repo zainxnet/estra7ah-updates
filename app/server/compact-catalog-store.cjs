@@ -58,7 +58,7 @@ function open(file){
   }catch(e){db.exec('ROLLBACK');throw e;}
  }
  function readState(key){const row=db.prepare('SELECT value FROM compact_state WHERE key=?').get(key);return row?unpack(row.value):undefined;}
- function writeState(key,value,history=false){const data=pack(value);db.exec('CREATE TABLE IF NOT EXISTS compact_history(key TEXT,at INTEGER,value BLOB NOT NULL,PRIMARY KEY(key,at)) WITHOUT ROWID');db.exec('BEGIN IMMEDIATE');try{if(history)db.prepare('INSERT OR REPLACE INTO compact_history VALUES (?,?,?)').run(key,Date.now(),data);db.prepare('INSERT INTO compact_state VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key,data);db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}}
+ function writeState(key,value,history=false){const data=pack(value);db.exec('BEGIN IMMEDIATE');try{db.prepare('INSERT INTO compact_state VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key,data);db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}}
  return {read,write,readState,writeState,get:id=>{const r=get.get(id);return r?hydrate(r):undefined;},close:()=>db.close()};
 }
 module.exports={present,open,projection};

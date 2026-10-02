@@ -9,6 +9,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   'use strict';
 
   var labels = {
+    'data/catalog.sqlite': 'قاعدة المكتبة',
     'assets/db/estra7ah.json': 'الأقسام والإعدادات الأصلية',
     'assets/db/estra7ah.items.json': 'فهرس الأفلام والمسلسلات',
     'data/admin.json': 'إعدادات لوحة التحكم',
@@ -99,7 +100,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     box.id = 'zain-database-maintenance';
     box.dir = 'rtl';
     box.style.cssText = 'background:#202a40;color:white;border-radius:12px;padding:24px;margin:22px 0;font:15px Arial;line-height:1.8';
-    box.append(el('h3', 'فحص قاعدة البيانات وتحسينها'), el('p', 'يفحص سلامة الملفات ويحسب المساحة القابلة للتقليل. التحسين يحفظ نسخة احتياطية أولًا، ثم يزيل الفراغات غير اللازمة ويضغط فهرس المزامنة دون حذف محتوى أو صور.'));
+    box.append(el('h3', 'فحص قاعدة البيانات وتحسينها'), el('p', 'يفحص سلامة الملفات ويحسب المساحة القابلة للتقليل. التحسين يحفظ نسخة احتياطية أولًا، ثم يحذف سجل التعديلات التاريخي ويسترجع المساحة الفارغة، مع الحفاظ على المحتوى والصور والمثبتات والتعديلات الحالية.'));
     var actions = el('div');
     scan = el('button', 'فحص قاعدة البيانات');
     optimize = el('button', 'تحسين آمن مع نسخة احتياطية');

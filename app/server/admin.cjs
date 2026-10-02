@@ -51,6 +51,7 @@ module.exports=function createAdmin({dir,sections,settings,port,services={},exte
  for(const extension of extensions)for(const action of extension.adminReads||[])reads.add(action);
  if(req.method!=='GET'&&req.method!=='POST')return reply(res,{msg:'error'},405);
  if(!reads.has(action)&&!sameOrigin(req))return reply(res,{msg:'error',error:'Cross-origin change rejected'},403);
+ if(backups?.isMaintaining()&&!reads.has(action))return reply(res,{msg:'error',error:'انتظر انتهاء صيانة قاعدة البيانات'},409);
  const extension=extensions.find(service=>service.adminActions?.has(action)||service.adminReads?.has(action));
  if(extension){const result=await extension.admin(action,a.slice(1),req.method==='POST'?(extension.readBody?await extension.readBody(req,action):await body(req)):{},req.method);if(result)return reply(res,result.body,result.status||200)}
  if(action==='logout'){sessions.delete(sess.token);res.setHeader('Set-Cookie','estraLocal=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');return reply(res,{msg:'ok'})}

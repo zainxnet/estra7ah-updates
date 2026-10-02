@@ -9,7 +9,12 @@ module.exports = function createOperations({ dir, items, sections, services = {}
   fs.mkdirSync(dir, { recursive: true });
   const stateFile = path.join(dir, 'operations-stats.json');
   const numeric = value => Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : 0;
-  const raw = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : {};
+  let raw = {};
+  if(fs.existsSync(stateFile))try{raw=JSON.parse(fs.readFileSync(stateFile,'utf8'));if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('Invalid stats');}catch(error){
+    if(!(error instanceof SyntaxError)&&error.message!=='Invalid stats')throw error;
+    fs.renameSync(stateFile,stateFile+'.corrupt-'+Date.now());raw={};
+    recordEvent('تعذر قراءة إحصاءات الزيارات؛ حُفظ الملف التالف وبدأت إحصاءات جديدة دون تغيير المكتبة','warning');
+  }
   const increments = name => new Map(Object.entries(raw[name] || {}).map(([id, value]) => [id, numeric(value)]));
   const itemViews = increments('itemViews'), sectionViews = increments('sectionViews');
   let bands = numeric(raw.bands), closed = false, dirty = false, storageError = null;
