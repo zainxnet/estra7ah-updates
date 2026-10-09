@@ -15,7 +15,7 @@ const configFile = path.join(data, 'server-config.json');
 const config = fs.existsSync(configFile) ? JSON.parse(fs.readFileSync(configFile, 'utf8')) : { port: 80, bind: '0.0.0.0' };
 const port = config.port;
 let gemini;
-let ready = false, startupError = '', startupMessage='جار فتح قاعدة الاستراحة',startupInfo={}, sections = [], settings = {}, admin, services, content, operations, artwork, scanArtwork, uiCompat, speed, itemAdmin, backups, broadcast, metadata, posters, actorImages, exclusiveArtwork;
+let ready = false, startupError = '', startupMessage='جار فتح قاعدة الاستراحة',startupInfo={}, sections = [], settings = {}, admin, services, content, operations, artwork, scanArtwork, uiCompat, speed, itemAdmin, backups, broadcast, metadata, folderIcons, posters, actorImages, exclusiveArtwork;
 const responseCache=require('./browse-cache.cjs')();let catalogRevision=0,topCacheRevision=-1,topCache=[],monitorCache=null,monitorCacheAt=0;const normalizedNames=new WeakMap();
 let items = new Map(), children = new Map(), sectionItems = new Map(), files = new Map();
 let byMediaPath = new Map(), scannedAliases = new Map();
@@ -36,7 +36,7 @@ function monitorSnapshot() {
   const jobs=services?.syncJobs?.()||[],active=jobs.find(job=>job.status==='running')||jobs.find(job=>job.status==='queued'),metadataJobs=metadata?.jobs?.()||[],activeMetadata=metadataJobs.find(job=>job.status==='running')||metadataJobs.find(job=>job.status==='queued');
   let disk=null;try{const stat=fs.statfsSync(data),free=Number(stat.bavail)*Number(stat.bsize),total=Number(stat.blocks)*Number(stat.bsize);disk={freeBytes:free,totalBytes:total,freePercent:total?Math.floor(free*100/total):null,warning:free<5*1024**3||(total&&free/total<0.1)};}catch{}
   const sync=active?{running:jobs.filter(job=>job.status==='running').length,queued:jobs.filter(job=>job.status==='queued').length,section:(sections.find(section=>String(section.id)===String(active.sectionId))||{}).name||'',status:active.status,files:Number(active.files)||0,directories:Number(active.scannedDirectories)||0,warnings:Number(active.warnings)||0}: {running:0,queued:jobs.filter(job=>job.status==='queued').length};
-  monitorCache={sync,metadata:activeMetadata?{running:metadataJobs.filter(job=>job.status==='running').length,queued:metadataJobs.filter(job=>job.status==='queued').length,processed:Number(activeMetadata.processed)||0,total:Number(activeMetadata.total)||0,status:activeMetadata.status}: {running:0,queued:metadataJobs.filter(job=>job.status==='queued').length},backup:backups?.monitor?.()||null,network:{...(operations?.monitor?.()||{}),...(speed?.monitor?.()||{})},disk,warnings:admin?.monitor?.()||[],sampledAt:now};monitorCacheAt=now;return monitorCache;
+  monitorCache={sync,icons:folderIcons?.status()||null,metadata:activeMetadata?{running:metadataJobs.filter(job=>job.status==='running').length,queued:metadataJobs.filter(job=>job.status==='queued').length,processed:Number(activeMetadata.processed)||0,total:Number(activeMetadata.total)||0,status:activeMetadata.status}: {running:0,queued:metadataJobs.filter(job=>job.status==='queued').length},backup:backups?.monitor?.()||null,network:{...(operations?.monitor?.()||{}),...(speed?.monitor?.()||{})},disk,warnings:admin?.monitor?.()||[],sampledAt:now};monitorCacheAt=now;return monitorCache;
 }function respond(res, body, status = 200) { if (!res.destroyed) res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }).end(JSON.stringify(body)); }
 function normalize(value) { return String(value || '').trim().replace(/\s+/g, ' ').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/[ؤئ]/g, 'ء').replace(/ى/g, 'ي').toLowerCase(); }
 function list(rows, start, count) { const at = Math.max(0, Number(start) || 0); return rows.slice(at, at + Math.min(200, Math.max(1, Number(count) || 100))); }
@@ -121,7 +121,7 @@ function mergeScanned(rows, automatic=true) {
   if(automatic)itemAdmin?.observe(observed);
   itemAdmin?.apply(observed);
   // The scanner publishes immediately; metadata and cover downloads use their own queue.
-  if(automatic)metadata?.enqueueMissing(rows.map(x=>scannedAliases.get(x.id)||x.id));
+  if(automatic){const ids=rows.map(x=>scannedAliases.get(x.id)||x.id);metadata?.enqueueMissing(ids);folderIcons?.enqueue(ids);}
 }
 const startupTick=()=>new Promise(resolve=>setImmediate(resolve));
 async function mergeScannedBatches(rows,range=null){
@@ -146,6 +146,7 @@ async function reconcileMovieScan(scope,cooperative=false){
  while(queue.length){const id=queue.pop();if(all.has(id))continue;all.add(id);queue.push(...(children.get(id)||[]));}
  const removed=[...all].filter(id=>{const item=items.get(id);return item&&item.path&&item.sectionId===scope.sectionId&&require('./movie-scan-state.cjs').contains(scope.root,item.path)&&!wanted.has(id);});
  itemAdmin.reconcileScan(scope,removed,active);
+ if(!cooperative)folderIcons?.enqueue(active.map(row=>row.id));
  admin?.recordEvent('اكتملت مطابقة مجلدات القسم؛ أزيل '+removed.length+' عنصر قديم أو غير موجود من الفهرس','success');
 }
 const childRows = id => [...(children.get(id) || [])].map(k => items.get(k));
@@ -218,7 +219,7 @@ async function image(req, res, action, id) {
   const file = images.get(folder + '/' + id) || images.get(folder + '/' + path.parse(id).name);
   if (file) return stream(req, res, file);
   if (/^itemimage$/i.test(action)) {
-    const poster=posters?.file(id);if(poster)return stream(req,res,poster);
+    const poster=posters?.file(id);
     const item=artworkItem(id);
     // Release the HTTP connection immediately; a disconnected share must never queue
     // navigation/API requests behind a screen full of image downloads.
@@ -228,6 +229,7 @@ async function image(req, res, action, id) {
       // the HTTP connection after this bounded window while their worker continues.
       let timer;try{result=await Promise.race([artwork.read(item),new Promise(resolve=>{timer=setTimeout(()=>resolve(null),250);})]);}finally{clearTimeout(timer);}
     }
+    if(poster&&result?.type!=='image/x-icon')return stream(req,res,poster);
     if (result && !res.destroyed) {
       res.writeHead(200, { 'Content-Type': result.type, 'Content-Length': result.bytes.length, 'Cache-Control': 'private, max-age=300', 'X-Zain-Artwork': 'catalog-media-path' });
       res.end(req.method === 'HEAD' ? undefined : result.bytes); return;
@@ -339,7 +341,7 @@ const server = http.createServer(async (req, res) => {
       if(req.method!=='POST'||!['127.0.0.1','::1','::ffff:127.0.0.1'].includes(req.socket.remoteAddress)||req.headers['x-zain-control']!==controlToken)return respond(res,{},403);
       if(updateClosing)return respond(res,{error:'التحديث قيد التنفيذ'},409);
       updateClosing=true;
-      const reason=require('./update-gate.cjs')({ready,syncJobs:services?.syncJobs()||[],metadataJobs:metadata?.jobs()||[],isBusy:backups?.isBusy()||activeUpdateRequests>0,pendingRestore:fs.existsSync(path.join(data,'pending-restore.json'))});
+      const reason=require('./update-gate.cjs')({ready,syncJobs:services?.syncJobs()||[],metadataJobs:metadata?.jobs()||[],isBusy:backups?.isBusy()||!!folderIcons?.status().running||!!folderIcons?.status().queued||activeUpdateRequests>0,pendingRestore:fs.existsSync(path.join(data,'pending-restore.json'))});
       if(reason){updateClosing=false;return respond(res,{error:reason},409);}
       respond(res,{ok:true});setTimeout(shutdown,100);return;
     }
@@ -423,7 +425,7 @@ const server = http.createServer(async (req, res) => {
 });
 let stopping = false;
 const closeServer=require('./shutdown.cjs')({
- cleanup:[()=>admin?.recordEvent('إيقاف خادم الاستراحة','warning'),()=>backups?.close(),()=>metadata?.close(),()=>broadcast?.close(),()=>artwork?.close(),()=>scanArtwork?.close(),()=>services?.close(),()=>operations?.close(),()=>catalogStore.close?.()],
+ cleanup:[()=>admin?.recordEvent('إيقاف خادم الاستراحة','warning'),()=>backups?.close(),()=>metadata?.close(),()=>folderIcons?.close(),()=>broadcast?.close(),()=>artwork?.close(),()=>scanArtwork?.close(),()=>services?.close(),()=>operations?.close(),()=>catalogStore.close?.()],
  close:()=>new Promise(resolve=>{server.close(resolve);server.closeIdleConnections?.();}),
  forceClose:()=>server.closeAllConnections(),exit:code=>process.exit(code),report:message=>console.error(message)
 });
@@ -463,10 +465,12 @@ server.listen(port, config.bind, async () => {
     artwork = require('./artwork.cjs')({ getItem: id => items.get(id) });
     scanArtwork=require('./artwork.cjs')({concurrency:1});
     const hasLocalArtwork=async item=>{const own={...artworkItem(item.id),inItem:null};const dir=(own.files||[]).some(f=>f.path===own.path)?path.dirname(own.path):own.path;own.files=(own.files||[]).filter(f=>f.path&&dir&&path.relative(dir,f.path)&&!path.relative(dir,f.path).startsWith('..')&&!path.isAbsolute(path.relative(dir,f.path)));scanArtwork.invalidate(own);return Boolean(await scanArtwork.read(own));};
+    folderIcons=require('./folder-icons.cjs')({dir:data,getItem:id=>{const item=items.get(id);return item?require('./movie-folder.cjs')(sharedCatalog.view(item),sectionRow(item.sectionId)):null;},getKey:()=>admin.getMetadataKey()||source.settings?.api_key||'',getPoster:id=>posters.file(id),getLookupName:item=>path.basename(item.path||'')||item.name,onEvent:admin.recordEvent,onCreated:async item=>{artwork.invalidate(artworkItem(item.id));scanArtwork.invalidate(item);await artwork.read(artworkItem(item.id));},onInspected:item=>artwork.invalidate(artworkItem(item.id))});
     metadata=require('./metadata.cjs')({settingsDir:data,items,getCanonicalId:sharedCatalog.canonical,getRelatedIds:sharedCatalog.related,getCandidateIds:()=>sharedCatalog.unique(topRows().filter(row=>!sharedCatalog.hasContent(row))).map(row=>row.id),translateDescription:gemini.translateDescription,canTranslateDescription:gemini.canTranslateDescription,getKey:()=>admin.getMetadataKey()||source.settings?.api_key||'',saveContent:itemAdmin.saveContent,onEvent:admin.recordEvent,hasArtwork:hasLocalArtwork,getLookupName:item=>{const own=artworkItem(item.id);return path.basename((own.files||[]).some(f=>f.path===own.path)?path.dirname(own.path):own.path||'')||item.name;},savePoster:async(id,poster)=>{
       if(!posters.file(id))await posters.save(id,poster);
       const original=items.get(id);const result=await require('./poster-folder.cjs')(require('./movie-folder.cjs')(original,sectionRow(original?.sectionId)),posters.file(id));
       if(result.status==='saved')artwork.invalidate(artworkItem(id));
+      folderIcons?.enqueue([id,...childRows(id).filter(x=>x.type==='season').map(x=>x.id)],{retry:true});
       if(result.status==='failed')admin.recordEvent('حُفظت الصورة في الخادم؛ تعذر حفظها داخل مجلد '+items.get(id)?.name+' ('+result.code+')','warning');
       return result;
     },saveActors:actorImages.save});

@@ -62,7 +62,9 @@ process.once('message', async configuration => {
     if(memberships.some(row=>row.type!==section.type)||new Set(memberships.map(row=>String(row.id))).size!==memberships.length)throw Error('Invalid shared scan sections');
     const root = path.resolve(configuration.source);
     db = new DatabaseSync(storePath);
-    db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000');
+    db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS records (id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at INTEGER NOT NULL)');
+    // First-run compact migration can replace the catalog after services initialize.
+    require('./catalog-revision.cjs').initialize(db);
     const upsert = db.prepare('INSERT INTO records (id,payload,updated_at) VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at WHERE records.payload<>excluded.payload');
     const encode=require('./shared-scan-store.cjs').writer(db);
     let batch = [];
