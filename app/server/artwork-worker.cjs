@@ -15,7 +15,8 @@ process.on('disconnect', () => process.exit(0));
 process.on('message', async ({ candidates }) => {
   const directories=new Map(),attempted=new Set();
   for(const filename of candidates||[]){const dir=path.dirname(filename);if(!directories.has(dir))directories.set(dir,[]);directories.get(dir).push(filename);}
-  const iconsFirst=files=>[...new Set(files)].sort((a,b)=>Number(!/\.ico$/i.test(a))-Number(!/\.ico$/i.test(b)));
+  const iconRank=f=>path.basename(f).toLowerCase()==='folder.ico'?0:/\.ico$/i.test(f)?1:2;
+  const iconsFirst=files=>[...new Set(files)].sort((a,b)=>iconRank(a)-iconRank(b));
   async function read(filename) {
     if(attempted.has(filename))return null;attempted.add(filename);
     let handle;

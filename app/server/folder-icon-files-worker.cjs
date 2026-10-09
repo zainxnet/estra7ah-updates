@@ -49,7 +49,7 @@ async function entries(target){
 }
 async function inspect(target,includePoster=false){
  const names=await entries(target);
- const icons=names.filter(entry=>/\.ico$/i.test(entry.name)).sort((a,b)=>a.name.localeCompare(b.name));
+ const icons=names.filter(entry=>entry.name.toLowerCase()==='folder.ico').sort((a,b)=>a.name.localeCompare(b.name));
  let existing;
  for(const entry of icons){
   const filename=path.join(target,entry.name),stat=await fs.lstat(filename);
