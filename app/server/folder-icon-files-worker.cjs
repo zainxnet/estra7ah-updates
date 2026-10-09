@@ -61,7 +61,7 @@ async function inspect(target,includePoster=false){
  if(!existing){
   const iniEntry=names.find(entry=>entry.name.toLowerCase()==='desktop.ini');
   const iniPath=path.join(target,iniEntry?iniEntry.name:'desktop.ini'),ini=await readIni(iniPath);
-  if(ini&&customIcon(ini.text)){existing={status:'existing',code:'CUSTOM_DESKTOP_ICON'};if(!includePoster)return existing;}
+  // desktop.ini alone is not an icon; a missing ICO must be generated.
  }
  const result=existing||{status:'ready'};
  const images=names.filter(entry=>/\.(png|jpe?g|bmp)$/i.test(entry.name));
@@ -88,6 +88,8 @@ async function readIco(source){
  return bytes;
 }
 function withIcon(text){
+ let shell=false;
+ text=text.split(/(\r\n|\n|\r)/).filter(line=>{const section=line.match(/^\s*\[([^\]]+)\]/);if(section)shell=section[1].trim().toLowerCase()==='.shellclassinfo';return !(shell&&/^\s*(?:IconResource|IconFile|IconIndex)\s*=/i.test(line));}).join('');
  const newline=text.includes('\r\n')?'\r\n':text.includes('\n')?'\n':'\r\n';
  const header=/^\s*\[\.ShellClassInfo\][^\r\n]*(?:\r\n|\n|\r|$)/im;
  if(header.test(text))return text.replace(header,match=>match.replace(/[\r\n]+$/,'')+newline+'IconResource=folder.ico,0'+newline);
@@ -96,7 +98,7 @@ function withIcon(text){
 async function configureIni(target){
  const names=await entries(target),entry=names.find(entry=>entry.name.toLowerCase()==='desktop.ini'),filename=path.join(target,entry?entry.name:'desktop.ini');
  const current=await readIni(filename);
- if(current&&customIcon(current.text))fail('CUSTOM_DESKTOP_ICON');
+ 
  const buffer=current?current.encode(withIcon(current.text)):Buffer.from('[.ShellClassInfo]\r\nIconResource=folder.ico,0\r\n','utf8');
  if(!current){await fs.writeFile(filename,buffer,{flag:'wx'});return filename;}
  // Only insert the icon directive; preserve unrelated sections and text encoding.
@@ -119,9 +121,18 @@ async function install(target,source){
  let iniPath;
  try{iniPath=await configureIni(target);}catch(error){return {status:'created',iconPath,explorerReady:false,code:error.code||'INI_FAILED'};}
  if(process.platform!=='win32')return {status:'created',iconPath,explorerReady:false,code:'EXPLORER_REQUIRES_WINDOWS'};
- try{await attrib(['+h','+s',iniPath]);await attrib(['+r',target]);}
+ try{await attrib(['+h','+s',iniPath]);await Promise.all([attrib(['+r',target]),attrib(['+h',iconPath]),...(before.posterPath?[attrib(['+h',before.posterPath])]:[])]);}
  catch{return {status:'created',iconPath,explorerReady:false,code:'EXPLORER_ATTRIBUTES_FAILED'};}
- return {status:'created',iconPath,explorerReady:true};
+ // Preserve access times; only these three modification dates follow the local poster creation date.
+ if(before.posterPath){
+  try{
+   const posterStat=await fs.lstat(before.posterPath);
+   if(posterStat.isSymbolicLink()||!posterStat.isFile()||!Number.isFinite(posterStat.birthtimeMs)||posterStat.birthtimeMs<=0)fail('INVALID_POSTER_DATE');
+   const date=posterStat.birthtime;
+   for(const filename of [before.posterPath,iconPath,target]){const stat=await fs.lstat(filename);if(stat.isSymbolicLink())fail('UNSAFE_DATE_TARGET');await fs.utimes(filename,stat.atime,date);}
+  }catch{return {status:'created',iconPath,explorerReady:true,datesReady:false,code:'ICON_DATES_FAILED'};}
+ }
+ return {status:'created',iconPath,explorerReady:true,datesReady:true};
 }
 process.once('message',async message=>{
  let result;

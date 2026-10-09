@@ -29,6 +29,7 @@ module.exports=function({dir,getItem,getKey,getPoster=()=>null,getLookupName,onE
    await renderer({poster,output,preview,title,season:parent?path.basename(item.path):''});if(closed)return;
    const installed=await io.install(item.path,output);if(installed.status==='existing'){stats.skipped++;return;}if(installed.status!=='created')throw Error(installed.code||'WRITE_FAILED');
    stats.created++;await onCreated(item);event('تم إنشاء أيقونة المجلد: '+item.name+(parent?' — '+path.basename(item.path):''));
+   if(installed.datesReady===false)event('حُفظت الأيقونة؛ تعذر ضبط تاريخ تعديل المجلد والصور: '+item.name,'warning');
    if(installed.explorerReady===false)event('حُفظت الأيقونة؛ تعذر تفعيل عرضها في ويندوز: '+item.name,'warning');
   }finally{for(const f of [output,preview])try{fs.unlinkSync(f);}catch{}}
  }

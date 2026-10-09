@@ -114,6 +114,8 @@ public static class ZainFolderIconRenderer {
         using(var canvas=new Bitmap(1024,1024,PixelFormat.Format32bppArgb)) {
             using(var g=Graphics.FromImage(canvas)) {
                 Quality(g);g.Clear(Color.Transparent);g.ScaleTransform(4,4);
+                // Fill the icon canvas, keeping one pixel for antialiased outer edges.
+                g.TranslateTransform(1,1);g.ScaleTransform(254f/221f,254f/240f);g.TranslateTransform(-24.5f,-2.5f);
                 Color average=Tone(image);
                 bool light=0.2126*average.R+0.7152*average.G+0.0722*average.B>125;
                 // Keep the original wordmark readable without recoloring it.
@@ -146,7 +148,7 @@ public static class ZainFolderIconRenderer {
                 }
                 var state=g.Save();g.TranslateTransform(232,95);g.RotateTransform(90);
                 if(wordmark!=null)Contain(g,wordmark,new RectangleF(-43,-11,86,22));
-                else FitText(g,Regex.Replace(title,@"(?:\s*[\(\[](?:19|20)\d{2}[\)\]]|\s+(?:19|20)\d{2})\s*$", "").Trim(),new RectangleF(-44,-12,88,24),ink,14,4);
+                else FitText(g,Regex.Replace(title,@"(?:\s*[\(\[](?:19|20)\d{2}[\)\]]|\s+(?:19|20)\d{2}\b).*$", "").Trim(),new RectangleF(-44,-12,88,24),ink,14,4);
                 g.Restore(state);
             }
             int[] sizes={16,32,48,64,128,256};var frames=new byte[sizes.Length][];

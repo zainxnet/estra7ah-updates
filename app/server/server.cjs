@@ -136,7 +136,10 @@ async function mergeScannedBatches(rows,range=null){
  }
 }
 async function reconcileMovieScan(scope,cooperative=false){
- if(itemAdmin.scanApplied(scope))return;
+ if(itemAdmin.scanApplied(scope)){
+  if(!cooperative){const ids=[],seen=new Set(),pending=[...(sectionItems.get(scope.sectionId)||[])];while(pending.length){const id=pending.pop();if(seen.has(id))continue;seen.add(id);pending.push(...(children.get(id)||[]));const item=items.get(id);if(item&&item.path&&require('./movie-scan-state.cjs').contains(scope.root,item.path))ids.push(id);}folderIcons?.enqueue(ids,{retry:true});}
+  return;
+ }
  const records=services.movieScanRecords(scope),active=[],wanted=new Set(),all=new Set(),queue=[...(sectionItems.get(scope.sectionId)||[])];
  // Correct records might have been hidden by an older successful scan.
  if(cooperative)await mergeScannedBatches(records,{start:100*(startupInfo.scope-1)/startupInfo.totalScopes,span:45/startupInfo.totalScopes});else mergeScanned(records,false);
@@ -146,7 +149,7 @@ async function reconcileMovieScan(scope,cooperative=false){
  while(queue.length){const id=queue.pop();if(all.has(id))continue;all.add(id);queue.push(...(children.get(id)||[]));}
  const removed=[...all].filter(id=>{const item=items.get(id);return item&&item.path&&item.sectionId===scope.sectionId&&require('./movie-scan-state.cjs').contains(scope.root,item.path)&&!wanted.has(id);});
  itemAdmin.reconcileScan(scope,removed,active);
- if(!cooperative)folderIcons?.enqueue(active.map(row=>row.id));
+ if(!cooperative)folderIcons?.enqueue(active.map(row=>row.id),{retry:true});
  admin?.recordEvent('اكتملت مطابقة مجلدات القسم؛ أزيل '+removed.length+' عنصر قديم أو غير موجود من الفهرس','success');
 }
 const childRows = id => [...(children.get(id) || [])].map(k => items.get(k));
@@ -161,7 +164,15 @@ function searchKeys(query){
   return [...new Set(text.slice(0,1200).split(' | ',6).map(value=>normalize(value.trim().slice(0,200))).filter(Boolean))];
 }
 let searchRevision=-1,searchCatalog=[];
-function searchRows(query,start,count){if(items.queryTop){const at=Math.max(0,Number(start)||0),limit=Math.min(200,Math.max(1,Number(count)||100)),rows=[];let offset=0;while(true){const batch=items.queryTop({keys:searchKeys(query),offset,limit:Math.max(100,at+limit)});rows.push(...batch);const unique=publicCatalog.uniqueSearch(rows,id=>!!sectionRow(id),id=>children.get(id)?.size||0);if(unique.length>=at+limit||batch.length<Math.max(100,at+limit))return unique.slice(at,at+limit);offset+=batch.length;}}if(searchRevision!==catalogRevision){searchCatalog=publicCatalog.uniqueSearch(topRows(),id=>!!sectionRow(id),id=>children.get(id)?.size||0);searchRevision=catalogRevision;}const keys=searchKeys(query),at=Math.max(0,Number(start)||0),limit=Math.min(200,Math.max(1,Number(count)||100)),found=[];let skipped=0;for(const item of searchCatalog){const name=normalizedName(item);if(!keys.some(key=>name.includes(key)))continue;if(skipped++<at)continue;found.push(item);if(found.length>=limit)break}return found;}
+function searchRows(query,start,count){
+ if(searchRevision!==catalogRevision){
+  const roots=topRows(),rows=roots.slice(),seen=new Set(roots.map(x=>x.id)),pending=roots.filter(x=>/^series(?:\.|$)/.test(publicCatalog.publicType(x.type)||'' )||publicCatalog.publicType(x.type)==='tv').map(x=>x.id);
+  while(pending.length){const parent=pending.pop();for(const id of children.get(parent)||[]){if(seen.has(id))continue;seen.add(id);const item=items.get(id);if(!item||item.scanDeleted||item.deleted)continue;const type=publicCatalog.publicType(item.type);if(type==='season'||/^series(?:\.|$)/.test(type||'')){rows.push(item);pending.push(id);}}}
+  searchCatalog=publicCatalog.uniqueSearch(rows,id=>!!sectionRow(id),id=>children.get(id)?.size||0);searchRevision=catalogRevision;
+ }
+ const keys=searchKeys(query),at=Math.max(0,Number(start)||0),limit=Math.min(200,Math.max(1,Number(count)||100)),found=[];let skipped=0;
+ for(const item of searchCatalog){if(!keys.some(key=>normalizedName(item).includes(key)))continue;if(skipped++<at)continue;found.push(item);if(found.length>=limit)break;}return found;
+}
 function uniqueNewest(types,count){
  if(!items.queryTop)return (sharedCatalog?sharedCatalog.unique(topRows().filter(x=>!types||types.includes(x.type)).sort((a,b)=>(+b.createdAt||0)-(+a.createdAt||0))):topRows()).slice(0,count);
  let offset=0,rows=[];for(;;){const batch=items.queryTop({types,newest:true,limit:Math.max(100,count),offset});rows.push(...batch);const unique=sharedCatalog?sharedCatalog.unique(rows):rows;if(unique.length>=count||batch.length<Math.max(100,count))return unique.slice(0,count);offset+=batch.length;}
