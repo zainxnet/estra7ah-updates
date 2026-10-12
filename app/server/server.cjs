@@ -82,7 +82,8 @@ function linkScanParents(rows) {
   }
 }
 function mergeScanned(rows, automatic=true) {
-  const observed=[];linkScanParents(rows);
+  const quick=automatic?.mode==='quick';
+  const observed=[],added=[];linkScanParents(rows);
   for (const record of rows) {
     const fileOwner = (record.files || []).map(f => byFilePath.get(String(record.sectionId) + '|' + path.normalize(f.path || '').toLowerCase())).find(Boolean);
     // Stable scanner IDs take precedence: virtual seasons can share one folder.
@@ -105,12 +106,14 @@ function mergeScanned(rows, automatic=true) {
       ? savedAlias : old?.id || (record.scanRoot?savedAlias:null) || record.id;
     observed.push(record.id,id);
     scannedAliases.set(record.id, id);
+    if(quick&&old)continue;
     const x = { ...old, ...record, ...(old&&record.type==='movie'?{path:old.path}:{}), id, inItem: scannedAliases.get(record.inItem) || record.inItem };
     if (old) { x.name = old.name || record.name; x.content = old.content || record.content; x.views = old.views; x.downloads = old.downloads; x.createdAt = old.createdAt; }
     const additions = (record.files || []).map(f => ({ ...f, id: old?.files?.find(v => v.path?.toLowerCase() === f.path?.toLowerCase())?.id || f.id, itemId: id }));
     x.files = [...(old?.files || []).filter(f => !additions.some(v => v.id === f.id)), ...additions];
     if (old?.inItem) { x.inItem = old.inItem; if (record.inItem) scannedAliases.set(record.inItem, old.inItem); }
     updateItems([x]);
+    if(!old)added.push(id);
     if (id !== record.id && children.has(record.id)) {
       for (const childId of [...children.get(record.id)]) { const child = items.get(childId); updateItems([{ ...child, inItem: id }]); }
       children.delete(record.id);
@@ -121,7 +124,7 @@ function mergeScanned(rows, automatic=true) {
   if(automatic)itemAdmin?.observe(observed);
   itemAdmin?.apply(observed);
   // The scanner publishes immediately; metadata and cover downloads use their own queue.
-  if(automatic){const ids=rows.map(x=>scannedAliases.get(x.id)||x.id);metadata?.enqueueMissing(ids);folderIcons?.enqueue(ids);}
+  if(automatic){const ids=quick?added:rows.map(x=>scannedAliases.get(x.id)||x.id);metadata?.enqueueMissing(ids);folderIcons?.enqueue(ids,{retry:quick});}
 }
 const startupTick=()=>new Promise(resolve=>setImmediate(resolve));
 async function mergeScannedBatches(rows,range=null){

@@ -2,7 +2,7 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{spawn}=require('node:child_process');
 const pathKey=v=>path.normalize(v||'').replace(/[\\/]+$/,'').toLowerCase(),hash=v=>crypto.createHash('sha256').update(pathKey(v)).digest('hex');
 const supported=x=>{const type=require('./public-catalog.cjs').publicType(x?.type);return !!x&&!!x.path&&path.isAbsolute(x.path)&&x.recordKind!=='file'&&(['movie','series','season'].includes(type)||/^series\./.test(type||''))&&!/\.(?:mkv|mp4|avi|mp3|wav|ogg|m4a)$/i.test(x.path);};
-module.exports=function({dir,getItem,getKey,getPoster=()=>null,getLookupName,onEvent=()=>{},onCreated=()=>{},onInspected=()=>{},files,source,render,delayMs=250,maxQueue=2048}){
+module.exports=function({dir,getItem,getKey,getPoster=()=>null,getLookupName,onEvent=()=>{},onCreated=()=>{},onInspected=()=>{},savePoster=require('./poster-folder.cjs'),files,source,render,delayMs=250,maxQueue=2048}){
  const io=files||require('./folder-icon-files.cjs'),resolver=source||require('./folder-icon-source.cjs')({dir,getKey,getLookupName}),folder=path.join(dir,'folder-icons');fs.mkdirSync(folder,{recursive:true});
  const queue=[],deferred=new Map(),occupied=new Set(),checked=new Map();let running=false,closed=false,activeChild=null,timer=null;
  const stats={status:'idle',total:0,processed:0,created:0,skipped:0,failed:0,currentItem:''};
@@ -23,6 +23,13 @@ module.exports=function({dir,getItem,getKey,getPoster=()=>null,getLookupName,onE
   if(!poster&&parent){const parentArt=await io.inspect(parent.path,{includePoster:true});poster=parentArt.posterPath||getPoster(parent.id);}
   if(!poster)try{remote=await resolver.resolve(item,{parent,posterNeeded:true,logoNeeded:false});}catch{throw Error('POSTER_UNAVAILABLE');}
   poster=poster||remote.posterPath;if(closed)return;if(!poster)throw Error('NO_CONFIRMED_POSTER');
+  if(!result.posterPath){
+   // Keep a real cover beside the new icon even when automatic metadata is off.
+   // Exclusive copying preserves a cover another job/user may have just created.
+   const saved=await savePoster(item,poster);if(closed)return;
+   if(saved.status==='saved'){poster=path.join(item.path,'poster.jpg');event('تم حفظ صورة داخل مجلد: '+item.name);}
+   else if(saved.status==='failed')event('الصورة متاحة لتجهيز الأيقونة؛ تعذر حفظها داخل مجلد '+item.name+' ('+saved.code+')','warning');
+  }
   const tmp=path.join(folder,hash(item.path)+'-'+crypto.randomUUID()),output=tmp+'.ico',preview=tmp+'.png';
   try{
    const title=parent?(getLookupName?.(parent)||parent.name):(getLookupName?.(item)||item.name);

@@ -13,6 +13,13 @@ function Get-PosterWordmark([string]$Poster,[string]$Title,[string]$Output) {
  Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
 using System;using System.Drawing;using System.Drawing.Imaging;using System.Runtime.InteropServices;using System.Collections.Generic;
 public static class PosterWordmarkPixels {
+ public static void ValidationImage(string input,string output){
+ using(var image=new Bitmap(input)){
+ double scale=Math.Min(3,Math.Min(1000.0/image.Width,260.0/image.Height));int w=(int)(image.Width*scale),h=(int)(image.Height*scale);
+ using(var mask=new Bitmap(image.Width,image.Height,PixelFormat.Format32bppArgb))using(var b=new Bitmap(w+60,h+60,PixelFormat.Format32bppArgb)){
+ for(int y=0;y<image.Height;y++)for(int x=0;x<image.Width;x++)mask.SetPixel(x,y,image.GetPixel(x,y).A>80?Color.Black:Color.White);
+ using(var g=Graphics.FromImage(b)){g.Clear(Color.White);g.DrawImage(mask,30,30,w,h);}b.Save(output,ImageFormat.Png);
+ }}}
  public static bool Red(Color c){return c.R>60&&c.R>c.G*2.2&&c.R>c.B*2.2;}
  public static void Prepare(string source,string output,int mode){
  using(var image=Image.FromFile(source))using(var b=new Bitmap(Math.Min(mode==3?300:900,image.Width),(int)Math.Round(image.Height*(double)Math.Min(mode==3?300:900,image.Width)/image.Width),PixelFormat.Format32bppArgb)){
@@ -21,7 +28,7 @@ public static class PosterWordmarkPixels {
  for(int i=0;i<a.Length;i+=4){byte v=mode>=2?(byte)(a[i+2]>60&&a[i+2]>a[i+1]*2.2&&a[i+2]>a[i]*2.2?0:255):mode==1?Math.Max(a[i],Math.Max(a[i+1],a[i+2])):Math.Min(a[i],Math.Min(a[i+1],a[i+2]));if(mode==3 && (i/d.Stride<b.Height*0.70||i/d.Stride>b.Height*0.91))v=255;a[i]=v;a[i+1]=v;a[i+2]=v;}
  Marshal.Copy(a,0,d.Scan0,a.Length);b.UnlockBits(d);b.Save(output,ImageFormat.Png);}}
  public static double Similarity(string a,string b){if(a.Length==0||b.Length==0)return 0;int[] prev=new int[b.Length+1];for(int j=0;j<=b.Length;j++)prev[j]=j;for(int i=1;i<=a.Length;i++){int[] row=new int[b.Length+1];row[0]=i;for(int j=1;j<=b.Length;j++)row[j]=Math.Min(Math.Min(prev[j]+1,row[j-1]+1),prev[j-1]+(a[i-1]==b[j-1]?0:1));prev=row;}return 1-(double)prev[b.Length]/Math.Max(a.Length,b.Length);}
- public static bool Extract(string input,string output,double[] regions){
+ public static bool Extract(string input,string output,double[] regions,int variant){
  using(var image=new Bitmap(input))using(var canvas=new Bitmap(image.Width,image.Height,PixelFormat.Format32bppArgb)){
  int left=image.Width,top=image.Height,right=0,bottom=0,kept=0;
  for(int i=0;i<regions.Length;i+=5){
@@ -36,10 +43,11 @@ public static class PosterWordmarkPixels {
  // On a dark poster take light glyphs; on a light poster take dark glyphs.
  double border=0;int samples=0;
  for(int xx=Math.Max(0,x);xx<Math.Min(image.Width,x+w);xx+=Math.Max(1,w/80)){foreach(int yy in new int[]{Math.Max(0,y-3),Math.Min(image.Height-1,y+h+2)}){Color c=image.GetPixel(xx,yy);border+=(c.R+c.G+c.B)/3.0;samples++;}}
- bool lightInk=samples>0?border/samples<125:blacks>whites;
- for(int yy=0;yy<rh;yy++)for(int xx=0;xx<rw;xx++){Color c=image.GetPixel(x0+xx,y0+yy);mask[yy*rw+xx]=mode==2?Red(c):lightInk?(Math.Min(c.R,Math.Min(c.G,c.B))>135||Red(c)):Math.Max(c.R,Math.Max(c.G,c.B))<85;}
+ bool lightInk=variant==1 || (variant!=2 && (samples>0?border/samples<125:blacks>whites));
+ for(int yy=0;yy<rh;yy++)for(int xx=0;xx<rw;xx++){Color c=image.GetPixel(x0+xx,y0+yy);mask[yy*rw+xx]=mode==2?Red(c):variant==3?(c.R>130&&c.G>85&&c.R>c.G*1.12&&c.G>c.B*1.18):variant==1?Math.Min(c.R,Math.Min(c.G,c.B))>215:lightInk?(Math.Min(c.R,Math.Min(c.G,c.B))>135||Red(c)):Math.Max(c.R,Math.Max(c.G,c.B))<85;}
  for(int start=0;start<mask.Length;start++){if(!mask[start]||visited[start])continue;var points=new List<int>();var queue=new Queue<int>();queue.Enqueue(start);visited[start]=true;int minY=rh,maxY=0,minX=rw,maxX=0;
  while(queue.Count>0){int pos=queue.Dequeue(),xx=pos%rw,yy=pos/rw;points.Add(pos);minY=Math.Min(minY,yy);maxY=Math.Max(maxY,yy);minX=Math.Min(minX,xx);maxX=Math.Max(maxX,xx);for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){int nx=xx+dx,ny=yy+dy;if(nx<0||ny<0||nx>=rw||ny>=rh)continue;int next=ny*rw+nx;if(mask[next]&&!visited[next]){visited[next]=true;queue.Enqueue(next);}}}
+ if(points.Count>rw*rh*.6)continue;
  if(points.Count<Math.Max(3,h*h*.003)||(maxY-minY+1)<h*(mode==2?.45:.18))continue;
  if(mode==2&&(maxY-minY+1)>h*1.5)continue;
  foreach(int pos in points){int xx=x0+pos%rw,yy=y0+pos/rw;canvas.SetPixel(xx,yy,image.GetPixel(xx,yy));left=Math.Min(left,xx);right=Math.Max(right,xx);top=Math.Min(top,yy);bottom=Math.Max(bottom,yy);kept++;}
@@ -52,8 +60,8 @@ public static class PosterWordmarkPixels {
 }
 '@
  function Normalize-Title([string]$s){return [regex]::Replace($s.ToLowerInvariant().Normalize(), '[^\p{L}\p{N}]','')}
- $clean=[regex]::Replace($Title,'(?:\s*[\(\[](?:19|20)\d{2}[\)\]]|\s+(?:19|20)\d{2}\b).*$',' ')
- $clean=[regex]::Replace($clean,'[\u200e\u200f\u202a-\u202e]','');$clean=[regex]::Replace($clean,'\s+-\s*\d{1,3}\s*$','')
+ . (Join-Path $PSScriptRoot 'folder-icon-title.ps1')
+ $clean=Get-FolderIconTitle $Title
  $tokens=@([regex]::Matches($clean.ToLowerInvariant(),'[\p{L}\p{N}]+') | ForEach-Object {$_.Value})
  if(-not $tokens.Count){return $null}
  $phrases=New-Object 'System.Collections.Generic.List[string]'
@@ -89,27 +97,31 @@ public static class PosterWordmarkPixels {
  }finally{$bitmap.Dispose()}
  }finally{$stream.Dispose()}
  }
- # Only an unmistakably large title block can be used without a folder-name match.
- $independent=$false
- if(-not $found.Count){
-  if(-not $prominent.Count){return $null}
-  $large=$prominent | Sort-Object h -Descending | Select-Object -First 1
-  if($large.h -lt $height*.06 -or $large.w -lt $height*.2){return $null}
-  foreach($r in $prominent){if($r.y -ge $large.y-$large.h*.15 -and $r.y -lt $large.y+$large.h*2.0){
-   $same=@($found | Where-Object {[Math]::Abs($_.y-$r.y) -lt [Math]::Max($_.h,$r.h)*.6})
-   if(-not $same.Count){$found.Add($r)}
-  }}
-  $independent=$true
- }
+ # Unmatched display text can be a slogan or actor credit. Use the complete folder title instead.
+ if(-not $found.Count){return $null}
  $anchor=$found | Sort-Object h -Descending | Select-Object -First 1
  $chosen=@($found | Where-Object {[Math]::Abs($_.y-$anchor.y) -lt [Math]::Max($height*.18,$anchor.h*2.5)})
  $coverage=($chosen | ForEach-Object {$_.text.Length} | Measure-Object -Sum).Sum
- if(-not $independent -and $coverage -lt (Normalize-Title $clean).Length*.65){return $null}
+ if($coverage -lt (Normalize-Title $clean).Length*.90){return $null}
  # Short single-word titles must match exactly; fuzzy OCR boxes can truncate letters.
  if($tokens.Count -eq 1 -and (Normalize-Title $clean).Length -le 8 -and -not @($chosen | Where-Object {$_.text -eq (Normalize-Title $clean)}).Count){return $null}
  $rects=New-Object 'System.Collections.Generic.List[double]'
  foreach($r in $chosen){foreach($key in @('x','y','w','h','mode')){$rects.Add([double]$r[$key])}}
- if([PosterWordmarkPixels]::Extract($Poster,$Output,$rects.ToArray())){return $Output}
+ # Verify the extracted glyphs again, not only the text found in the original photo.
+ foreach($variant in @(0,1,2,3)){
+  $trial=$Output+'.extract'+$variant+'.png';$scratch.Add($trial)
+  if(-not [PosterWordmarkPixels]::Extract($Poster,$trial,$rects.ToArray(),$variant)){continue}
+  $check=$trial+'.check.png';$scratch.Add($check);[PosterWordmarkPixels]::ValidationImage($trial,$check)
+  $file=Wait-Ocr ([Windows.Storage.StorageFile]::GetFileFromPathAsync($check)) ([Windows.Storage.StorageFile])
+  $stream=Wait-Ocr ($file.OpenAsync([Windows.Storage.FileAccessMode]::Read)) ([Windows.Storage.Streams.IRandomAccessStream])
+  try{$decoder=Wait-Ocr ([Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($stream)) ([Windows.Graphics.Imaging.BitmapDecoder]);$bitmap=Wait-Ocr ($decoder.GetSoftwareBitmapAsync()) ([Windows.Graphics.Imaging.SoftwareBitmap])
+   try{$checkOcr=Wait-Ocr ($engine.RecognizeAsync($bitmap)) ([Windows.Media.Ocr.OcrResult]);$read=Normalize-Title $checkOcr.Text}finally{$bitmap.Dispose()}
+  }finally{$stream.Dispose()}
+  $expected=Normalize-Title $clean
+  if([PosterWordmarkPixels]::Similarity($read,$expected) -lt .9){continue}
+  if($expected.Length -le 8 -and $read -ne $expected){continue}
+  [IO.File]::Move($trial,$Output);return $Output
+ }
  return $null
  }catch{return $null}finally{foreach($temp in $scratch){if([IO.File]::Exists($temp)){[IO.File]::Delete($temp)}}}
 }

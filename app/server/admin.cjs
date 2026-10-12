@@ -72,7 +72,8 @@ module.exports=function createAdmin({dir,sections,settings,port,services={},exte
   const sectionId=action==='SyncSectionAll'?null:(a[1]||'');
   if(sectionId!==null&&!sections.some(s=>s.id===sectionId))return reply(res,{msg:'error',error:'القسم غير موجود'},404);
   // startSync only enqueues work and returns its job ID; scanning belongs to the background service.
-  return reply(res,requireService('startSync')(sectionId));
+  const mode=new URL(req.url,'http://localhost').searchParams.get('mode')||'full';
+  return reply(res,requireService('startSync')(sectionId,mode));
  }
  if(action==='getMainData')return reply(res,{...settings,api_key:state.settings.api_key||''});
  if(action==='getAllEvents')return reply(res,state.events);

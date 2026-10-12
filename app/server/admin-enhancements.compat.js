@@ -615,9 +615,29 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     svg.appendChild(path);
     return svg;
   }
+  function closeSectionTools(buttons) {
+    buttons.classList.remove('zain-tools-open');
+    var toggle = buttons.querySelector('.zain-tools-toggle');
+    if (toggle) {
+      toggle.textContent = '+';
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+  }
+  document.addEventListener('click', e => {
+    document.querySelectorAll('.btns.zain-tools-open').forEach(buttons => {
+      if (!buttons.contains(e.target) || e.target.closest('.zain-section-tool')) closeSectionTools(buttons);
+    });
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') document.querySelectorAll('.btns.zain-tools-open').forEach(buttons => {
+      var _buttons$querySelecto;
+      closeSectionTools(buttons);
+      (_buttons$querySelecto = buttons.querySelector('.zain-tools-toggle')) === null || _buttons$querySelecto === void 0 || _buttons$querySelecto.focus();
+    });
+  });
   document.addEventListener('click', function () {
     var _ref7 = _asyncToGenerator(_regenerator().m(function _callee8(e) {
-      var button, card, r, v, msg, _t6;
+      var button, card, mode, r, v, msg, _t6;
       return _regenerator().w(function (_context9) {
         while (1) switch (_context9.p = _context9.n) {
           case 0:
@@ -643,12 +663,13 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             }
             return _context9.a(2);
           case 3:
+            mode = button.dataset.syncMode === 'quick' ? 'quick' : 'full';
             button.disabled = true;
             button.dataset.busy = 'yes';
             button.setAttribute('aria-busy', 'true');
             _context9.p = 4;
             _context9.n = 5;
-            return fetch('/admin/api/SyncSection/' + encodeURIComponent(card.id), {
+            return fetch('/admin/api/SyncSection/' + encodeURIComponent(card.id) + '?mode=' + mode, {
               method: 'POST',
               credentials: 'same-origin'
             });
@@ -666,10 +687,10 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
           case 7:
             window.dispatchEvent(new CustomEvent('zain-sync-requested', {
               detail: {
-                ok: true
+                ok: true,
+                mode
               }
             }));
-            button.title = 'بدأت مزامنة القسم وجميع فروعه؛ التفاصيل في سجل المزامنة';
             _context9.n = 9;
             break;
           case 8:
@@ -802,18 +823,19 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
         b.setAttribute('aria-label', b.title);
         b.setAttribute('aria-pressed', String(ids.has(id)));
         b.style.background = ids.has(id) ? '#318c48' : '#405c94';
-        var sync = card.querySelector('.zain-section-sync,.zain-sync-branch') || ((_card$querySelector = card.querySelector('.lni-reload')) === null || _card$querySelector === void 0 ? void 0 : _card$querySelector.closest('.admin-button-icon'));
+        var sync = card.querySelector('.zain-section-sync[data-sync-mode="full"],.zain-sync-branch') || ((_card$querySelector = card.querySelector('.lni-reload')) === null || _card$querySelector === void 0 ? void 0 : _card$querySelector.closest('.admin-button-icon'));
         if (!sync) {
           sync = element('button');
           sync.type = 'button';
           sync.className = 'admin-button-icon blue small';
           buttons.append(sync);
         }
-        if (!sync.classList.contains('zain-section-sync')) {
+        if (sync.dataset.syncMode !== 'full') {
           sync.classList.add('zain-section-sync');
           sync.classList.remove('zain-sync-branch');
-          sync.replaceChildren(sectionIcon('sync'));
-          sync.title = 'مزامنة القسم وجميع فروعه';
+          sync.dataset.syncMode = 'full';
+          sync.textContent = 'شاملة';
+          sync.title = 'مزامنة شاملة: إضافة الجديد، مراجعة المحذوف وتحديث الصور والأيقونات';
           sync.setAttribute('aria-label', sync.title);
           sync.setAttribute('role', 'button');
           if (sync.tagName !== 'BUTTON') {
@@ -826,6 +848,52 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             };
           }
         }
+        if (!buttons.querySelector('[data-sync-mode="quick"]')) {
+          var quick = element('button', 'سريعة');
+          quick.type = 'button';
+          quick.className = 'admin-button-icon small zain-section-sync';
+          quick.dataset.syncMode = 'quick';
+          quick.title = 'مزامنة سريعة: إضافة الجديد وتجهيز صوره وأيقوناته فقط؛ دون مراجعة القديم أو الحذف';
+          quick.setAttribute('aria-label', quick.title);
+          buttons.append(quick);
+        }
+        var toggle = buttons.querySelector('.zain-tools-toggle');
+        if (!toggle) {
+          toggle = element('button', '+');
+          toggle.type = 'button';
+          toggle.className = 'admin-button-icon zain-tools-toggle';
+          toggle.title = 'أدوات إدارة القسم';
+          toggle.setAttribute('aria-label', toggle.title);
+          toggle.setAttribute('aria-expanded', 'false');
+          toggle.onclick = e => {
+            e.preventDefault();
+            e.stopPropagation();
+            var open = !buttons.classList.contains('zain-tools-open');
+            document.querySelectorAll('.btns.zain-tools-open').forEach(closeSectionTools);
+            buttons.classList.toggle('zain-tools-open', open);
+            toggle.textContent = open ? '−' : '+';
+            toggle.setAttribute('aria-expanded', String(open));
+          };
+          buttons.append(toggle);
+        }
+        var toolIds = [];
+        var toolIndex = 0;
+        var _iterator7 = _createForOfIteratorHelper(buttons.querySelectorAll('.admin-button-icon:not(.zain-section-sync):not(.zain-tools-toggle)')),
+          _step7;
+        try {
+          for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
+            var tool = _step7.value;
+            tool.classList.add('zain-section-tool');
+            tool.style.setProperty('--zain-tool-column', String(++toolIndex));
+            if (!tool.id) tool.id = 'zain-section-tool-' + id + '-' + toolIndex;
+            toolIds.push(tool.id);
+          }
+        } catch (err) {
+          _iterator7.e(err);
+        } finally {
+          _iterator7.f();
+        }
+        toggle.setAttribute('aria-controls', toolIds.join(' '));
       };
       for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
         if (_loop3()) continue;
@@ -988,24 +1056,24 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   }
   function choices(parent, label, values, choose) {
     parent.replaceChildren(el('p', label));
-    var _iterator7 = _createForOfIteratorHelper(values),
-      _step7;
+    var _iterator8 = _createForOfIteratorHelper(values),
+      _step8;
     try {
       var _loop4 = function _loop4() {
-        var value = _step7.value;
+        var value = _step8.value;
         var b = el('button', value);
         b.type = 'button';
         b.style.cssText = 'background:#444a80;color:white;border:1px solid #777fbb;border-radius:10px;padding:14px 24px;margin:7px;cursor:pointer;font:700 17px Arial;min-width:100px;min-height:48px';
         b.onclick = () => choose(value);
         parent.append(b);
       };
-      for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
+      for (_iterator8.s(); !(_step8 = _iterator8.n()).done;) {
         _loop4();
       }
     } catch (err) {
-      _iterator7.e(err);
+      _iterator8.e(err);
     } finally {
-      _iterator7.f();
+      _iterator8.f();
     }
   }
   function candidateNames(candidate) {
@@ -1196,7 +1264,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   }
   function _run() {
     _run = _asyncToGenerator(_regenerator().m(function _callee12(stage, input, q, kind, category, current) {
-      var c, timer, r, v, candidates, heading, list, status, details, _iterator8, _step8, _loop5, answer, retry, _t10, _t11;
+      var c, timer, r, v, candidates, heading, list, status, details, _iterator9, _step9, _loop5, answer, retry, _t10, _t11;
       return _regenerator().w(function (_context15) {
         while (1) switch (_context15.p = _context15.n) {
           case 0:
@@ -1263,14 +1331,14 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             status.setAttribute('aria-live', 'polite');
             status.className = 'zain-local-search-status';
             list.className = 'zain-gemini-candidates';
-            _iterator8 = _createForOfIteratorHelper(candidates);
+            _iterator9 = _createForOfIteratorHelper(candidates);
             _context15.p = 7;
             _loop5 = _regenerator().m(function _loop5() {
-              var candidate, card, label, synopsis, description, aliases, choose, _iterator9, _step9, _loop6, _t1;
+              var candidate, card, label, synopsis, description, aliases, choose, _iterator0, _step0, _loop6, _t1;
               return _regenerator().w(function (_context14) {
                 while (1) switch (_context14.p = _context14.n) {
                   case 0:
-                    candidate = _step8.value;
+                    candidate = _step9.value;
                     card = el('article');
                     card.className = 'zain-gemini-card';
                     label = (candidate.title || candidate.searchQuery) + (candidate.year ? ' (' + candidate.year + ')' : '');
@@ -1292,14 +1360,14 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
                       _context14.n = 7;
                       break;
                     }
-                    _iterator9 = _createForOfIteratorHelper(aliases);
+                    _iterator0 = _createForOfIteratorHelper(aliases);
                     _context14.p = 1;
                     _loop6 = _regenerator().m(function _loop6() {
                       var name, b;
                       return _regenerator().w(function (_context13) {
                         while (1) switch (_context13.n) {
                           case 0:
-                            name = _step9.value;
+                            name = _step0.value;
                             b = el('button', name);
                             b.type = 'button';
                             b.className = 'zain-gemini-alternate';
@@ -1313,9 +1381,9 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
                         }
                       }, _loop6);
                     });
-                    _iterator9.s();
+                    _iterator0.s();
                   case 2:
-                    if ((_step9 = _iterator9.n()).done) {
+                    if ((_step0 = _iterator0.n()).done) {
                       _context14.n = 4;
                       break;
                     }
@@ -1329,10 +1397,10 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
                   case 5:
                     _context14.p = 5;
                     _t1 = _context14.v;
-                    _iterator9.e(_t1);
+                    _iterator0.e(_t1);
                   case 6:
                     _context14.p = 6;
-                    _iterator9.f();
+                    _iterator0.f();
                     return _context14.f(6);
                   case 7:
                     list.append(card);
@@ -1341,9 +1409,9 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
                 }
               }, _loop5, null, [[1, 5, 6, 7]]);
             });
-            _iterator8.s();
+            _iterator9.s();
           case 8:
-            if ((_step8 = _iterator8.n()).done) {
+            if ((_step9 = _iterator9.n()).done) {
               _context15.n = 10;
               break;
             }
@@ -1357,10 +1425,10 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
           case 11:
             _context15.p = 11;
             _t10 = _context15.v;
-            _iterator8.e(_t10);
+            _iterator9.e(_t10);
           case 12:
             _context15.p = 12;
-            _iterator8.f();
+            _iterator9.f();
             return _context15.f(12);
           case 13:
             details.append(list);
@@ -1488,7 +1556,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   function _settings() {
     _settings = _asyncToGenerator(_regenerator().m(function _callee16() {
       var _document$querySelect;
-      var host, response, current, area, form, key, model, reveal, enabled, translation, status, save, test, help, _iterator0, _step0, name, option, old, searchLabel, translationLabel, refreshHelp, _i3, _arr3, input, busy, submit, _submit;
+      var host, response, current, area, form, key, model, reveal, enabled, translation, status, save, test, help, _iterator1, _step1, name, option, old, searchLabel, translationLabel, refreshHelp, _i3, _arr3, input, busy, submit, _submit;
       return _regenerator().w(function (_context19) {
         while (1) switch (_context19.p = _context19.n) {
           case 0:
@@ -1595,18 +1663,18 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             key.setAttribute('aria-label', 'مفتاح Gemini API');
             key.autocomplete = 'new-password';
             key.spellcheck = false;
-            _iterator0 = _createForOfIteratorHelper(current.models || ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-3.1-flash-lite']);
+            _iterator1 = _createForOfIteratorHelper(current.models || ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-3.1-flash-lite']);
             try {
-              for (_iterator0.s(); !(_step0 = _iterator0.n()).done;) {
-                name = _step0.value;
+              for (_iterator1.s(); !(_step1 = _iterator1.n()).done;) {
+                name = _step1.value;
                 option = el('option', name);
                 option.value = name;
                 model.append(option);
               }
             } catch (err) {
-              _iterator0.e(err);
+              _iterator1.e(err);
             } finally {
-              _iterator0.f();
+              _iterator1.f();
             }
             if (current.model && !Array.from(model.options).some(o => o.value === current.model)) {
               old = el('option', current.model);
@@ -1732,8 +1800,14 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
 
   var style = document.createElement('style');
   style.textContent = `
-.admin-cont .sections-cont .sec .btns{display:grid!important;grid-template-columns:28px 28px!important;grid-auto-rows:28px!important;gap:4px!important;position:absolute!important;left:6px!important;right:auto!important;top:6px!important;bottom:auto!important;width:auto!important;height:auto!important;padding:4px!important;background:#101725b8;border-radius:10px;z-index:5!important;box-sizing:border-box}
+.admin-cont .sections-cont .sec .btns{display:grid!important;grid-template-columns:repeat(4,28px)!important;grid-auto-rows:28px!important;gap:4px!important;position:absolute!important;left:6px!important;right:auto!important;top:6px!important;bottom:auto!important;width:auto!important;height:auto!important;padding:4px!important;background:#101725b8;border-radius:10px;z-index:5!important;box-sizing:border-box;direction:ltr}
 .admin-cont .sections-cont .sec .btns>.admin-button-icon{position:static!important;float:none!important;display:flex!important;align-items:center!important;justify-content:center!important;width:28px!important;height:28px!important;min-width:28px!important;margin:0!important;padding:0!important;border:0!important;border-radius:8px!important;box-sizing:border-box;cursor:pointer;font-size:15px!important;line-height:1!important}
+.admin-cont .sections-cont .sec .btns>.zain-tools-toggle{grid-row:1;grid-column:1;background:#309843!important;color:white!important;font:bold 25px Arial!important}
+.admin-cont .sections-cont .sec .btns>.zain-section-sync{grid-row:2;width:60px!important;color:white!important;font:bold 12px Arial!important;direction:rtl}
+.admin-cont .sections-cont .sec .btns>[data-sync-mode=quick]{grid-column:3 / span 2;background:#218a64!important}
+.admin-cont .sections-cont .sec .btns>[data-sync-mode=full]{grid-column:1 / span 2;background:#456eac!important}
+.admin-cont .sections-cont .sec .btns>.zain-section-tool{grid-row:3;grid-column:var(--zain-tool-column)}
+.admin-cont .sections-cont .sec .btns:not(.zain-tools-open)>.zain-section-tool{display:none!important}
 .admin-cont .sections-cont .sec .btns svg{pointer-events:none;display:block;flex:none}.admin-cont .sections-cont .sec .btns>[aria-busy=true]{opacity:.55;cursor:wait}.admin-cont .sections-cont .sec .btns>button:focus{outline:2px solid white;outline-offset:1px}
 header .zain-main-link .item{margin-left:16px!important;padding-left:16px!important;border-left:1px solid #ffffff35}header .zain-home-entry>.zain-home-section{font:700 14px Estra7ahBold,Arial,sans-serif!important;line-height:22px!important;padding:6px 5px!important;max-width:180px;overflow:hidden;text-overflow:ellipsis}header .zain-nav-expand{font-size:16px!important;padding:8px 5px!important}
 .zain-home-compact .NetWorkTitle{padding:12px 0 8px!important;margin:0!important;height:auto!important;min-height:0!important}.zain-home-compact:not(.zain-has-hero) .NetWorkTitle{padding-top:calc(var(--zain-header-height,72px) + 12px)!important}.zain-home-compact .NetWorkTitle .cont{height:auto!important;min-height:0!important;padding:0!important;margin:0!important}.zain-home-compact .NetWorkTitle .title{font-size:28px!important;line-height:1.4!important;margin:0!important}.zain-home-compact .NetWorkTitle .desc{margin:3px 0!important;line-height:1.6!important}.zain-home-compact .zain-news-wrap{height:auto!important;min-height:48px!important;margin:0!important;padding:0!important}.zain-home-compact .news{margin:4px 0!important;padding:0!important;min-height:40px!important}.zain-home-compact .startSections{padding:0!important;margin:8px 0 14px!important}.zain-home-compact .zain-start-wrap{margin:0!important;padding:0!important}
@@ -2017,11 +2091,11 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
       }));
       host.appendChild(cancelAll);
     }
-    var _iterator1 = _createForOfIteratorHelper(active.length ? active : jobs.slice(-1)),
-      _step1;
+    var _iterator10 = _createForOfIteratorHelper(active.length ? active : jobs.slice(-1)),
+      _step10;
     try {
       var _loop7 = function _loop7() {
-        var job = _step1.value;
+        var job = _step10.value;
         var row = el('p', (statusNames[job.status] || job.status) + ' — ' + job.completed + ' محفوظ، ' + job.failed + ' تعذر، ' + (job.skipped || 0) + ' مكتمل سابقاً، من ' + job.total);
         host.appendChild(row);
         var current = (job.activeItems || []).map(item => item.name).filter(Boolean);
@@ -2059,13 +2133,13 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
           host.appendChild(button);
         }
       };
-      for (_iterator1.s(); !(_step1 = _iterator1.n()).done;) {
+      for (_iterator10.s(); !(_step10 = _iterator10.n()).done;) {
         _loop7();
       }
     } catch (err) {
-      _iterator1.e(err);
+      _iterator10.e(err);
     } finally {
-      _iterator1.f();
+      _iterator10.f();
     }
     var link = el('a', 'عرض التفاصيل في سجل الأحداث');
     link.href = '/admin/events';
@@ -2091,7 +2165,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   }
   function _poll() {
     _poll = _asyncToGenerator(_regenerator().m(function _callee23() {
-      var active, option, rows, ids, _status, jobs, states, byId, changed, _iterator10, _step10, _row$card$querySelect, _row, _item, picture, reload, becameSaved, _iterator11, _step11, job, _iterator16, _step16, id, _key, _iterator12, _step12, _job, _iterator17, _step17, _id, _key2, updated, _iterator13, _step13, item, _iterator14, _step14, row, img, url, _iterator15, _step15, _id2, _t22, _t23;
+      var active, option, rows, ids, _status, jobs, states, byId, changed, _iterator11, _step11, _row$card$querySelect, _row, _item, picture, reload, becameSaved, _iterator12, _step12, job, _iterator17, _step17, id, _key, _iterator13, _step13, _job, _iterator18, _step18, _id, _key2, updated, _iterator14, _step14, item, _iterator15, _step15, row, img, url, _iterator16, _step16, _id2, _t22, _t23;
       return _regenerator().w(function (_context26) {
         while (1) switch (_context26.p = _context26.n) {
           case 0:
@@ -2143,15 +2217,15 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             states = _context26.v;
             byId = new Map((states.items || []).map(item => [item.id, item]));
             changed = new Set();
-            _iterator10 = _createForOfIteratorHelper(rows);
+            _iterator11 = _createForOfIteratorHelper(rows);
             _context26.p = 6;
-            _iterator10.s();
+            _iterator11.s();
           case 7:
-            if ((_step10 = _iterator10.n()).done) {
+            if ((_step11 = _iterator11.n()).done) {
               _context26.n = 10;
               break;
             }
-            _row = _step10.value;
+            _row = _step11.value;
             _item = byId.get(_row.id);
             if (_item) {
               _context26.n = 8;
@@ -2184,49 +2258,24 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
           case 11:
             _context26.p = 11;
             _t22 = _context26.v;
-            _iterator10.e(_t22);
+            _iterator11.e(_t22);
           case 12:
             _context26.p = 12;
-            _iterator10.f();
+            _iterator11.f();
             return _context26.f(12);
           case 13:
-            _iterator11 = _createForOfIteratorHelper(jobs);
+            _iterator12 = _createForOfIteratorHelper(jobs);
             try {
-              for (_iterator11.s(); !(_step11 = _iterator11.n()).done;) {
-                job = _step11.value;
-                _iterator16 = _createForOfIteratorHelper(job.completedIds || []);
+              for (_iterator12.s(); !(_step12 = _iterator12.n()).done;) {
+                job = _step12.value;
+                _iterator17 = _createForOfIteratorHelper(job.completedIds || []);
                 try {
-                  for (_iterator16.s(); !(_step16 = _iterator16.n()).done;) {
-                    id = _step16.value;
+                  for (_iterator17.s(); !(_step17 = _iterator17.n()).done;) {
+                    id = _step17.value;
                     _key = job.id + ':' + id;
                     if (byId.has(id) && !seenCompletions.has(_key)) {
                       changed.add(id);
                       seenCompletions.add(_key);
-                    }
-                  }
-                } catch (err) {
-                  _iterator16.e(err);
-                } finally {
-                  _iterator16.f();
-                }
-              }
-            } catch (err) {
-              _iterator11.e(err);
-            } finally {
-              _iterator11.f();
-            }
-            _iterator12 = _createForOfIteratorHelper(jobs);
-            try {
-              for (_iterator12.s(); !(_step12 = _iterator12.n()).done;) {
-                _job = _step12.value;
-                _iterator17 = _createForOfIteratorHelper(_job.posterReadyIds || []);
-                try {
-                  for (_iterator17.s(); !(_step17 = _iterator17.n()).done;) {
-                    _id = _step17.value;
-                    _key2 = _job.id + ':poster:' + _id;
-                    if (byId.has(_id) && !seenCompletions.has(_key2)) {
-                      changed.add(_id);
-                      seenCompletions.add(_key2);
                     }
                   }
                 } catch (err) {
@@ -2240,6 +2289,31 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             } finally {
               _iterator12.f();
             }
+            _iterator13 = _createForOfIteratorHelper(jobs);
+            try {
+              for (_iterator13.s(); !(_step13 = _iterator13.n()).done;) {
+                _job = _step13.value;
+                _iterator18 = _createForOfIteratorHelper(_job.posterReadyIds || []);
+                try {
+                  for (_iterator18.s(); !(_step18 = _iterator18.n()).done;) {
+                    _id = _step18.value;
+                    _key2 = _job.id + ':poster:' + _id;
+                    if (byId.has(_id) && !seenCompletions.has(_key2)) {
+                      changed.add(_id);
+                      seenCompletions.add(_key2);
+                    }
+                  }
+                } catch (err) {
+                  _iterator18.e(err);
+                } finally {
+                  _iterator18.f();
+                }
+              }
+            } catch (err) {
+              _iterator13.e(err);
+            } finally {
+              _iterator13.f();
+            }
             if (!changed.size) {
               _context26.n = 15;
               break;
@@ -2248,21 +2322,21 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             return api('getItemSyncState/' + encodeURIComponent(Array.from(changed).join(',')) + '/content');
           case 14:
             updated = _context26.v;
-            _iterator13 = _createForOfIteratorHelper(updated.items || []);
+            _iterator14 = _createForOfIteratorHelper(updated.items || []);
             try {
-              for (_iterator13.s(); !(_step13 = _iterator13.n()).done;) {
-                item = _step13.value;
+              for (_iterator14.s(); !(_step14 = _iterator14.n()).done;) {
+                item = _step14.value;
                 fresh.set(item.id, item);
               }
             } catch (err) {
-              _iterator13.e(err);
+              _iterator14.e(err);
             } finally {
-              _iterator13.f();
+              _iterator14.f();
             }
-            _iterator14 = _createForOfIteratorHelper(rows);
+            _iterator15 = _createForOfIteratorHelper(rows);
             try {
-              for (_iterator14.s(); !(_step14 = _iterator14.n()).done;) {
-                row = _step14.value;
+              for (_iterator15.s(); !(_step15 = _iterator15.n()).done;) {
+                row = _step15.value;
                 if (changed.has(row.id)) {
                   img = row.card.querySelector('img');
                   if (img) {
@@ -2273,21 +2347,21 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                 }
               }
             } catch (err) {
-              _iterator14.e(err);
-            } finally {
-              _iterator14.f();
-            }
-          case 15:
-            _iterator15 = _createForOfIteratorHelper(fresh.keys());
-            try {
-              for (_iterator15.s(); !(_step15 = _iterator15.n()).done;) {
-                _id2 = _step15.value;
-                if (!byId.has(_id2)) fresh.delete(_id2);
-              }
-            } catch (err) {
               _iterator15.e(err);
             } finally {
               _iterator15.f();
+            }
+          case 15:
+            _iterator16 = _createForOfIteratorHelper(fresh.keys());
+            try {
+              for (_iterator16.s(); !(_step16 = _iterator16.n()).done;) {
+                _id2 = _step16.value;
+                if (!byId.has(_id2)) fresh.delete(_id2);
+              }
+            } catch (err) {
+              _iterator16.e(err);
+            } finally {
+              _iterator16.f();
             }
           case 16:
             _context26.n = 18;

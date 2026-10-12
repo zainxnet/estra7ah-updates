@@ -7,6 +7,8 @@
     [string]$Preview = ''
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'folder-icon-title.ps1')
+$Title=Get-FolderIconTitle $Title
 Add-Type -AssemblyName System.Drawing
 # Deterministic local compositor; GDI handles Arabic shaping and RTL layout.
 $source = @'
@@ -125,12 +127,12 @@ public static class ZainFolderIconRenderer {
                 using(var tabPath=new GraphicsPath()) {
                     tabPath.StartFigure();tabPath.AddLine(207,13,213,13);
                     tabPath.AddBezier(213,13,221,14,220,22,220,33);
-                    tabPath.AddBezier(220,33,220,43,225,46,235,49);
-                    tabPath.AddBezier(235,49,244,52,245,57,245,67);
-                    tabPath.AddLine(245,67,245,122);
-                    tabPath.AddBezier(245,122,245,132,242,136,233,140);
-                    tabPath.AddBezier(233,140,224,144,220,147,220,158);
-                    tabPath.AddLine(220,158,220,225);
+                    tabPath.AddBezier(220,33,220,38,225,39,235,42);
+                    tabPath.AddBezier(235,42,244,45,245,50,245,60);
+                    tabPath.AddLine(245,60,245,196);
+                    tabPath.AddBezier(245,196,245,206,242,210,233,214);
+                    tabPath.AddBezier(233,214,224,218,220,219,220,225);
+                    
                     tabPath.AddBezier(220,225,220,233,216,237,208,237);tabPath.CloseFigure();
                     using(var fill=new SolidBrush(tab))g.FillPath(fill,tabPath);
                     using(var pen=new Pen(light?Color.FromArgb(130,130,126):Color.FromArgb(72,76,76),1))g.DrawPath(pen,tabPath);
@@ -146,9 +148,9 @@ public static class ZainFolderIconRenderer {
                     g.Restore(saved);
                     using(var pen=new Pen(light?Color.FromArgb(120,120,118):Color.FromArgb(47,52,55),1))g.DrawPath(pen,frame);
                 }
-                var state=g.Save();g.TranslateTransform(232,95);g.RotateTransform(90);
-                if(wordmark!=null)Contain(g,wordmark,new RectangleF(-43,-11,86,22));
-                else FitText(g,Regex.Replace(title,@"(?:\s*[\(\[](?:19|20)\d{2}[\)\]]|\s+(?:19|20)\d{2}\b).*$", "").Trim(),new RectangleF(-44,-12,88,24),ink,14,4);
+                var state=g.Save();g.TranslateTransform(231,129);g.RotateTransform(90);
+                if(wordmark!=null)Contain(g,wordmark,new RectangleF(-79,-13,158,26));
+                else FitText(g,title,new RectangleF(-83,-14,166,28),ink,22,7);
                 g.Restore(state);
             }
             int[] sizes={16,32,48,64,128,256};var frames=new byte[sizes.Length][];

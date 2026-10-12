@@ -181,7 +181,7 @@
     arrow.textContent = expanded ? '▾' : '▴';
   });
 
-  window.addEventListener('zain-sync-requested',event=>{syncToast(event.detail?.ok?'تم بدء طلب المزامنة؛ جار فحص المسارات':'تعذر بدء المزامنة',!!event.detail?.ok);expanded=true;host.hidden=false;body.hidden=false;toggle.setAttribute('aria-expanded','true');title.textContent='جار فحص طلب المزامنة…';schedule(0);});
+  window.addEventListener('zain-sync-requested',event=>{syncToast(event.detail?.ok?(event.detail.mode==='quick'?'بدأت المزامنة السريعة؛ جارٍ اكتشاف الجديد فقط':'بدأت المزامنة الشاملة؛ جارٍ فحص المسارات'):'تعذر بدء المزامنة',!!event.detail?.ok);expanded=true;host.hidden=false;body.hidden=false;toggle.setAttribute('aria-expanded','true');title.textContent='جار فحص طلب المزامنة…';schedule(0);});
   function showNotice(message) {
     notice.textContent = message || '';
     notice.hidden = !message;
@@ -273,10 +273,10 @@
       let card = cards.get(id);
       if (!card) { card = makeCard(id); cards.set(id, card); }
       if (list.children[index] !== card.root) list.insertBefore(card.root, list.children[index] || null);
-      card.name.textContent = job.sectionId == null ? 'مزامنة جميع الأقسام' : sectionName(job.sectionId);
+      card.name.textContent = (job.mode==='quick'?'مزامنة سريعة — ':'مزامنة شاملة — ')+(job.sectionId == null ? 'جميع الأقسام' : sectionName(job.sectionId));
       card.status.textContent = statusNames[job.status] || 'حالة غير معروفة';
       card.status.dataset.status = String(job.status || '');
-      card.stats.textContent = 'الملفات: ' + count(job.files) + ' · العناصر المفهرسة: ' + count(job.indexedItems) + '\nالحجم المكتشف: ' + bytes(job.discoveredBytes);
+      card.stats.textContent = 'الملفات: ' + count(job.files) + (job.mode==='quick'?' · العناصر الجديدة: ':' · العناصر المفهرسة: ') + count(job.indexedItems) + '\nالمجلدات المفحوصة: '+count(job.scannedDirectories)+(job.mode==='quick'?' · دون مراجعة القديم أو الحذف\nصور وأيقونات الجديد تُجهّز في الخلفية؛ التفاصيل في سجل الأحداث':'\nالحجم المكتشف: ' + bytes(job.discoveredBytes));
       card.cancelButton.hidden = !activeStatuses.has(job.status);
       card.cancelButton.disabled = cancelling.has(id) || !!job.cancelRequested;
       card.cancelButton.textContent = card.cancelButton.disabled ? 'جارٍ الإيقاف…' : 'إيقاف المزامنة';

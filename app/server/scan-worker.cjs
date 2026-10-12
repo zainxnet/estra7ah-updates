@@ -56,7 +56,7 @@ process.once('message', async configuration => {
   let db;
   const progress = { files: 0, discoveredBytes: 0, indexedItems: 0, scannedDirectories: 0, warnings: 0, currentPath: configuration.source };
   try {
-    const { section, storePath } = configuration, folderOnly=configuration.folderOnly===true;
+    const { section, storePath } = configuration, folderOnly=configuration.folderOnly===true, quick=configuration.mode==='quick';
     if(section.type==='main'||section.type==='linked')throw Error('هذا قسم تجميعي؛ تزامن أقسام المحتوى الفرعية فقط');
     const memberships=Array.isArray(configuration.sections)&&configuration.sections.length?configuration.sections:[section];
     if(memberships.some(row=>row.type!==section.type)||new Set(memberships.map(row=>String(row.id))).size!==memberships.length)throw Error('Invalid shared scan sections');
@@ -74,6 +74,20 @@ process.once('message', async configuration => {
     const discoveredIds = new Map(memberships.map(row=>[String(row.id),new Set()]));
     const isSeries = section.type.startsWith('serieses');
     const seriesType = seriesTypes[section.type.split('.')[1]] || 'series';
+    // Read saved identities once, without touching media or artwork. Legacy imports
+    // have different IDs, so path/type (not just scanner IDs) determines existence.
+    const known=new Map(),membershipIds=new Set(memberships.map(row=>String(row.id)));
+    const identityKey=(sectionId,source,type)=>String(sectionId)+'\0'+canonical(source)+'\0'+type;
+    if(quick){
+      const hydrate=require('./shared-scan-store.cjs').reader(db);
+      for(const row of db.prepare("SELECT payload FROM records WHERE CAST(json_extract(payload,'$.sectionId') AS TEXT) IN (SELECT value FROM json_each(?))").iterate(JSON.stringify([...membershipIds]))){
+        const ref=JSON.parse(row.payload);
+        if(!ref.path||!require('./movie-scan-state.cjs').contains(root,ref.path))continue;
+        const record=hydrate(ref);
+        known.set(identityKey(record.sectionId,record.path,record.type),record.id);
+      }
+    }
+    const knownByAll=(source,type)=>quick&&memberships.every(row=>known.has(identityKey(row.id,source,type)));
 
     async function emitProgress(force = false) {
       if (force || Date.now() - lastProgress >= 250) {
@@ -101,11 +115,13 @@ process.once('message', async configuration => {
     async function addRecord(record) {
       for(const membership of memberships){
         const sectionId=String(membership.id);
-        const remap=id=>{if(id===null||id===undefined)return id;const identity=identities.get(id);if(!identity)throw Error('Missing scanner identity');return idFor(sectionId,identity.source,identity.kind,false);};
+        const remap=id=>{if(id===null||id===undefined)return id;const identity=identities.get(id);if(!identity)throw Error('Missing scanner identity');const type=identity.kind==='series'?seriesType:identity.kind==='movie-folder'?'movie':identity.kind;return known.get(identityKey(sectionId,identity.source,type))||idFor(sectionId,identity.source,identity.kind,false);};
+        if(quick&&known.has(identityKey(sectionId,record.path,record.type)))continue;
         const shared={...record,id:remap(record.id),sectionId,inItem:remap(record.inItem),
           files:record.files.map(file=>({...file,id:remap(file.id),itemId:remap(file.itemId)}))};
         discoveredIds.get(sectionId).add(shared.id);
         batch.push(shared);
+        if(quick)known.set(identityKey(sectionId,record.path,record.type),shared.id);
         if (batch.length >= 50) await flush();
       }
     }
@@ -137,6 +153,7 @@ process.once('message', async configuration => {
     async function addFolder(directory){
       const segments=path.relative(root,directory).split(path.sep);
       if(!(section.type==='movies'&&segments.length===1||isSeries&&segments.length<=2))return;
+      if(knownByAll(directory,section.type==='movies'?'movie':segments.length===1?seriesType:'season'))return;
       let stat;try{stat=await fs.stat(directory);}catch{progress.warnings++;return;}
       const createdAt=Math.floor((stat.birthtimeMs>0?stat.birthtimeMs:stat.mtimeMs)/1000);
       if(section.type==='movies'){
@@ -173,12 +190,21 @@ process.once('message', async configuration => {
         for await (const entry of handle) {
           const fullPath = path.join(directory, entry.name);
           if (entry.isSymbolicLink()) { progress.warnings++; continue; }
-          if (entry.isDirectory()) { await addFolder(fullPath);directories.push(fullPath); await emitProgress(); continue; }
+          if (entry.isDirectory()) {
+            await addFolder(fullPath);
+            const depth=path.relative(root,fullPath).split(path.sep).length;
+            // In compact libraries playback discovers files on demand. Quick sync
+            // only needs movie roots and show children to find new seasons.
+            const skip=quick&&(folderOnly&&(section.type==='movies'||isSeries&&depth>=2)||!folderOnly&&section.type==='movies'&&depth===1&&knownByAll(fullPath,'movie'));
+            if(!skip)directories.push(fullPath);
+            await emitProgress(); continue;
+          }
           if (folderOnly || !entry.isFile()) continue;
           const extension = path.extname(entry.name).slice(1).toLowerCase();
           const mime = types[extension];
           if (!mime || !allowed(section.type, mime, extension)) { await emitProgress(); continue; }
           if((section.type==='movies'||isSeries)&&directory===root)continue;
+          if(knownByAll(fullPath,isSeries?'episod':section.type==='movies'?'movie':section.type||'file'))continue;
           progress.currentPath = fullPath;
           let stat;
           try { stat = await fs.stat(fullPath); }
@@ -212,7 +238,7 @@ process.once('message', async configuration => {
     await flush();
     await emitProgress(true);
     const scopes=[];
-    if((section.type==='movies'||isSeries)&&successfulRoot&&!progress.warnings){
+    if(!quick&&(section.type==='movies'||isSeries)&&successfulRoot&&!progress.warnings){
       // Recheck accessibility before reconciling; interrupted/partial scans never prune.
       const handle=await fs.opendir(root);await handle.close();
       for(const membership of memberships){

@@ -152,7 +152,11 @@ module.exports = function createServices(options) {
   function pump() {
     if (closed) return;
     while (active.size < concurrency && queue.length) {
-      const task = queue.shift();
+      // Different modes cannot share results, but must not scan the same root
+      // concurrently: a full scan must not prune rows a quick scan just added.
+      const next=queue.findIndex(task=>![...active.values()].some(entry=>sourceKey(entry.task.section,entry.task.path)===sourceKey(task.section,task.path)));
+      if(next<0)return;
+      const [task] = queue.splice(next,1);
       if (task.state.status !== 'queued' || !task.subscribers.size) continue;
       runScan(task);
     }
@@ -204,7 +208,7 @@ module.exports = function createServices(options) {
         published = published.then(async () => {
           if (finished) return;
           if (!Array.isArray(message.records) || message.records.length > 50) throw failure('دفعة مزامنة غير صالحة', 'BAD_BATCH');
-          await onItems(message.records);
+          await onItems(message.records, { mode: task.mode });
           if (!finished && child.connected) {
             lastActivity = Date.now();
             child.send({ type: 'ack', sequence: message.sequence });
@@ -213,12 +217,12 @@ module.exports = function createServices(options) {
       } else if (message?.type === 'done') {
         published.then(async () => {
           if(finished)return;
-          if(message.status==='completed'&&(section.type==='movies'||section.type.startsWith('serieses'))){
+          if(message.status==='completed')await onCatalogCommit();
+          if(task.mode!=='quick'&&message.status==='completed'&&(section.type==='movies'||section.type.startsWith('serieses'))){
             const scopes=message.scopes||(message.scope?[message.scope]:[]);
             const sectionIds=new Set(memberships.map(row=>String(row.id)));
             for(const scope of scopes){
               if(!sectionIds.delete(scope.sectionId)||sourceKey(section,scope.root)!==sourceKey(section,task.path))throw failure('نطاق مزامنة غير صالح','BAD_SCOPE');
-          if(message.status==='completed')await onCatalogCommit();
             }
             if(sectionIds.size)throw failure('نطاق مزامنة غير مكتمل','BAD_SCOPE');
             for(const scope of scopes){if(finished)return;await onMovieScan(scope);}
@@ -235,7 +239,7 @@ module.exports = function createServices(options) {
       setImmediate(pump);
     });
     const describe=row=>({id:String(row.id),name:String(row.name||''),type:String(row.type||'')});
-    child.send({ source: task.path, section: describe(section), sections:memberships.map(describe), storePath, folderOnly:options.folderOnly===true });
+    child.send({ source: task.path, section: describe(section), sections:memberships.map(describe), storePath, folderOnly:options.folderOnly===true, mode:task.mode });
   }
 
   function selectedSections(sectionId) {
@@ -245,8 +249,9 @@ module.exports = function createServices(options) {
     return sections.filter(s=>ids.has(String(s.id)));
   }
 
-  function startSync(sectionId = null) {
+  function startSync(sectionId = null, mode = 'full') {
     ensureOpen();
+    if(!['quick','full'].includes(mode))throw failure('نوع المزامنة غير صالح');
     const selected = selectedSections(sectionId)
       .filter(section => !['linked','main'].includes(section.type))
       .flatMap(section => sectionPaths(section).map(source => ({ section, source })));
@@ -271,7 +276,7 @@ module.exports = function createServices(options) {
     const jobId = crypto.randomUUID();
     const now = new Date().toISOString();
     const job = {
-      id: jobId, jobId, sectionId, status: 'queued', createdAt: now, updatedAt: now,
+      id: jobId, jobId, sectionId, mode, status: 'queued', createdAt: now, updatedAt: now,
       startedAt: null, finishedAt: null, totalPaths: sources.length,
       files: 0, discoveredBytes: 0, indexedItems: 0, scannedDirectories: 0, warnings: 0,
       paths: sources.map(({ section, source, memberships }) => ({
@@ -285,10 +290,10 @@ module.exports = function createServices(options) {
       // Snapshot the membership set: an edit made during a scan belongs to a
       // later scan, whose completion scopes must not reuse the old snapshot.
       const snapshot = memberships.map(row => ({ id: String(row.id), name: String(row.name || ''), type: String(row.type || '') }));
-      const key = sourceKey(section, source) + '\0' + JSON.stringify(snapshot.slice().sort((a, b) => a.id.localeCompare(b.id)));
+      const key = sourceKey(section, source) + '\0' + mode + '\0' + JSON.stringify(snapshot.slice().sort((a, b) => a.id.localeCompare(b.id)));
       let task = inFlight.get(key);
       if (!task) {
-        task = { key, path: source, section: snapshot.find(row => row.id === String(section.id)), memberships: snapshot,
+        task = { key, mode, path: source, section: snapshot.find(row => row.id === String(section.id)), memberships: snapshot,
           subscribers: new Map(), state: { status: 'queued', files: 0, discoveredBytes: 0, indexedItems: 0, scannedDirectories: 0, warnings: 0 } };
         inFlight.set(key, task);
         queue.push(task);
