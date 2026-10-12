@@ -315,6 +315,26 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   var cards = new Map();
   var lastStates = new Map();
   var firstStatusLoad = true;
+  var dismissalKey = 'zain-sync-dismissed';
+  var dismissed = false,
+    dismissedJobs = new Set(),
+    artworkData = {
+      stats: {},
+      events: []
+    };
+  try {
+    var saved = JSON.parse(sessionStorage.getItem(dismissalKey) || 'null');
+    if (saved) {
+      dismissed = true;
+      dismissedJobs = new Set(saved.jobs || []);
+    }
+  } catch (_unused3) {}
+  function clearDismissal() {
+    dismissed = false;
+    try {
+      sessionStorage.removeItem(dismissalKey);
+    } catch (_unused4) {}
+  }
   function syncToast(message, good = true) {
     var n = document.getElementById('zain-sync-toast');
     if (!n) {
@@ -399,6 +419,8 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     button:focus-visible,summary:focus-visible{outline:3px solid #a49eff;outline-offset:-3px}
     button:disabled{cursor:wait;opacity:.6}
     .toggle{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;padding:9px 12px;border-radius:0;background:#222e48;text-align:right}
+    .header{display:flex;align-items:center;background:#222e48}.header .toggle{flex:1;min-width:0}.close{flex:none;width:28px;height:28px;margin:0 8px 0 10px;padding:0;border:1px solid #8190ad;font:22px Arial;line-height:1;background:#34415c}
+    .artwork{margin-top:14px;border-top:1px solid #53627f;padding-top:12px}.artwork h3{font-size:18px;margin:0 0 8px}.artwork progress{display:block;width:100%;height:10px;accent-color:#6f79ff}.artwork-log{max-height:190px;overflow:auto;border-top:1px solid #39455f;margin-top:8px;padding-top:4px}.artwork-entry{font-size:14px;line-height:1.7;margin:6px 0;overflow-wrap:anywhere}.artwork-entry[data-type=warning]{color:#ffdda3}
     .title{font-weight:700}.arrow{font-size:17px}
     .body{max-height:min(65vh,650px);overflow:auto;overscroll-behavior:contain;padding:14px}
     .note{color:#d8e2f5;font-size:15px;margin:0 0 12px}
@@ -423,6 +445,21 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     @media(max-width:480px){:host{bottom:8px;left:8px;max-width:calc(100vw - 16px)}.body{max-height:42vh}}
   `;
   var panel = element('div', 'panel');
+  var header = element('div', 'header'),
+    close = element('button', 'close', '×');
+  close.type = 'button';
+  close.setAttribute('aria-label', 'إغلاق نافذة المزامنة');
+  close.title = 'إخفاء النافذة؛ تستمر المزامنة في الخلفية';
+  close.onclick = () => {
+    dismissed = true;
+    dismissedJobs = new Set(knownJobs.map(j => String(j.id || j.jobId)));
+    try {
+      sessionStorage.setItem(dismissalKey, JSON.stringify({
+        jobs: [...dismissedJobs]
+      }));
+    } catch (_unused5) {}
+    host.hidden = true;
+  };
   var toggle = element('button', 'toggle');
   toggle.type = 'button';
   toggle.setAttribute('aria-expanded', 'false');
@@ -443,6 +480,89 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   live.setAttribute('role', 'status');
   live.setAttribute('aria-live', 'polite');
   body.append(note, notice, list);
+  function artworkSection() {
+    var root = element('section', 'artwork'),
+      heading = element('h3', '', 'مزامنة الصور والأيقونات'),
+      state = element('p', 'status'),
+      stats = element('p', 'stats'),
+      current = element('p'),
+      progress = element('progress'),
+      log = element('div', 'artwork-log');
+    root.setAttribute('aria-label', 'سجل مزامنة الصور والأيقونات');
+    state.setAttribute('role', 'status');
+    progress.setAttribute('aria-label', 'تقدم تجهيز الصور والأيقونات');
+    root.append(heading, state, progress, stats, current, log);
+    return {
+      root,
+      state,
+      stats,
+      current,
+      progress,
+      log
+    };
+  }
+  var artworkPanel = artworkSection();
+  artworkPanel.root.hidden = true;
+  body.append(artworkPanel.root);
+  var eventsArtwork = null;
+  function paintArtwork(view) {
+    var s = artworkData.stats || {},
+      events = artworkData.events || [],
+      key = JSON.stringify(artworkData);
+    view.root.hidden = !s.total && !events.length;
+    if (view.key === key) return;
+    view.key = key;
+    view.state.textContent = s.total ? statusNames[s.status] || s.status === 'stopped' && 'أُوقفت' || 'في الانتظار' : 'نتائج سابقة';
+    view.state.dataset.status = s.status || '';
+    view.progress.hidden = !s.total;
+    view.progress.max = Math.max(1, Number(s.total) || 0);
+    view.progress.value = Number(s.processed) || 0;
+    view.stats.textContent = s.total ? 'تم ' + count(s.processed) + ' من ' + count(s.total) + '؛ المتبقي ' + count(Math.max(0, s.total - s.processed)) + '\nأيقونات جديدة: ' + count(s.created) + ' · صور محفوظة: ' + count(s.postersSaved) + '\nموجودة أو مستبعدة: ' + count(s.skipped) + ' · تعذر: ' + count(s.failed) : '';
+    view.current.textContent = s.currentItem ? 'الجاري: ' + s.currentItem + ' — ' + (s.phase || 'تجهيز الصور والأيقونات') : '';
+    view.current.hidden = !s.currentItem;
+    var scroll = view.log.scrollTop;
+    view.log.replaceChildren();
+    var _iterator = _createForOfIteratorHelper(events.slice(-50).reverse()),
+      _step;
+    try {
+      for (_iterator.s(); !(_step = _iterator.n()).done;) {
+        var event = _step.value;
+        var row = element('p', 'artwork-entry');
+        row.dataset.type = event.type || '';
+        var time = new Date(Number(event.createdAt) * 1000);
+        row.textContent = (Number.isFinite(time.getTime()) ? time.toLocaleTimeString('ar') + ' — ' : '') + String(event.msg || '');
+        view.log.append(row);
+      }
+    } catch (err) {
+      _iterator.e(err);
+    } finally {
+      _iterator.f();
+    }
+    view.log.scrollTop = scroll;
+  }
+  function renderArtwork() {
+    paintArtwork(artworkPanel);
+    var target = location.pathname === '/admin/events' && document.querySelector('.localevents-cont .cont-ev');
+    if (!target) {
+      var _eventsArtwork;
+      (_eventsArtwork = eventsArtwork) === null || _eventsArtwork === void 0 || _eventsArtwork.root.remove();
+      eventsArtwork = null;
+      return;
+    }
+    if (!eventsArtwork) {
+      eventsArtwork = artworkSection();
+      eventsArtwork.root.id = 'zain-artwork-events';
+      eventsArtwork.root.style.cssText = 'position:static;border-top:1px solid #53627f;padding:12px 0;margin:12px 0;direction:rtl;overflow-wrap:anywhere';
+      eventsArtwork.log.style.cssText = 'max-height:240px;overflow:auto;line-height:1.8';
+      eventsArtwork.stats.style.whiteSpace = 'pre-line';
+      eventsArtwork.progress.style.cssText = 'width:100%;height:10px';
+    }
+    var metadata = target.querySelector('#zain-metadata-events');
+    if (metadata) {
+      if (metadata.nextElementSibling !== eventsArtwork.root) metadata.after(eventsArtwork.root);
+    } else if (!target.contains(eventsArtwork.root)) target.prepend(eventsArtwork.root);
+    paintArtwork(eventsArtwork);
+  }
   var stopAll = element('button', 'stop-all', 'إيقاف المزامنة');
   stopAll.type = 'button';
   stopAll.hidden = true;
@@ -454,7 +574,21 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   inlineStop.title = 'إيقاف مهام مزامنة الأقسام الجارية والمنتظرة مع الاحتفاظ بالنتائج المحفوظة';
   inlineStop.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#ad4249;color:white;border:0;border-radius:20px;padding:10px 18px;margin:5px;font:15px Arial;min-height:38px;cursor:pointer';
   inlineStop.onclick = cancelAll;
-  panel.append(toggle, stopAll, body, live);
+  var inlineShow = element('button', 'admin-button', 'عرض سجل المزامنة');
+  inlineShow.id = 'zain-show-sync';
+  inlineShow.type = 'button';
+  inlineShow.style.cssText = 'background:#405982;color:white;border:0;border-radius:18px;padding:8px 14px;margin:5px;cursor:pointer';
+  inlineShow.onclick = () => {
+    clearDismissal();
+    expanded = true;
+    host.setAttribute('data-expanded', '');
+    body.hidden = false;
+    toggle.setAttribute('aria-expanded', 'true');
+    arrow.textContent = '▾';
+    render(knownJobs);
+  };
+  header.append(toggle, close);
+  panel.append(header, stopAll, body, live);
   shadow.append(style, panel);
   (document.body || document.documentElement).append(host);
   toggle.addEventListener('click', function () {
@@ -465,11 +599,13 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     arrow.textContent = expanded ? '▾' : '▴';
   });
   window.addEventListener('zain-sync-requested', event => {
-    var _event$detail, _event$detail2;
-    syncToast((_event$detail = event.detail) !== null && _event$detail !== void 0 && _event$detail.ok ? event.detail.mode === 'quick' ? 'بدأت المزامنة السريعة؛ جارٍ اكتشاف الجديد فقط' : 'بدأت المزامنة الشاملة؛ جارٍ فحص المسارات' : 'تعذر بدء المزامنة', !!((_event$detail2 = event.detail) !== null && _event$detail2 !== void 0 && _event$detail2.ok));
+    var _event$detail, _event$detail2, _event$detail3;
+    if ((_event$detail = event.detail) !== null && _event$detail !== void 0 && _event$detail.ok) clearDismissal();
+    syncToast((_event$detail2 = event.detail) !== null && _event$detail2 !== void 0 && _event$detail2.ok ? event.detail.mode === 'quick' ? 'بدأت المزامنة السريعة؛ جارٍ اكتشاف الجديد فقط' : 'بدأت المزامنة الشاملة؛ جارٍ فحص المسارات' : 'تعذر بدء المزامنة', !!((_event$detail3 = event.detail) !== null && _event$detail3 !== void 0 && _event$detail3.ok));
     expanded = true;
     host.hidden = false;
     body.hidden = false;
+    host.setAttribute('data-expanded', '');
     toggle.setAttribute('aria-expanded', 'true');
     title.textContent = 'جار فحص طلب المزامنة…';
     schedule(0);
@@ -553,7 +689,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   }
   function _cancelAll() {
     _cancelAll = _asyncToGenerator(_regenerator().m(function _callee5() {
-      var failures, sent, data, pending, _iterator3, _step3, job, message, _t4, _t5, _t6;
+      var failures, sent, data, pending, _iterator4, _step4, job, message, _t4, _t5, _t6;
       return _regenerator().w(function (_context5) {
         while (1) switch (_context5.p = _context5.n) {
           case 0:
@@ -573,15 +709,15 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             data = _context5.v;
             knownJobs = data.jobs;
             pending = knownJobs.filter(j => activeStatuses.has(j.status) && !j.cancelRequested);
-            _iterator3 = _createForOfIteratorHelper(pending);
+            _iterator4 = _createForOfIteratorHelper(pending);
             _context5.p = 4;
-            _iterator3.s();
+            _iterator4.s();
           case 5:
-            if ((_step3 = _iterator3.n()).done) {
+            if ((_step4 = _iterator4.n()).done) {
               _context5.n = 10;
               break;
             }
-            job = _step3.value;
+            job = _step4.value;
             _context5.p = 6;
             _context5.n = 7;
             return request('/admin/api/cancelSync/' + encodeURIComponent(job.id || job.jobId), {
@@ -605,10 +741,10 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
           case 11:
             _context5.p = 11;
             _t5 = _context5.v;
-            _iterator3.e(_t5);
+            _iterator4.e(_t5);
           case 12:
             _context5.p = 12;
-            _iterator3.f();
+            _iterator4.f();
             return _context5.f(12);
           case 13:
             message = failures ? 'تعذر إيقاف بعض المهام؛ أعد المحاولة.' : sent ? 'أُرسل طلب إيقاف المزامنة. تبقى النتائج المحفوظة متاحة.' : 'لا توجد مزامنة جارية لإيقافها.';
@@ -707,19 +843,29 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     };
   }
   function render(jobs) {
+    var _artworkData$stats, _artworkData$events, _artworkData$stats2, _artworkData$stats3;
     updateStopControls(jobs);
-    host.hidden = !jobs.length || !/^\/admin(?:\/|$)/.test(location.pathname);
+    renderArtwork();
+    var hasArtwork = !!((_artworkData$stats = artworkData.stats) !== null && _artworkData$stats !== void 0 && _artworkData$stats.total) || !!((_artworkData$events = artworkData.events) !== null && _artworkData$events !== void 0 && _artworkData$events.length);
+    var sectionsHost = location.pathname === '/admin/sections' && document.querySelector('.sections-cont');
+    if (sectionsHost) {
+      if (!sectionsHost.contains(inlineShow)) sectionsHost.append(inlineShow);
+      inlineShow.hidden = !jobs.length && !hasArtwork;
+    } else inlineShow.remove();
+    if (dismissed && jobs.some(j => !dismissedJobs.has(String(j.id || j.jobId)))) clearDismissal();
+    host.hidden = dismissed || !jobs.length && !hasArtwork || !/^\/admin(?:\/|$)/.test(location.pathname);
     if (host.hidden) return;
     var activeCount = jobs.filter(job => activeStatuses.has(job.status)).length;
     var activeKey = jobs.filter(j => activeStatuses.has(j.status)).map(j => j.id || j.jobId).join(',');
     if (activeKey && host.dataset.activeKey !== activeKey) {
       expanded = true;
       body.hidden = false;
+      host.setAttribute('data-expanded', '');
       toggle.setAttribute('aria-expanded', 'true');
       arrow.textContent = '▾';
     }
     host.dataset.activeKey = activeKey;
-    title.textContent = activeCount ? 'المزامنة · ' + count(activeCount) + ' جارية' : 'نتائج المزامنة · ' + count(jobs.length);
+    title.textContent = activeCount ? 'المزامنة · ' + count(activeCount) + ' جارية' : (_artworkData$stats2 = artworkData.stats) !== null && _artworkData$stats2 !== void 0 && _artworkData$stats2.running || (_artworkData$stats3 = artworkData.stats) !== null && _artworkData$stats3 !== void 0 && _artworkData$stats3.queued ? 'مزامنة الصور والأيقونات جارية' : 'نتائج المزامنة · ' + count(jobs.length);
     var announcement = activeCount ? count(activeCount) + ' مهام مزامنة قيد التنفيذ' : 'انتهت مهام المزامنة؛ يمكنك مراجعة النتائج';
     if (announcement !== lastAnnouncement) {
       live.textContent = announcement;
@@ -781,40 +927,40 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
         pathNode.error.textContent = String(part.error || '');
         pathNode.error.hidden = !part.error;
       });
-      var _iterator = _createForOfIteratorHelper(card.pathNodes),
-        _step;
+      var _iterator2 = _createForOfIteratorHelper(card.pathNodes),
+        _step2;
       try {
-        for (_iterator.s(); !(_step = _iterator.n()).done;) {
-          var _step$value = _slicedToArray(_step.value, 2),
-            _key = _step$value[0],
-            _value = _step$value[1];
+        for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+          var _step2$value = _slicedToArray(_step2.value, 2),
+            _key = _step2$value[0],
+            _value = _step2$value[1];
           if (!currentPaths.has(_key)) {
             _value.root.remove();
             card.pathNodes.delete(_key);
           }
         }
       } catch (err) {
-        _iterator.e(err);
+        _iterator2.e(err);
       } finally {
-        _iterator.f();
+        _iterator2.f();
       }
     });
-    var _iterator2 = _createForOfIteratorHelper(cards),
-      _step2;
+    var _iterator3 = _createForOfIteratorHelper(cards),
+      _step3;
     try {
-      for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
-        var _step2$value = _slicedToArray(_step2.value, 2),
-          id = _step2$value[0],
-          card = _step2$value[1];
+      for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+        var _step3$value = _slicedToArray(_step3.value, 2),
+          id = _step3$value[0],
+          card = _step3$value[1];
         if (!present.has(id)) {
           card.root.remove();
           cards.delete(id);
         }
       }
     } catch (err) {
-      _iterator2.e(err);
+      _iterator3.e(err);
     } finally {
-      _iterator2.f();
+      _iterator3.f();
     }
   }
   function schedule(delay) {
@@ -826,7 +972,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   }
   function _poll() {
     _poll = _asyncToGenerator(_regenerator().m(function _callee7() {
-      var authenticationRequired, data, _iterator4, _step4, job, id, previous, sections, _t8, _t9;
+      var authenticationRequired, data, icons, _iterator5, _step5, job, id, previous, sections, _artworkData$stats4, _artworkData$stats5, _t8, _t9, _t0;
       return _regenerator().w(function (_context7) {
         while (1) switch (_context7.p = _context7.n) {
           case 0:
@@ -857,49 +1003,66 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             }
             throw new Error('تعذر قراءة حالة المزامنة');
           case 5:
-            _iterator4 = _createForOfIteratorHelper(data.jobs);
+            _context7.p = 5;
+            _context7.n = 6;
+            return request('/admin/api/folderIconStatus');
+          case 6:
+            icons = _context7.v;
+            if (icons.stats && Array.isArray(icons.events)) artworkData = icons;
+            _context7.n = 8;
+            break;
+          case 7:
+            _context7.p = 7;
+            _t8 = _context7.v;
+            if (!_t8.auth) {
+              _context7.n = 8;
+              break;
+            }
+            throw _t8;
+          case 8:
+            _iterator5 = _createForOfIteratorHelper(data.jobs);
             try {
-              for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
-                job = _step4.value;
+              for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
+                job = _step5.value;
                 id = String(job.id || job.jobId), previous = lastStates.get(id);
                 if (previous && previous !== job.status && !activeStatuses.has(job.status)) syncToast('المزامنة ' + (statusNames[job.status] || job.status) + ' — ' + count(job.files) + ' ملفات، ' + count(job.indexedItems) + ' عناصر', job.status === 'completed');else if (!firstStatusLoad && !previous && activeStatuses.has(job.status)) syncToast('بدأت مزامنة ' + sectionName(job.sectionId));
                 lastStates.set(id, job.status);
               }
             } catch (err) {
-              _iterator4.e(err);
+              _iterator5.e(err);
             } finally {
-              _iterator4.f();
+              _iterator5.f();
             }
             firstStatusLoad = false;
             knownJobs = data.jobs;
             if (!(knownJobs.length && Date.now() - namesLoadedAt > 60000)) {
-              _context7.n = 9;
+              _context7.n = 12;
               break;
             }
-            _context7.p = 6;
-            _context7.n = 7;
+            _context7.p = 9;
+            _context7.n = 10;
             return request('/admin/api/getAllJustSections');
-          case 7:
+          case 10:
             sections = _context7.v;
             if (Array.isArray(sections)) {
               sectionNames.clear();
               sections.forEach(section => sectionNames.set(String(section.id), String(section.name || section.id)));
               namesLoadedAt = Date.now();
             }
-            _context7.n = 9;
+            _context7.n = 12;
             break;
-          case 8:
-            _context7.p = 8;
-            _t8 = _context7.v;
-          case 9:
+          case 11:
+            _context7.p = 11;
+            _t9 = _context7.v;
+          case 12:
             showNotice('');
             render(knownJobs);
-            _context7.n = 11;
+            _context7.n = 14;
             break;
-          case 10:
-            _context7.p = 10;
-            _t9 = _context7.v;
-            if (_t9.auth) {
+          case 13:
+            _context7.p = 13;
+            _t0 = _context7.v;
+            if (_t0.auth) {
               authenticationRequired = true;
               host.hidden = true;
               knownJobs = [];
@@ -908,15 +1071,15 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             } else if (knownJobs.length) {
               showNotice('تعذر تحديث الحالة الآن. آخر نتائج معروضة؛ سنحاول تلقائياً.');
             }
-          case 11:
-            _context7.p = 11;
+          case 14:
+            _context7.p = 14;
             busy = false;
-            schedule(document.hidden || authenticationRequired ? 15000 : 2000);
-            return _context7.f(11);
-          case 12:
+            schedule(document.hidden || authenticationRequired ? 15000 : knownJobs.some(j => activeStatuses.has(j.status)) || (_artworkData$stats4 = artworkData.stats) !== null && _artworkData$stats4 !== void 0 && _artworkData$stats4.running || (_artworkData$stats5 = artworkData.stats) !== null && _artworkData$stats5 !== void 0 && _artworkData$stats5.queued ? 2000 : 5000);
+            return _context7.f(14);
+          case 15:
             return _context7.a(2);
         }
-      }, _callee7, null, [[6, 8], [3, 10, 11, 12]]);
+      }, _callee7, null, [[9, 11], [5, 7], [3, 13, 14, 15]]);
     }));
     return _poll.apply(this, arguments);
   }
@@ -954,7 +1117,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   }
   function _poll2() {
     _poll2 = _asyncToGenerator(_regenerator().m(function _callee0() {
-      var eventsList, response, data, summary, stop, _iterator5, _step5, _loop2, _t1, _t10;
+      var eventsList, response, data, summary, stop, _iterator6, _step6, _loop2, _t10, _t11;
       return _regenerator().w(function (_context1) {
         while (1) switch (_context1.p = _context1.n) {
           case 0:
@@ -1014,7 +1177,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
               stop.textContent = 'إلغاء جميع مهام مزامنة البيانات';
               stop.style.cssText = 'background:#cf303d;color:white;border:0;border-radius:6px;padding:10px 18px;font-weight:bold;cursor:pointer';
               stop.onclick = _asyncToGenerator(_regenerator().m(function _callee8() {
-                var result, _t0;
+                var result, _t1;
                 return _regenerator().w(function (_context8) {
                   while (1) switch (_context8.p = _context8.n) {
                     case 0:
@@ -1038,8 +1201,8 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
                       break;
                     case 4:
                       _context8.p = 4;
-                      _t0 = _context8.v;
-                      stop.textContent = _t0.message;
+                      _t1 = _context8.v;
+                      stop.textContent = _t1.message;
                       stop.disabled = false;
                     case 5:
                       return _context8.a(2);
@@ -1048,14 +1211,14 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
               }));
               panel.appendChild(stop);
             }
-            _iterator5 = _createForOfIteratorHelper(data.jobs.slice(-5).reverse());
+            _iterator6 = _createForOfIteratorHelper(data.jobs.slice(-5).reverse());
             _context1.p = 7;
             _loop2 = _regenerator().m(function _loop2() {
-              var job, row, cancel, _iterator6, _step6, error, line;
+              var job, row, cancel, _iterator7, _step7, error, line;
               return _regenerator().w(function (_context0) {
                 while (1) switch (_context0.n) {
                   case 0:
-                    job = _step5.value;
+                    job = _step6.value;
                     row = document.createElement('p');
                     row.textContent = (labels[job.status] || job.status) + ' — ' + job.completed + ' محفوظ، ' + job.failed + ' تعذر، من ' + job.total;
                     panel.appendChild(row);
@@ -1081,27 +1244,27 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
                       }));
                       panel.appendChild(cancel);
                     }
-                    _iterator6 = _createForOfIteratorHelper(job.errors || []);
+                    _iterator7 = _createForOfIteratorHelper(job.errors || []);
                     try {
-                      for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
-                        error = _step6.value;
+                      for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
+                        error = _step7.value;
                         line = document.createElement('p');
                         line.textContent = (error.name || error.id) + ': ' + error.error;
                         panel.appendChild(line);
                       }
                     } catch (err) {
-                      _iterator6.e(err);
+                      _iterator7.e(err);
                     } finally {
-                      _iterator6.f();
+                      _iterator7.f();
                     }
                   case 1:
                     return _context0.a(2);
                 }
               }, _loop2);
             });
-            _iterator5.s();
+            _iterator6.s();
           case 8:
-            if ((_step5 = _iterator5.n()).done) {
+            if ((_step6 = _iterator6.n()).done) {
               _context1.n = 10;
               break;
             }
@@ -1114,18 +1277,18 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             break;
           case 11:
             _context1.p = 11;
-            _t1 = _context1.v;
-            _iterator5.e(_t1);
+            _t10 = _context1.v;
+            _iterator6.e(_t10);
           case 12:
             _context1.p = 12;
-            _iterator5.f();
+            _iterator6.f();
             return _context1.f(12);
           case 13:
             _context1.n = 15;
             break;
           case 14:
             _context1.p = 14;
-            _t10 = _context1.v;
+            _t11 = _context1.v;
           case 15:
             _context1.p = 15;
             if (!closed) timer = setTimeout(poll, 3000);
@@ -1147,20 +1310,51 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   'use strict';
 
   var panel,
+    message,
     timer,
     stopped = false,
-    last;
+    last,
+    dismissed = '';
+  var key = 'zain-restore-dismissed';
+  try {
+    dismissed = sessionStorage.getItem(key) || '';
+  } catch (_unused8) {}
+  var identity = r => String(r.startedAt || r.id || 'legacy-restore');
   function render(r) {
-    if (!r) return;
+    if (!r) {
+      if (panel) panel.hidden = true;
+      return;
+    }
     last = r;
+    var id = identity(r);
+    if (id === dismissed) {
+      if (panel) panel.hidden = true;
+      return;
+    }
     if (!panel || !panel.isConnected) {
       panel = document.createElement('div');
       panel.id = 'zain-restore-progress';
       panel.dir = 'rtl';
-      panel.setAttribute('role', 'status');
-      panel.style.cssText = 'position:fixed;bottom:16px;left:16px;z-index:2147483000;max-width:540px;padding:16px;background:#202a40;color:white;border:2px solid #716aff;border-radius:10px;font:15px Arial;line-height:1.8';
+      panel.style.cssText = 'position:fixed;bottom:16px;left:16px;z-index:2147483000;max-width:min(540px,calc(100vw - 32px));box-sizing:border-box;padding:14px 16px 14px 48px;background:#202a40;color:white;border:2px solid #716aff;border-radius:10px;font:15px Arial;line-height:1.8';
+      message = document.createElement('span');
+      message.setAttribute('role', 'status');
+      var close = document.createElement('button');
+      close.type = 'button';
+      close.textContent = '×';
+      close.setAttribute('aria-label', 'إغلاق إشعار الاستعادة');
+      close.title = 'إخفاء الإشعار';
+      close.style.cssText = 'position:absolute;top:6px;left:6px;width:26px;height:26px;padding:0;border:1px solid #8190ad;border-radius:5px;background:#34415c;color:white;font:22px Arial;cursor:pointer';
+      close.onclick = () => {
+        dismissed = identity(last);
+        try {
+          sessionStorage.setItem(key, dismissed);
+        } catch (_unused9) {}
+        panel.hidden = true;
+      };
+      panel.append(message, close);
       document.body.appendChild(panel);
     }
+    panel.hidden = false;
     var labels = {
       'restore-apply': 'جار تطبيق ملفات النسخة',
       'legacy-import': 'جار استيراد سجلات المزامنة',
@@ -1176,7 +1370,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
       var fmt = n => r.unit === 'bytes' ? (n / 1048576).toFixed(1) + ' MB' : Number(n).toLocaleString() + ' سجل';
       text += ' — تم ' + fmt(r.current || 0) + ' من ' + fmt(r.total) + '؛ المتبقي ' + fmt(Math.max(0, r.total - (r.current || 0)));
     }
-    panel.textContent = text;
+    message.textContent = text;
     panel.style.borderColor = r.state === 'failed' ? '#e55555' : r.state === 'completed' ? '#42b777' : '#716aff';
   }
   function poll() {
@@ -1184,7 +1378,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   }
   function _poll3() {
     _poll3 = _asyncToGenerator(_regenerator().m(function _callee1() {
-      var response, data, _t11;
+      var response, data, _t12;
       return _regenerator().w(function (_context10) {
         while (1) switch (_context10.p = _context10.n) {
           case 0:
@@ -1195,43 +1389,62 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             return _context10.a(2);
           case 1:
             _context10.p = 1;
-            _context10.n = 2;
+            if (/^\/admin(?:\/|$)/.test(location.pathname)) {
+              _context10.n = 2;
+              break;
+            }
+            if (panel) panel.hidden = true;
+            return _context10.a(2);
+          case 2:
+            _context10.n = 3;
             return fetch('/admin/api/backupStatus', {
               credentials: 'same-origin',
               cache: 'no-store'
             });
-          case 2:
+          case 3:
             response = _context10.v;
             if (!response.ok) {
-              _context10.n = 4;
+              _context10.n = 5;
               break;
             }
-            _context10.n = 3;
+            _context10.n = 4;
             return response.json();
-          case 3:
+          case 4:
             data = _context10.v;
             render(data.restore);
-          case 4:
             _context10.n = 6;
             break;
           case 5:
-            _context10.p = 5;
-            _t11 = _context10.v;
-            if (last && panel) panel.textContent = 'انقطع اتصال الخادم؛ انتظار عودته لمتابعة الاستعادة. آخر حالة: ' + (last.message || last.phase);
+            if (response.status === 401 || response.status === 403) {
+              if (panel) panel.hidden = true;
+            }
           case 6:
-            _context10.p = 6;
-            if (!stopped) timer = setTimeout(poll, 2000);
-            return _context10.f(6);
+            _context10.n = 8;
+            break;
           case 7:
+            _context10.p = 7;
+            _t12 = _context10.v;
+            if (last && message && identity(last) !== dismissed) message.textContent = 'انقطع اتصال الخادم؛ انتظار عودته لمتابعة الاستعادة. آخر حالة: ' + (last.message || last.phase);
+          case 8:
+            _context10.p = 8;
+            if (!stopped) timer = setTimeout(poll, document.hidden ? 15000 : last && ['completed', 'failed'].includes(last.state) ? 5000 : 2000);
+            return _context10.f(8);
+          case 9:
             return _context10.a(2);
         }
-      }, _callee1, null, [[1, 5, 6, 7]]);
+      }, _callee1, null, [[1, 7, 8, 9]]);
     }));
     return _poll3.apply(this, arguments);
   }
   window.addEventListener('pagehide', () => {
     stopped = true;
     clearTimeout(timer);
+  });
+  window.addEventListener('pageshow', () => {
+    if (stopped) {
+      stopped = false;
+      poll();
+    }
   });
   poll();
 })();

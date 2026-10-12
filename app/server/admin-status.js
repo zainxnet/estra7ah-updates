@@ -65,6 +65,9 @@
   const sectionNames = new Map();
   const cards = new Map();
   const lastStates=new Map();let firstStatusLoad=true;
+  const dismissalKey='zain-sync-dismissed';let dismissed=false,dismissedJobs=new Set(),artworkData={stats:{},events:[]};
+  try{const saved=JSON.parse(sessionStorage.getItem(dismissalKey)||'null');if(saved){dismissed=true;dismissedJobs=new Set(saved.jobs||[])}}catch{}
+  function clearDismissal(){dismissed=false;try{sessionStorage.removeItem(dismissalKey)}catch{}}
   function syncToast(message,good=true){let n=document.getElementById('zain-sync-toast');if(!n){n=document.createElement('div');n.id='zain-sync-toast';n.setAttribute('role','status');n.style.cssText='position:fixed;top:24px;left:24px;z-index:2147483647;color:white;padding:14px 22px;border-radius:10px;max-width:430px;font:16px sans-serif;direction:rtl;box-shadow:0 5px 20px #0005';document.body.append(n);}n.style.background=good?'#318c48':'#a54936';n.textContent=message;n.hidden=false;clearTimeout(n.hideTimer);n.hideTimer=setTimeout(()=>n.hidden=true,7000);}
 
   const cancelling = new Set();
@@ -123,6 +126,8 @@
     button:focus-visible,summary:focus-visible{outline:3px solid #a49eff;outline-offset:-3px}
     button:disabled{cursor:wait;opacity:.6}
     .toggle{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;padding:9px 12px;border-radius:0;background:#222e48;text-align:right}
+    .header{display:flex;align-items:center;background:#222e48}.header .toggle{flex:1;min-width:0}.close{flex:none;width:28px;height:28px;margin:0 8px 0 10px;padding:0;border:1px solid #8190ad;font:22px Arial;line-height:1;background:#34415c}
+    .artwork{margin-top:14px;border-top:1px solid #53627f;padding-top:12px}.artwork h3{font-size:18px;margin:0 0 8px}.artwork progress{display:block;width:100%;height:10px;accent-color:#6f79ff}.artwork-log{max-height:190px;overflow:auto;border-top:1px solid #39455f;margin-top:8px;padding-top:4px}.artwork-entry{font-size:14px;line-height:1.7;margin:6px 0;overflow-wrap:anywhere}.artwork-entry[data-type=warning]{color:#ffdda3}
     .title{font-weight:700}.arrow{font-size:17px}
     .body{max-height:min(65vh,650px);overflow:auto;overscroll-behavior:contain;padding:14px}
     .note{color:#d8e2f5;font-size:15px;margin:0 0 12px}
@@ -147,6 +152,7 @@
     @media(max-width:480px){:host{bottom:8px;left:8px;max-width:calc(100vw - 16px)}.body{max-height:42vh}}
   `;
   const panel = element('div', 'panel');
+  const header=element('div','header'),close=element('button','close','×');close.type='button';close.setAttribute('aria-label','إغلاق نافذة المزامنة');close.title='إخفاء النافذة؛ تستمر المزامنة في الخلفية';close.onclick=()=>{dismissed=true;dismissedJobs=new Set(knownJobs.map(j=>String(j.id||j.jobId)));try{sessionStorage.setItem(dismissalKey,JSON.stringify({jobs:[...dismissedJobs]}))}catch{}host.hidden=true;};
   const toggle = element('button', 'toggle');
   toggle.type = 'button';
   toggle.setAttribute('aria-expanded', 'false');
@@ -167,9 +173,19 @@
   live.setAttribute('role', 'status');
   live.setAttribute('aria-live', 'polite');
   body.append(note, notice, list);
+  function artworkSection(){const root=element('section','artwork'),heading=element('h3','','مزامنة الصور والأيقونات'),state=element('p','status'),stats=element('p','stats'),current=element('p'),progress=element('progress'),log=element('div','artwork-log');root.setAttribute('aria-label','سجل مزامنة الصور والأيقونات');state.setAttribute('role','status');progress.setAttribute('aria-label','تقدم تجهيز الصور والأيقونات');root.append(heading,state,progress,stats,current,log);return {root,state,stats,current,progress,log};}
+  const artworkPanel=artworkSection();artworkPanel.root.hidden=true;body.append(artworkPanel.root);let eventsArtwork=null;
+  function paintArtwork(view){const s=artworkData.stats||{},events=artworkData.events||[],key=JSON.stringify(artworkData);view.root.hidden=!s.total&&!events.length;if(view.key===key)return;view.key=key;
+   view.state.textContent=s.total?(statusNames[s.status]||s.status==='stopped'&&'أُوقفت'||'في الانتظار'):'نتائج سابقة';view.state.dataset.status=s.status||'';view.progress.hidden=!s.total;view.progress.max=Math.max(1,Number(s.total)||0);view.progress.value=Number(s.processed)||0;
+   view.stats.textContent=s.total?'تم '+count(s.processed)+' من '+count(s.total)+'؛ المتبقي '+count(Math.max(0,s.total-s.processed))+'\nأيقونات جديدة: '+count(s.created)+' · صور محفوظة: '+count(s.postersSaved)+'\nموجودة أو مستبعدة: '+count(s.skipped)+' · تعذر: '+count(s.failed):'';
+   view.current.textContent=s.currentItem?'الجاري: '+s.currentItem+' — '+(s.phase||'تجهيز الصور والأيقونات'):'';view.current.hidden=!s.currentItem;
+   const scroll=view.log.scrollTop;view.log.replaceChildren();for(const event of events.slice(-50).reverse()){const row=element('p','artwork-entry');row.dataset.type=event.type||'';const time=new Date(Number(event.createdAt)*1000);row.textContent=(Number.isFinite(time.getTime())?time.toLocaleTimeString('ar')+' — ':'')+String(event.msg||'');view.log.append(row)}view.log.scrollTop=scroll;
+  }
+  function renderArtwork(){paintArtwork(artworkPanel);const target=location.pathname==='/admin/events'&&document.querySelector('.localevents-cont .cont-ev');if(!target){eventsArtwork?.root.remove();eventsArtwork=null;return;}if(!eventsArtwork){eventsArtwork=artworkSection();eventsArtwork.root.id='zain-artwork-events';eventsArtwork.root.style.cssText='position:static;border-top:1px solid #53627f;padding:12px 0;margin:12px 0;direction:rtl;overflow-wrap:anywhere';eventsArtwork.log.style.cssText='max-height:240px;overflow:auto;line-height:1.8';eventsArtwork.stats.style.whiteSpace='pre-line';eventsArtwork.progress.style.cssText='width:100%;height:10px';}const metadata=target.querySelector('#zain-metadata-events');if(metadata){if(metadata.nextElementSibling!==eventsArtwork.root)metadata.after(eventsArtwork.root)}else if(!target.contains(eventsArtwork.root))target.prepend(eventsArtwork.root);paintArtwork(eventsArtwork);}
   const stopAll = element('button', 'stop-all', 'إيقاف المزامنة');stopAll.type='button';stopAll.hidden=true;stopAll.style.cssText='margin:8px 12px;padding:9px 14px;background:#ad4249;color:white;font-weight:bold';stopAll.onclick=cancelAll;
   const inlineStop=element('button','admin-button red','إيقاف المزامنة');inlineStop.id='zain-stop-sync';inlineStop.type='button';inlineStop.title='إيقاف مهام مزامنة الأقسام الجارية والمنتظرة مع الاحتفاظ بالنتائج المحفوظة';inlineStop.style.cssText='display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#ad4249;color:white;border:0;border-radius:20px;padding:10px 18px;margin:5px;font:15px Arial;min-height:38px;cursor:pointer';inlineStop.onclick=cancelAll;
-  panel.append(toggle, stopAll, body, live);
+  const inlineShow=element('button','admin-button','عرض سجل المزامنة');inlineShow.id='zain-show-sync';inlineShow.type='button';inlineShow.style.cssText='background:#405982;color:white;border:0;border-radius:18px;padding:8px 14px;margin:5px;cursor:pointer';inlineShow.onclick=()=>{clearDismissal();expanded=true;host.setAttribute('data-expanded','');body.hidden=false;toggle.setAttribute('aria-expanded','true');arrow.textContent='▾';render(knownJobs);};
+  header.append(toggle,close);panel.append(header, stopAll, body, live);
   shadow.append(style, panel);
   (document.body || document.documentElement).append(host);
 
@@ -181,7 +197,7 @@
     arrow.textContent = expanded ? '▾' : '▴';
   });
 
-  window.addEventListener('zain-sync-requested',event=>{syncToast(event.detail?.ok?(event.detail.mode==='quick'?'بدأت المزامنة السريعة؛ جارٍ اكتشاف الجديد فقط':'بدأت المزامنة الشاملة؛ جارٍ فحص المسارات'):'تعذر بدء المزامنة',!!event.detail?.ok);expanded=true;host.hidden=false;body.hidden=false;toggle.setAttribute('aria-expanded','true');title.textContent='جار فحص طلب المزامنة…';schedule(0);});
+  window.addEventListener('zain-sync-requested',event=>{if(event.detail?.ok)clearDismissal();syncToast(event.detail?.ok?(event.detail.mode==='quick'?'بدأت المزامنة السريعة؛ جارٍ اكتشاف الجديد فقط':'بدأت المزامنة الشاملة؛ جارٍ فحص المسارات'):'تعذر بدء المزامنة',!!event.detail?.ok);expanded=true;host.hidden=false;body.hidden=false;host.setAttribute('data-expanded','');toggle.setAttribute('aria-expanded','true');title.textContent='جار فحص طلب المزامنة…';schedule(0);});
   function showNotice(message) {
     notice.textContent = message || '';
     notice.hidden = !message;
@@ -252,11 +268,15 @@
 
   function render(jobs) {
     updateStopControls(jobs);
-    host.hidden = !jobs.length || !/^\/admin(?:\/|$)/.test(location.pathname);
+    renderArtwork();
+    const hasArtwork=!!artworkData.stats?.total||!!artworkData.events?.length;
+    const sectionsHost=location.pathname==='/admin/sections'&&document.querySelector('.sections-cont');if(sectionsHost){if(!sectionsHost.contains(inlineShow))sectionsHost.append(inlineShow);inlineShow.hidden=!jobs.length&&!hasArtwork;}else inlineShow.remove();
+    if(dismissed&&jobs.some(j=>!dismissedJobs.has(String(j.id||j.jobId))))clearDismissal();
+    host.hidden = dismissed||(!jobs.length&&!hasArtwork) || !/^\/admin(?:\/|$)/.test(location.pathname);
     if (host.hidden) return;
     const activeCount = jobs.filter(job => activeStatuses.has(job.status)).length;
-    const activeKey=jobs.filter(j=>activeStatuses.has(j.status)).map(j=>j.id||j.jobId).join(',');if(activeKey&&host.dataset.activeKey!==activeKey){expanded=true;body.hidden=false;toggle.setAttribute('aria-expanded','true');arrow.textContent='▾';}host.dataset.activeKey=activeKey;
-    title.textContent = activeCount ? 'المزامنة · ' + count(activeCount) + ' جارية' : 'نتائج المزامنة · ' + count(jobs.length);
+    const activeKey=jobs.filter(j=>activeStatuses.has(j.status)).map(j=>j.id||j.jobId).join(',');if(activeKey&&host.dataset.activeKey!==activeKey){expanded=true;body.hidden=false;host.setAttribute('data-expanded','');toggle.setAttribute('aria-expanded','true');arrow.textContent='▾';}host.dataset.activeKey=activeKey;
+    title.textContent = activeCount ? 'المزامنة · ' + count(activeCount) + ' جارية' : artworkData.stats?.running||artworkData.stats?.queued?'مزامنة الصور والأيقونات جارية':'نتائج المزامنة · ' + count(jobs.length);
     const announcement = activeCount ? count(activeCount) + ' مهام مزامنة قيد التنفيذ' : 'انتهت مهام المزامنة؛ يمكنك مراجعة النتائج';
     if (announcement !== lastAnnouncement) {
       live.textContent = announcement;
@@ -334,6 +354,7 @@
     try {
       const data = await request('/admin/api/syncStatus');
       if (!Array.isArray(data.jobs)) throw new Error('تعذر قراءة حالة المزامنة');
+      try{const icons=await request('/admin/api/folderIconStatus');if(icons.stats&&Array.isArray(icons.events))artworkData=icons;}catch(error){if(error.auth)throw error;}
       for(const job of data.jobs){const id=String(job.id||job.jobId),previous=lastStates.get(id);if(previous&&previous!==job.status&&!activeStatuses.has(job.status))syncToast('المزامنة '+(statusNames[job.status]||job.status)+' — '+count(job.files)+' ملفات، '+count(job.indexedItems)+' عناصر',job.status==='completed');else if(!firstStatusLoad&&!previous&&activeStatuses.has(job.status))syncToast('بدأت مزامنة '+sectionName(job.sectionId));lastStates.set(id,job.status);}firstStatusLoad=false;
       knownJobs = data.jobs;
       if (knownJobs.length && Date.now() - namesLoadedAt > 60000) {
@@ -360,7 +381,7 @@
       }
     } finally {
       busy = false;
-      schedule(document.hidden || authenticationRequired ? 15000 : 2000);
+      schedule(document.hidden || authenticationRequired ? 15000 : knownJobs.some(j=>activeStatuses.has(j.status))||artworkData.stats?.running||artworkData.stats?.queued?2000:5000);
     }
   }
 
@@ -377,8 +398,12 @@
 (function(){'use strict';let panel,timer,closed=false;const labels={queued:'في الانتظار',running:'جارية',completed:'اكتملت',partial:'اكتملت جزئياً',interrupted:'توقفت بسبب خطأ',cancelled:'أوقفت'};async function poll(){try{if(location.pathname!=='/admin/events'){if(panel)panel.remove();panel=null;return;}const eventsList=document.querySelector('.localevents-cont .cont-ev');if(!eventsList)return;const response=await fetch('/admin/api/metadataStatus',{credentials:'same-origin',cache:'no-store'});if(!response.ok)return;const data=await response.json();if(!data.jobs.length)return;if(!panel){panel=document.createElement('section');panel.id='zain-metadata-events';panel.dir='rtl';panel.style.cssText='position:static;background:transparent;color:inherit;padding:12px 0;margin:0 0 12px;border-bottom:1px solid #39445b;max-width:100%;overflow-wrap:anywhere';eventsList.prepend(panel);}if(!panel.isConnected)eventsList.prepend(panel);panel.replaceChildren();const summary=document.createElement('h3');summary.textContent='مزامنة بيانات العناصر';panel.appendChild(summary);if(data.jobs.some(job=>['queued','running'].includes(job.status))){const stop=document.createElement('button');stop.textContent='إلغاء جميع مهام مزامنة البيانات';stop.style.cssText='background:#cf303d;color:white;border:0;border-radius:6px;padding:10px 18px;font-weight:bold;cursor:pointer';stop.onclick=async()=>{stop.disabled=true;try{const result=await fetch('/admin/api/cancelAllMetadata',{method:'POST',credentials:'same-origin'});if(!result.ok)throw Error('تعذر إلغاء المزامنة');poll()}catch(error){stop.textContent=error.message;stop.disabled=false}};panel.appendChild(stop)}for(const job of data.jobs.slice(-5).reverse()){const row=document.createElement('p');row.textContent=(labels[job.status]||job.status)+' — '+job.completed+' محفوظ، '+job.failed+' تعذر، من '+job.total;panel.appendChild(row);if(['queued','running'].includes(job.status)){const cancel=document.createElement('button');cancel.textContent='إلغاء المزامنة';cancel.style.cssText='background:#ad4c4c;color:white;border:0;border-radius:18px;padding:8px 18px;cursor:pointer';cancel.onclick=async()=>{await fetch('/admin/api/cancelMetadata/'+encodeURIComponent(job.id),{method:'POST',credentials:'same-origin'});poll();};panel.appendChild(cancel);}for(const error of job.errors||[]){const line=document.createElement('p');line.textContent=(error.name||error.id)+': '+error.error;panel.appendChild(line);}}}catch{}finally{if(!closed)timer=setTimeout(poll,3000);}}window.addEventListener('pagehide',()=>{closed=true;clearTimeout(timer)});poll();})();
 
 (function(){
- 'use strict';let panel,timer,stopped=false,last;
- function render(r){if(!r)return;last=r;if(!panel||!panel.isConnected){panel=document.createElement('div');panel.id='zain-restore-progress';panel.dir='rtl';panel.setAttribute('role','status');panel.style.cssText='position:fixed;bottom:16px;left:16px;z-index:2147483000;max-width:540px;padding:16px;background:#202a40;color:white;border:2px solid #716aff;border-radius:10px;font:15px Arial;line-height:1.8';document.body.appendChild(panel);}const labels={'restore-apply':'جار تطبيق ملفات النسخة','legacy-import':'جار استيراد سجلات المزامنة','legacy-items':'جار تحميل فهرس المحتويات','catalog-merge':'جار دمج المكتبة','services':'جار تشغيل الخدمات','catalog-save':'جار حفظ قاعدة المكتبة',completed:'اكتملت الاستعادة وتجهيز المكتبة'};let text=labels[r.phase]||r.message||'الاستعادة جارية';if(r.percent!=null)text+=' — تقدم المرحلة '+r.percent+'%';if(r.total>0){const fmt=n=>r.unit==='bytes'?(n/1048576).toFixed(1)+' MB':Number(n).toLocaleString()+' سجل';text+=' — تم '+fmt(r.current||0)+' من '+fmt(r.total)+'؛ المتبقي '+fmt(Math.max(0,r.total-(r.current||0)));}panel.textContent=text;panel.style.borderColor=r.state==='failed'?'#e55555':r.state==='completed'?'#42b777':'#716aff';}
- async function poll(){if(stopped)return;try{const response=await fetch('/admin/api/backupStatus',{credentials:'same-origin',cache:'no-store'});if(response.ok){const data=await response.json();render(data.restore);}}catch{if(last&&panel)panel.textContent='انقطع اتصال الخادم؛ انتظار عودته لمتابعة الاستعادة. آخر حالة: '+(last.message||last.phase); }finally{if(!stopped)timer=setTimeout(poll,2000);}}
- window.addEventListener('pagehide',()=>{stopped=true;clearTimeout(timer)});poll();
+ 'use strict';let panel,message,timer,stopped=false,last,dismissed='';const key='zain-restore-dismissed';try{dismissed=sessionStorage.getItem(key)||''}catch{}
+ const identity=r=>String(r.startedAt||r.id||'legacy-restore');
+ function render(r){if(!r){if(panel)panel.hidden=true;return;}last=r;const id=identity(r);if(id===dismissed){if(panel)panel.hidden=true;return;}
+  if(!panel||!panel.isConnected){panel=document.createElement('div');panel.id='zain-restore-progress';panel.dir='rtl';panel.style.cssText='position:fixed;bottom:16px;left:16px;z-index:2147483000;max-width:min(540px,calc(100vw - 32px));box-sizing:border-box;padding:14px 16px 14px 48px;background:#202a40;color:white;border:2px solid #716aff;border-radius:10px;font:15px Arial;line-height:1.8';message=document.createElement('span');message.setAttribute('role','status');const close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label','إغلاق إشعار الاستعادة');close.title='إخفاء الإشعار';close.style.cssText='position:absolute;top:6px;left:6px;width:26px;height:26px;padding:0;border:1px solid #8190ad;border-radius:5px;background:#34415c;color:white;font:22px Arial;cursor:pointer';close.onclick=()=>{dismissed=identity(last);try{sessionStorage.setItem(key,dismissed)}catch{}panel.hidden=true;};panel.append(message,close);document.body.appendChild(panel);}
+  panel.hidden=false;const labels={'restore-apply':'جار تطبيق ملفات النسخة','legacy-import':'جار استيراد سجلات المزامنة','legacy-items':'جار تحميل فهرس المحتويات','catalog-merge':'جار دمج المكتبة','services':'جار تشغيل الخدمات','catalog-save':'جار حفظ قاعدة المكتبة',completed:'اكتملت الاستعادة وتجهيز المكتبة'};let text=labels[r.phase]||r.message||'الاستعادة جارية';if(r.percent!=null)text+=' — تقدم المرحلة '+r.percent+'%';if(r.total>0){const fmt=n=>r.unit==='bytes'?(n/1048576).toFixed(1)+' MB':Number(n).toLocaleString()+' سجل';text+=' — تم '+fmt(r.current||0)+' من '+fmt(r.total)+'؛ المتبقي '+fmt(Math.max(0,r.total-(r.current||0)));}message.textContent=text;panel.style.borderColor=r.state==='failed'?'#e55555':r.state==='completed'?'#42b777':'#716aff';
+ }
+ async function poll(){if(stopped)return;try{if(!/^\/admin(?:\/|$)/.test(location.pathname)){if(panel)panel.hidden=true;return;}const response=await fetch('/admin/api/backupStatus',{credentials:'same-origin',cache:'no-store'});if(response.ok){const data=await response.json();render(data.restore);}else if(response.status===401||response.status===403){if(panel)panel.hidden=true;}}catch{if(last&&message&&identity(last)!==dismissed)message.textContent='انقطع اتصال الخادم؛ انتظار عودته لمتابعة الاستعادة. آخر حالة: '+(last.message||last.phase);}finally{if(!stopped)timer=setTimeout(poll,document.hidden?15000:last&&['completed','failed'].includes(last.state)?5000:2000);}}
+ window.addEventListener('pagehide',()=>{stopped=true;clearTimeout(timer)});window.addEventListener('pageshow',()=>{if(stopped){stopped=false;poll()}});poll();
 })();
