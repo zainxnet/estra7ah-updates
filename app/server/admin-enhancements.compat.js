@@ -1922,6 +1922,264 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
 (() => {
   'use strict';
 
+  var itemToolsStyle = document.createElement('style');
+  itemToolsStyle.textContent = '.items-cont .items .item .ic-cont.zain-item-tools,.items-cont .ics.zain-item-tools{display:flex;flex-wrap:wrap;gap:3px;width:90px;align-items:center}.items-cont .items .item .zain-item-tools .ic{box-sizing:border-box!important;width:26px!important;min-width:26px!important;max-width:26px!important;height:26px!important;min-height:26px!important;padding:0!important;margin:0!important;font-size:12px;align-items:center;justify-content:center;display:flex;flex-shrink:0;border-radius:50%}.items-cont .items .item .zain-item-tools .zain-plus{font-size:23px}.items-cont .zain-item-tools .zain-more-action{display:none!important}.items-cont .zain-item-tools.zain-open .zain-more-action{display:flex!important}.items-cont .zain-item-tools .zain-plus{background:#299c45;color:white;border:0;font:bold 23px Arial;cursor:pointer;order:-2}.items-cont .zain-item-tools .zain-manual-sync{order:-1}.items-cont .zain-item-tools .zain-trailer{background:#346eaa;color:white;border:0;cursor:pointer;font-size:18px}#zain-trailer-progress{direction:rtl;background:#182134;border:1px solid #3e4e69;padding:10px 14px;border-radius:8px;margin:10px 0}#zain-trailer-progress p{margin:4px 0}#zain-trailer-progress button{background:#a1464c;color:white;border:0;border-radius:5px;padding:5px 10px;margin:4px}';
+  document.head.appendChild(itemToolsStyle);
+  function closeItemMenus(except) {
+    document.querySelectorAll('.zain-item-tools.zain-open').forEach(host => {
+      if (host !== except) {
+        var _host$querySelector;
+        host.classList.remove('zain-open');
+        (_host$querySelector = host.querySelector('.zain-plus')) === null || _host$querySelector === void 0 || _host$querySelector.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+  function enhanceItemTools() {
+    if (location.pathname !== '/admin/items') return;
+    var _iterator10 = _createForOfIteratorHelper(cards()),
+      _step10;
+    try {
+      for (_iterator10.s(); !(_step10 = _iterator10.n()).done;) {
+        var _card$querySelector2;
+        var card = _step10.value.card;
+        var reload = (_card$querySelector2 = card.querySelector('.lni-reload')) === null || _card$querySelector2 === void 0 ? void 0 : _card$querySelector2.closest('.ic'),
+          host = reload === null || reload === void 0 ? void 0 : reload.parentElement;
+        if (!host) continue;
+        host.classList.add('zain-item-tools');
+        reload.classList.add('zain-manual-sync');
+        var _iterator11 = _createForOfIteratorHelper(host.querySelectorAll('.ic')),
+          _step11;
+        try {
+          for (_iterator11.s(); !(_step11 = _iterator11.n()).done;) {
+            var control = _step11.value;
+            if (control !== reload && !control.classList.contains('zain-plus')) control.classList.add('zain-more-action');
+          }
+        } catch (err) {
+          _iterator11.e(err);
+        } finally {
+          _iterator11.f();
+        }
+        if (!host.querySelector('.zain-plus')) {
+          var plus = el('button', '+');
+          plus.type = 'button';
+          plus.className = 'ic zain-plus';
+          plus.title = 'خيارات العنصر';
+          plus.setAttribute('aria-label', 'خيارات العنصر');
+          plus.setAttribute('aria-expanded', 'false');
+          host.appendChild(plus);
+        }
+        if (!host.querySelector('.zain-trailer')) {
+          var trailer = el('button', '↓');
+          trailer.type = 'button';
+          trailer.className = 'ic zain-more-action zain-trailer';
+          trailer.title = 'تحميل إعلان داخل مجلد المحتوى';
+          trailer.setAttribute('aria-label', 'تحميل إعلان');
+          host.appendChild(trailer);
+        }
+      }
+    } catch (err) {
+      _iterator10.e(err);
+    } finally {
+      _iterator10.f();
+    }
+    var buttons = Array.from(document.querySelectorAll('.items-cont .admin-fancy-button'));
+    var full = buttons.find(b => b.dataset.zainSync === 'full' || /مزامنة كل العناصر الحالية/.test(b.textContent));
+    if (full) {
+      full.dataset.zainSync = 'full';
+      var label = full.querySelector('.text .text') || full.querySelector('.text') || full;
+      label.textContent = 'مزامنة شاملة للعناصر المعروضة';
+      full.title = 'تحديث البيانات والترجمة وإعادة إنشاء الأيقونات للعناصر المعروضة';
+      if (!document.getElementById('zain-newest-100')) {
+        var button = full.cloneNode(true);
+        button.id = 'zain-newest-100';
+        button.dataset.zainSync = 'incomplete';
+        var text = button.querySelector('.text .text') || button.querySelector('.text') || button;
+        text.textContent = 'تجهيز أحدث 100 عنصر ناقص';
+        button.title = 'إكمال البيانات أو الأيقونة الناقصة أو كليهما، من الأحدث إلى الأقدم';
+        full.parentNode.insertBefore(button, full.nextSibling);
+      }
+    }
+  }
+  var trailerPanel;
+  function pollTrailers() {
+    return _pollTrailers.apply(this, arguments);
+  }
+  function _pollTrailers() {
+    _pollTrailers = _asyncToGenerator(_regenerator().m(function _callee24() {
+      var _trailerPanel2;
+      var result, jobs, host, _trailerPanel, _iterator14, _step14, _loop8, _t26;
+      return _regenerator().w(function (_context28) {
+        while (1) switch (_context28.p = _context28.n) {
+          case 0:
+            _context28.n = 1;
+            return api('trailerStatus');
+          case 1:
+            result = _context28.v;
+            jobs = result.jobs || [];
+            host = document.querySelector('.items-cont .items');
+            if (host) {
+              _context28.n = 2;
+              break;
+            }
+            return _context28.a(2, false);
+          case 2:
+            if (jobs.length) {
+              _context28.n = 3;
+              break;
+            }
+            (_trailerPanel = trailerPanel) === null || _trailerPanel === void 0 || _trailerPanel.remove();
+            trailerPanel = null;
+            return _context28.a(2, false);
+          case 3:
+            if (!((_trailerPanel2 = trailerPanel) !== null && _trailerPanel2 !== void 0 && _trailerPanel2.isConnected)) {
+              trailerPanel = el('section');
+              trailerPanel.id = 'zain-trailer-progress';
+              trailerPanel.setAttribute('aria-label', 'حالة تحميل الإعلانات');
+              host.parentNode.insertBefore(trailerPanel, host);
+            }
+            trailerPanel.replaceChildren(el('strong', 'تحميل الإعلانات'));
+            _iterator14 = _createForOfIteratorHelper(jobs.slice(-5));
+            _context28.p = 4;
+            _loop8 = _regenerator().m(function _loop8() {
+              var job, busy, cancel;
+              return _regenerator().w(function (_context27) {
+                while (1) switch (_context27.n) {
+                  case 0:
+                    job = _step14.value;
+                    busy = ['queued', 'running'].includes(job.status);
+                    trailerPanel.appendChild(el('p', job.name + ' — ' + job.message + (busy && job.percent ? ' — ' + job.percent + '%' : '')));
+                    if (busy) {
+                      cancel = el('button', 'إيقاف تحميل الإعلان');
+                      cancel.onclick = _asyncToGenerator(_regenerator().m(function _callee23() {
+                        var _t25;
+                        return _regenerator().w(function (_context26) {
+                          while (1) switch (_context26.p = _context26.n) {
+                            case 0:
+                              cancel.disabled = true;
+                              _context26.p = 1;
+                              _context26.n = 2;
+                              return api('cancelTrailer', {
+                                id: job.id
+                              });
+                            case 2:
+                              nextPoll = 0;
+                              poll();
+                              _context26.n = 4;
+                              break;
+                            case 3:
+                              _context26.p = 3;
+                              _t25 = _context26.v;
+                              notice = _t25.message;
+                              render([]);
+                            case 4:
+                              return _context26.a(2);
+                          }
+                        }, _callee23, null, [[1, 3]]);
+                      }));
+                      trailerPanel.appendChild(cancel);
+                    }
+                  case 1:
+                    return _context27.a(2);
+                }
+              }, _loop8);
+            });
+            _iterator14.s();
+          case 5:
+            if ((_step14 = _iterator14.n()).done) {
+              _context28.n = 7;
+              break;
+            }
+            return _context28.d(_regeneratorValues(_loop8()), 6);
+          case 6:
+            _context28.n = 5;
+            break;
+          case 7:
+            _context28.n = 9;
+            break;
+          case 8:
+            _context28.p = 8;
+            _t26 = _context28.v;
+            _iterator14.e(_t26);
+          case 9:
+            _context28.p = 9;
+            _iterator14.f();
+            return _context28.f(9);
+          case 10:
+            return _context28.a(2, jobs.some(j => ['queued', 'running'].includes(j.status)));
+        }
+      }, _callee24, null, [[4, 8, 9, 10]]);
+    }));
+    return _pollTrailers.apply(this, arguments);
+  }
+  document.addEventListener('click', function () {
+    var _ref0 = _asyncToGenerator(_regenerator().m(function _callee17(event) {
+      var _event$target$closest, _event$target, _event$target$closest2, _event$target2;
+      var plus, trailer, _event$target$closest3, _event$target3, host, open, id, _t16;
+      return _regenerator().w(function (_context20) {
+        while (1) switch (_context20.p = _context20.n) {
+          case 0:
+            plus = (_event$target$closest = (_event$target = event.target).closest) === null || _event$target$closest === void 0 ? void 0 : _event$target$closest.call(_event$target, '.zain-plus'), trailer = (_event$target$closest2 = (_event$target2 = event.target).closest) === null || _event$target$closest2 === void 0 ? void 0 : _event$target$closest2.call(_event$target2, '.zain-trailer');
+            if (!(!plus && !trailer)) {
+              _context20.n = 1;
+              break;
+            }
+            if (!((_event$target$closest3 = (_event$target3 = event.target).closest) !== null && _event$target$closest3 !== void 0 && _event$target$closest3.call(_event$target3, '.zain-item-tools'))) closeItemMenus();
+            return _context20.a(2);
+          case 1:
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            if (!plus) {
+              _context20.n = 2;
+              break;
+            }
+            host = plus.parentElement;
+            closeItemMenus(host);
+            open = host.classList.toggle('zain-open');
+            plus.setAttribute('aria-expanded', String(open));
+            return _context20.a(2);
+          case 2:
+            id = cardId(trailer.closest('.item'));
+            if (!(!id || trailer.disabled)) {
+              _context20.n = 3;
+              break;
+            }
+            return _context20.a(2);
+          case 3:
+            trailer.disabled = true;
+            _context20.p = 4;
+            _context20.n = 5;
+            return api('downloadTrailer', {
+              id
+            });
+          case 5:
+            notice = 'أضيف الإعلان إلى قائمة التنزيل؛ يظهر التقدم والنتيجة هنا وفي سجل الأحداث.';
+            closeItemMenus();
+            render([]);
+            _context20.n = 7;
+            break;
+          case 6:
+            _context20.p = 6;
+            _t16 = _context20.v;
+            notice = _t16.message;
+            render([]);
+          case 7:
+            _context20.p = 7;
+            trailer.disabled = false;
+            nextPoll = 0;
+            poll();
+            return _context20.f(7);
+          case 8:
+            return _context20.a(2);
+        }
+      }, _callee17, null, [[4, 6, 7, 8]]);
+    }));
+    return function (_x20) {
+      return _ref0.apply(this, arguments);
+    };
+  }(), true);
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') closeItemMenus();
+  });
   var fresh = new Map(),
     seenCompletions = new Set();
   var panel,
@@ -1954,36 +2212,36 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
         button.id = 'zain-remove-all-pinned';
         button.type = 'button';
         button.style.cssText = 'display:block;position:relative;z-index:3;background:#c8323f;color:#fff;border:0;border-radius:6px;padding:10px 18px;margin:8px 0;font-weight:bold;cursor:pointer';
-        button.onclick = _asyncToGenerator(_regenerator().m(function _callee17() {
-          var _t16;
-          return _regenerator().w(function (_context20) {
-            while (1) switch (_context20.p = _context20.n) {
+        button.onclick = _asyncToGenerator(_regenerator().m(function _callee18() {
+          var _t17;
+          return _regenerator().w(function (_context21) {
+            while (1) switch (_context21.p = _context21.n) {
               case 0:
                 if (window.confirm('سيتم إزالة تثبيت جميع العناصر. هل تريد المتابعة؟')) {
-                  _context20.n = 1;
+                  _context21.n = 1;
                   break;
                 }
-                return _context20.a(2);
+                return _context21.a(2);
               case 1:
                 button.disabled = true;
-                _context20.p = 2;
-                _context20.n = 3;
+                _context21.p = 2;
+                _context21.n = 3;
                 return api('removeAllPinned', {});
               case 3:
                 notice = 'تمت إزالة تثبيت كل المحتوى.';
                 nextPoll = 0;
                 poll();
-                _context20.n = 5;
+                _context21.n = 5;
                 break;
               case 4:
-                _context20.p = 4;
-                _t16 = _context20.v;
-                notice = _t16.message;
+                _context21.p = 4;
+                _t17 = _context21.v;
+                notice = _t17.message;
                 button.disabled = false;
               case 5:
-                return _context20.a(2);
+                return _context21.a(2);
             }
-          }, _callee17, null, [[2, 4]]);
+          }, _callee18, null, [[2, 4]]);
         }));
         var _cards = host.querySelector('.items');
         ((_cards === null || _cards === void 0 ? void 0 : _cards.parentNode) || host).insertBefore(button, _cards || host.firstChild);
@@ -2006,16 +2264,16 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   var style = el('style');
   style.textContent = '.items-cont .img[data-zain-metadata="saved"]{filter:none!important;-webkit-filter:none!important}.items-cont .img[data-zain-metadata="missing"]{filter:grayscale(1);-webkit-filter:grayscale(1)}#zain-item-metadata-progress{clear:both;direction:rtl;background:#182134;border:1px solid #3e4e69;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:14px;line-height:1.6}#zain-item-metadata-progress p{margin:4px 0}#zain-item-metadata-progress button{background:#a1464c;color:white;border:0;border-radius:5px;padding:6px 14px;margin:4px 0;cursor:pointer}';
   document.head.appendChild(style);
-  function api(_x20, _x21) {
+  function api(_x21, _x22) {
     return _api.apply(this, arguments);
   }
   function _api() {
-    _api = _asyncToGenerator(_regenerator().m(function _callee22(action, body) {
+    _api = _asyncToGenerator(_regenerator().m(function _callee25(action, body) {
       var response, data;
-      return _regenerator().w(function (_context25) {
-        while (1) switch (_context25.n) {
+      return _regenerator().w(function (_context29) {
+        while (1) switch (_context29.n) {
           case 0:
-            _context25.n = 1;
+            _context29.n = 1;
             return fetch('/admin/api/' + action, _objectSpread({
               credentials: 'same-origin',
               cache: 'no-store',
@@ -2027,20 +2285,20 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               body: JSON.stringify(body)
             } : {}));
           case 1:
-            response = _context25.v;
-            _context25.n = 2;
+            response = _context29.v;
+            _context29.n = 2;
             return response.json();
           case 2:
-            data = _context25.v;
+            data = _context29.v;
             if (!(!response.ok || data.msg === 'error')) {
-              _context25.n = 3;
+              _context29.n = 3;
               break;
             }
             throw Error(data.error || 'تعذر الاتصال بخدمة المزامنة');
           case 3:
-            return _context25.a(2, data);
+            return _context29.a(2, data);
         }
-      }, _callee22);
+      }, _callee25);
     }));
     return _api.apply(this, arguments);
   }
@@ -2090,38 +2348,38 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     toggle.checked = automaticEnabled;
     toggle.disabled = settingBusy;
     toggle.style.cssText = 'width:20px;height:20px;vertical-align:middle;margin-left:8px';
-    toggle.onchange = _asyncToGenerator(_regenerator().m(function _callee18() {
-      var result, _t17;
-      return _regenerator().w(function (_context21) {
-        while (1) switch (_context21.p = _context21.n) {
+    toggle.onchange = _asyncToGenerator(_regenerator().m(function _callee19() {
+      var result, _t18;
+      return _regenerator().w(function (_context22) {
+        while (1) switch (_context22.p = _context22.n) {
           case 0:
             settingBusy = true;
             toggle.disabled = true;
-            _context21.p = 1;
-            _context21.n = 2;
+            _context22.p = 1;
+            _context22.n = 2;
             return api('setAutomaticMetadata', {
               enabled: toggle.checked
             });
           case 2:
-            result = _context21.v;
+            result = _context22.v;
             automaticEnabled = result.automaticEnabled;
             notice = automaticEnabled ? 'المزامنة التلقائية للبيانات مفعلة بعد اكتشاف المحتوى.' : 'المزامنة التلقائية للبيانات معطلة؛ تستمر مزامنة المجلدات، وتبقى المزامنة اليدوية متاحة.';
-            _context21.n = 4;
+            _context22.n = 4;
             break;
           case 3:
-            _context21.p = 3;
-            _t17 = _context21.v;
-            notice = _t17.message;
+            _context22.p = 3;
+            _t18 = _context22.v;
+            notice = _t18.message;
           case 4:
-            _context21.p = 4;
+            _context22.p = 4;
             settingBusy = false;
             nextPoll = 0;
             poll();
-            return _context21.f(4);
+            return _context22.f(4);
           case 5:
-            return _context21.a(2);
+            return _context22.a(2);
         }
-      }, _callee18, null, [[1, 3, 4, 5]]);
+      }, _callee19, null, [[1, 3, 4, 5]]);
     }));
     label.appendChild(toggle);
     label.appendChild(document.createTextNode('مزامنة بيانات المحتوى تلقائيًا بعد إضافة الجديد'));
@@ -2135,82 +2393,84 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     if (active.length) {
       var cancelAll = el('button', 'إلغاء جميع مهام مزامنة البيانات');
       cancelAll.style.cssText = 'display:block;background:#cf303d;color:white;padding:10px 18px;font-weight:bold';
-      cancelAll.onclick = _asyncToGenerator(_regenerator().m(function _callee19() {
-        var _t18;
-        return _regenerator().w(function (_context22) {
-          while (1) switch (_context22.p = _context22.n) {
+      cancelAll.onclick = _asyncToGenerator(_regenerator().m(function _callee20() {
+        var _t19;
+        return _regenerator().w(function (_context23) {
+          while (1) switch (_context23.p = _context23.n) {
             case 0:
               cancelAll.disabled = true;
-              _context22.p = 1;
-              _context22.n = 2;
+              _context23.p = 1;
+              _context23.n = 2;
               return api('cancelAllMetadata', {});
             case 2:
               notice = 'تم طلب إلغاء جميع مهام البيانات الحالية.';
-              _context22.n = 4;
+              _context23.n = 4;
               break;
             case 3:
-              _context22.p = 3;
-              _t18 = _context22.v;
-              notice = _t18.message;
+              _context23.p = 3;
+              _t19 = _context23.v;
+              notice = _t19.message;
             case 4:
               nextPoll = 0;
               poll();
             case 5:
-              return _context22.a(2);
+              return _context23.a(2);
           }
-        }, _callee19, null, [[1, 3]]);
+        }, _callee20, null, [[1, 3]]);
       }));
       host.appendChild(cancelAll);
     }
-    var _iterator10 = _createForOfIteratorHelper(active.length ? active : jobs.slice(-1)),
-      _step10;
+    var _iterator12 = _createForOfIteratorHelper(active.length ? active : jobs.slice(-1)),
+      _step12;
     try {
       var _loop7 = function _loop7() {
-        var job = _step10.value;
+        var job = _step12.value;
         var row = el('p', (statusNames[job.status] || job.status) + ' — ' + job.completed + ' محفوظ، ' + job.failed + ' تعذر، ' + (job.skipped || 0) + ' مكتمل سابقاً، من ' + job.total);
         host.appendChild(row);
         var current = (job.activeItems || []).map(item => item.name).filter(Boolean);
         if (current.length) host.appendChild(el('p', 'جارٍ مزامنة: ' + current.join('، ')));
+        if (job.iconsQueued) host.appendChild(el('p', 'طُلب تجهيز ' + job.iconsQueued + ' أيقونة ناقصة؛ النتيجة التفصيلية في سجل الصور والأيقونات'));
+        if (job.phase) host.appendChild(el('p', job.phase + ' — فُحص ' + (job.scanned || 0) + ' عنصر'));
         if (job.message) host.appendChild(el('p', job.message));
         if (job.status === 'running' || job.status === 'queued') {
           var button = el('button', 'إيقاف مزامنة البيانات');
           button.type = 'button';
           button.disabled = !!job.cancelled;
-          button.onclick = _asyncToGenerator(_regenerator().m(function _callee20() {
-            var _t19;
-            return _regenerator().w(function (_context23) {
-              while (1) switch (_context23.p = _context23.n) {
+          button.onclick = _asyncToGenerator(_regenerator().m(function _callee21() {
+            var _t20;
+            return _regenerator().w(function (_context24) {
+              while (1) switch (_context24.p = _context24.n) {
                 case 0:
                   button.disabled = true;
-                  _context23.p = 1;
-                  _context23.n = 2;
+                  _context24.p = 1;
+                  _context24.n = 2;
                   return api('cancelMetadata/' + encodeURIComponent(job.id), {});
                 case 2:
                   notice = 'أرسل طلب الإيقاف؛ تبقى البيانات المحفوظة متاحة.';
-                  _context23.n = 4;
+                  _context24.n = 4;
                   break;
                 case 3:
-                  _context23.p = 3;
-                  _t19 = _context23.v;
-                  notice = _t19.message;
+                  _context24.p = 3;
+                  _t20 = _context24.v;
+                  notice = _t20.message;
                 case 4:
                   nextPoll = 0;
                   poll();
                 case 5:
-                  return _context23.a(2);
+                  return _context24.a(2);
               }
-            }, _callee20, null, [[1, 3]]);
+            }, _callee21, null, [[1, 3]]);
           }));
           host.appendChild(button);
         }
       };
-      for (_iterator10.s(); !(_step10 = _iterator10.n()).done;) {
+      for (_iterator12.s(); !(_step12 = _iterator12.n()).done;) {
         _loop7();
       }
     } catch (err) {
-      _iterator10.e(err);
+      _iterator12.e(err);
     } finally {
-      _iterator10.f();
+      _iterator12.f();
     }
     var link = el('a', 'عرض التفاصيل في سجل الأحداث');
     link.href = '/admin/events';
@@ -2235,13 +2495,13 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     return _poll.apply(this, arguments);
   }
   function _poll() {
-    _poll = _asyncToGenerator(_regenerator().m(function _callee23() {
-      var active, option, rows, ids, _status, jobs, states, byId, changed, _iterator12, _step12, _row$card$querySelect, _row, _item, picture, reload, becameSaved, _iterator13, _step13, job, _iterator18, _step18, id, _key, _iterator14, _step14, _job, _iterator19, _step19, _id, _key2, updated, _iterator15, _step15, item, _iterator16, _step16, row, img, url, _iterator17, _step17, _id2, _t22, _t23;
-      return _regenerator().w(function (_context26) {
-        while (1) switch (_context26.p = _context26.n) {
+    _poll = _asyncToGenerator(_regenerator().m(function _callee26() {
+      var active, option, rows, ids, _status, jobs, states, byId, changed, _iterator15, _step15, _row$card$querySelect, _row, _item, picture, reload, becameSaved, _iterator16, _step16, job, _iterator21, _step21, id, _key, _iterator17, _step17, _job, _iterator22, _step22, _id, _key2, updated, _iterator18, _step18, item, _iterator19, _step19, row, img, url, _iterator20, _step20, _id2, _t27, _t28, _t29, _t30;
+      return _regenerator().w(function (_context30) {
+        while (1) switch (_context30.p = _context30.n) {
           case 0:
             if (!(location.pathname !== '/admin/items')) {
-              _context26.n = 1;
+              _context30.n = 1;
               break;
             }
             if (wasItems) {
@@ -2253,57 +2513,76 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               nextPoll = 0;
               wasItems = false;
             }
-            return _context26.a(2);
+            return _context30.a(2);
           case 1:
             wasItems = true;
             if (!(polling || Date.now() < nextPoll)) {
-              _context26.n = 2;
+              _context30.n = 2;
               break;
             }
-            return _context26.a(2);
+            return _context30.a(2);
           case 2:
             polling = true;
             active = false;
-            _context26.p = 3;
+            _context30.p = 3;
             ensurePinnedButton();
+            enhanceItemTools();
             option = document.querySelector('.items-cont option[value="no-content"]');
             if (option) option.textContent = 'العناصر غير المزامنة — الأحدث أولاً';
             rows = cards();
             ids = rows.map(row => row.id);
-            _context26.n = 4;
+            _context30.n = 4;
             return api('metadataStatus');
           case 4:
-            _status = _context26.v;
+            _status = _context30.v;
             jobs = Array.isArray(_status.jobs) ? _status.jobs : [];
             automaticEnabled = _status.automaticEnabled !== false;
             active = jobs.some(job => job.status === 'queued' || job.status === 'running');
             render(jobs);
-            if (!ids.length) {
-              _context26.n = 16;
+            _context30.p = 5;
+            _context30.n = 6;
+            return pollTrailers();
+          case 6:
+            _t27 = _context30.v;
+            if (_t27) {
+              _context30.n = 7;
               break;
             }
-            _context26.n = 5;
+            _t27 = active;
+          case 7:
+            active = _t27;
+            _context30.n = 9;
+            break;
+          case 8:
+            _context30.p = 8;
+            _t28 = _context30.v;
+          case 9:
+            if (!ids.length) {
+              _context30.n = 21;
+              break;
+            }
+            _context30.n = 10;
             return api('getItemSyncState/' + encodeURIComponent(ids.slice(0, 200).join(',')));
-          case 5:
-            states = _context26.v;
+          case 10:
+            states = _context30.v;
             byId = new Map((states.items || []).map(item => [item.id, item]));
             changed = new Set();
-            _iterator12 = _createForOfIteratorHelper(rows);
-            _context26.p = 6;
-            _iterator12.s();
-          case 7:
-            if ((_step12 = _iterator12.n()).done) {
-              _context26.n = 10;
+            _iterator15 = _createForOfIteratorHelper(rows);
+            _context30.p = 11;
+            _iterator15.s();
+          case 12:
+            if ((_step15 = _iterator15.n()).done) {
+              _context30.n = 15;
               break;
             }
-            _row = _step12.value;
+            _row = _step15.value;
             _item = byId.get(_row.id);
             if (_item) {
-              _context26.n = 8;
+              _context30.n = 13;
               break;
             }
-            return _context26.a(3, 9);
-          case 8:
+            return _context30.a(3, 14);
+          case 13:
             picture = _row.card.querySelector('.img'), reload = (_row$card$querySelect = _row.card.querySelector('.lni-reload')) === null || _row$card$querySelect === void 0 ? void 0 : _row$card$querySelect.closest('.ic');
             if (picture) {
               if (!picture.getAttribute('data-zain-src') && !/\/ItemImage\//i.test(picture.getAttribute('src') || '')) {
@@ -2320,29 +2599,29 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               reload.classList.toggle('ok', !_item.hasContent);
               reload.title = 'تحديث البيانات وترجمتها وإعادة إنشاء الأيقونة بالعربية';
             }
-          case 9:
-            _context26.n = 7;
+          case 14:
+            _context30.n = 12;
             break;
-          case 10:
-            _context26.n = 12;
+          case 15:
+            _context30.n = 17;
             break;
-          case 11:
-            _context26.p = 11;
-            _t22 = _context26.v;
-            _iterator12.e(_t22);
-          case 12:
-            _context26.p = 12;
-            _iterator12.f();
-            return _context26.f(12);
-          case 13:
-            _iterator13 = _createForOfIteratorHelper(jobs);
+          case 16:
+            _context30.p = 16;
+            _t29 = _context30.v;
+            _iterator15.e(_t29);
+          case 17:
+            _context30.p = 17;
+            _iterator15.f();
+            return _context30.f(17);
+          case 18:
+            _iterator16 = _createForOfIteratorHelper(jobs);
             try {
-              for (_iterator13.s(); !(_step13 = _iterator13.n()).done;) {
-                job = _step13.value;
-                _iterator18 = _createForOfIteratorHelper(job.completedIds || []);
+              for (_iterator16.s(); !(_step16 = _iterator16.n()).done;) {
+                job = _step16.value;
+                _iterator21 = _createForOfIteratorHelper(job.completedIds || []);
                 try {
-                  for (_iterator18.s(); !(_step18 = _iterator18.n()).done;) {
-                    id = _step18.value;
+                  for (_iterator21.s(); !(_step21 = _iterator21.n()).done;) {
+                    id = _step21.value;
                     _key = job.id + ':' + id;
                     if (byId.has(id) && !seenCompletions.has(_key)) {
                       changed.add(id);
@@ -2350,24 +2629,24 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                     }
                   }
                 } catch (err) {
-                  _iterator18.e(err);
+                  _iterator21.e(err);
                 } finally {
-                  _iterator18.f();
+                  _iterator21.f();
                 }
               }
             } catch (err) {
-              _iterator13.e(err);
+              _iterator16.e(err);
             } finally {
-              _iterator13.f();
+              _iterator16.f();
             }
-            _iterator14 = _createForOfIteratorHelper(jobs);
+            _iterator17 = _createForOfIteratorHelper(jobs);
             try {
-              for (_iterator14.s(); !(_step14 = _iterator14.n()).done;) {
-                _job = _step14.value;
-                _iterator19 = _createForOfIteratorHelper(_job.posterReadyIds || []);
+              for (_iterator17.s(); !(_step17 = _iterator17.n()).done;) {
+                _job = _step17.value;
+                _iterator22 = _createForOfIteratorHelper(_job.posterReadyIds || []);
                 try {
-                  for (_iterator19.s(); !(_step19 = _iterator19.n()).done;) {
-                    _id = _step19.value;
+                  for (_iterator22.s(); !(_step22 = _iterator22.n()).done;) {
+                    _id = _step22.value;
                     _key2 = _job.id + ':poster:' + _id;
                     if (byId.has(_id) && !seenCompletions.has(_key2)) {
                       changed.add(_id);
@@ -2375,39 +2654,39 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                     }
                   }
                 } catch (err) {
-                  _iterator19.e(err);
+                  _iterator22.e(err);
                 } finally {
-                  _iterator19.f();
+                  _iterator22.f();
                 }
               }
             } catch (err) {
-              _iterator14.e(err);
+              _iterator17.e(err);
             } finally {
-              _iterator14.f();
+              _iterator17.f();
             }
             if (!changed.size) {
-              _context26.n = 15;
+              _context30.n = 20;
               break;
             }
-            _context26.n = 14;
+            _context30.n = 19;
             return api('getItemSyncState/' + encodeURIComponent(Array.from(changed).join(',')) + '/content');
-          case 14:
-            updated = _context26.v;
-            _iterator15 = _createForOfIteratorHelper(updated.items || []);
+          case 19:
+            updated = _context30.v;
+            _iterator18 = _createForOfIteratorHelper(updated.items || []);
             try {
-              for (_iterator15.s(); !(_step15 = _iterator15.n()).done;) {
-                item = _step15.value;
+              for (_iterator18.s(); !(_step18 = _iterator18.n()).done;) {
+                item = _step18.value;
                 fresh.set(item.id, item);
               }
             } catch (err) {
-              _iterator15.e(err);
+              _iterator18.e(err);
             } finally {
-              _iterator15.f();
+              _iterator18.f();
             }
-            _iterator16 = _createForOfIteratorHelper(rows);
+            _iterator19 = _createForOfIteratorHelper(rows);
             try {
-              for (_iterator16.s(); !(_step16 = _iterator16.n()).done;) {
-                row = _step16.value;
+              for (_iterator19.s(); !(_step19 = _iterator19.n()).done;) {
+                row = _step19.value;
                 if (changed.has(row.id)) {
                   img = row.card.querySelector('img');
                   if (img) {
@@ -2418,168 +2697,206 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                 }
               }
             } catch (err) {
-              _iterator16.e(err);
+              _iterator19.e(err);
             } finally {
-              _iterator16.f();
+              _iterator19.f();
             }
-          case 15:
-            _iterator17 = _createForOfIteratorHelper(fresh.keys());
+          case 20:
+            _iterator20 = _createForOfIteratorHelper(fresh.keys());
             try {
-              for (_iterator17.s(); !(_step17 = _iterator17.n()).done;) {
-                _id2 = _step17.value;
+              for (_iterator20.s(); !(_step20 = _iterator20.n()).done;) {
+                _id2 = _step20.value;
                 if (!byId.has(_id2)) fresh.delete(_id2);
               }
             } catch (err) {
-              _iterator17.e(err);
+              _iterator20.e(err);
             } finally {
-              _iterator17.f();
+              _iterator20.f();
             }
-          case 16:
-            _context26.n = 18;
+          case 21:
+            _context30.n = 23;
             break;
-          case 17:
-            _context26.p = 17;
-            _t23 = _context26.v;
-            notice = _t23.message;
+          case 22:
+            _context30.p = 22;
+            _t30 = _context30.v;
+            notice = _t30.message;
             render([]);
-          case 18:
-            _context26.p = 18;
+          case 23:
+            _context30.p = 23;
             polling = false;
             nextPoll = Date.now() + (document.hidden ? 10000 : active ? 1000 : 5000);
-            return _context26.f(18);
-          case 19:
-            return _context26.a(2);
+            return _context30.f(23);
+          case 24:
+            return _context30.a(2);
         }
-      }, _callee23, null, [[6, 11, 12, 13], [3, 17, 18, 19]]);
+      }, _callee26, null, [[11, 16, 17, 18], [5, 8], [3, 22, 23, 24]]);
     }));
     return _poll.apply(this, arguments);
   }
   document.addEventListener('click', function () {
-    var _ref12 = _asyncToGenerator(_regenerator().m(function _callee21(event) {
-      var target, ids, all, rebuildIcon, id, text, _ids, result, _t20, _t21;
-      return _regenerator().w(function (_context24) {
-        while (1) switch (_context24.p = _context24.n) {
+    var _ref13 = _asyncToGenerator(_regenerator().m(function _callee22(event) {
+      var target, ids, all, rebuildIcon, full, incomplete, id, text, _ids, result, _t21, _t22, _t23, _t24;
+      return _regenerator().w(function (_context25) {
+        while (1) switch (_context25.p = _context25.n) {
           case 0:
             if (!(location.pathname !== '/admin/items')) {
-              _context24.n = 1;
+              _context25.n = 1;
               break;
             }
-            return _context24.a(2);
+            return _context25.a(2);
           case 1:
             target = event.target.closest && event.target.closest('.items-cont .items>.item .ic,.items-cont .admin-fancy-button');
             if (target) {
-              _context24.n = 2;
+              _context25.n = 2;
               break;
             }
-            return _context24.a(2);
+            return _context25.a(2);
           case 2:
-            all = false, rebuildIcon = false;
+            all = false, rebuildIcon = false, full = false, incomplete = false;
             if (!target.closest('.items>.item')) {
-              _context24.n = 5;
+              _context25.n = 5;
               break;
             }
             if (target.querySelector('.lni-reload')) {
-              _context24.n = 3;
+              _context25.n = 3;
               break;
             }
-            return _context24.a(2);
+            return _context25.a(2);
           case 3:
             id = cardId(target.closest('.items>.item'));
             if (id) {
-              _context24.n = 4;
+              _context25.n = 4;
               break;
             }
-            return _context24.a(2);
+            return _context25.a(2);
           case 4:
             ids = [id];
             rebuildIcon = true;
-            _context24.n = 8;
+            _context25.n = 9;
             break;
           case 5:
             text = target.textContent;
             if (!/مزامنة كل العناصر بدون محتوى/.test(text)) {
-              _context24.n = 6;
+              _context25.n = 6;
               break;
             }
             all = true;
-            _context24.n = 8;
+            _context25.n = 9;
             break;
           case 6:
-            if (!/مزامنة كل العناصر الحالية/.test(text)) {
-              _context24.n = 7;
+            if (!(target.dataset.zainSync === 'incomplete')) {
+              _context25.n = 7;
+              break;
+            }
+            incomplete = true;
+            _context25.n = 9;
+            break;
+          case 7:
+            if (!(target.dataset.zainSync === 'full' || /مزامنة كل العناصر الحالية/.test(text))) {
+              _context25.n = 8;
               break;
             }
             ids = cards().map(row => row.id);
-            _context24.n = 8;
+            full = true;
+            rebuildIcon = true;
+            _context25.n = 9;
             break;
-          case 7:
-            return _context24.a(2);
           case 8:
+            return _context25.a(2);
+          case 9:
             event.preventDefault();
             event.stopImmediatePropagation();
             if (!requesting) {
-              _context24.n = 9;
+              _context25.n = 10;
               break;
             }
-            return _context24.a(2);
-          case 9:
+            return _context25.a(2);
+          case 10:
             requesting = true;
             target.setAttribute('aria-busy', 'true');
-            _context24.p = 10;
-            if (!all) {
-              _context24.n = 12;
+            _context25.p = 11;
+            if (!incomplete) {
+              _context25.n = 13;
               break;
             }
-            _context24.n = 11;
-            return api('startDownloadItemsData', {});
-          case 11:
-            _t20 = _context24.v;
-            _context24.n = 14;
-            break;
+            _context25.n = 12;
+            return api('prepareNewest100', {});
           case 12:
-            _context24.n = 13;
+            _t21 = _context25.v;
+            _context25.n = 21;
+            break;
+          case 13:
+            if (!full) {
+              _context25.n = 15;
+              break;
+            }
+            _context25.n = 14;
+            return api('refreshVisibleItems', {
+              ids: ids.join(',')
+            });
+          case 14:
+            _t22 = _context25.v;
+            _context25.n = 20;
+            break;
+          case 15:
+            if (!all) {
+              _context25.n = 17;
+              break;
+            }
+            _context25.n = 16;
+            return api('startDownloadItemsData', {});
+          case 16:
+            _t23 = _context25.v;
+            _context25.n = 19;
+            break;
+          case 17:
+            _context25.n = 18;
             return api('getContentAndSaveItAll', {
               ids: ids.join(','),
               rebuildIcon
             });
-          case 13:
-            _t20 = _context24.v;
-          case 14:
-            result = _t20;
-            notice = rebuildIcon ? 'بدأ تحديث البيانات وترجمتها؛ بعدها يعاد إنشاء الأيقونة بالاسم العربي. يظهر التقدم والنتيجة في سجل المزامنة.' : 'بدأت مزامنة ' + (result.total || ((_ids = ids) === null || _ids === void 0 ? void 0 : _ids.length) || 0) + ' عنصر، من الأحدث إلى الأقدم؛ تتحدث حالة البطاقات أثناء العمل.';
+          case 18:
+            _t23 = _context25.v;
+          case 19:
+            _t22 = _t23;
+          case 20:
+            _t21 = _t22;
+          case 21:
+            result = _t21;
+            notice = incomplete ? 'بدأ اختيار أحدث 100 عنصر ينقصه البيانات أو الأيقونة؛ يكتمل الجزء الناقص فقط.' : rebuildIcon ? 'بدأ تحديث البيانات وترجمتها؛ بعدها يعاد إنشاء الأيقونة بالاسم العربي. يظهر التقدم والنتيجة في سجل المزامنة.' : 'بدأت مزامنة ' + (result.total || ((_ids = ids) === null || _ids === void 0 ? void 0 : _ids.length) || 0) + ' عنصر، من الأحدث إلى الأقدم؛ تتحدث حالة البطاقات أثناء العمل.';
             render([]);
-            _context24.n = 16;
+            _context25.n = 23;
             break;
-          case 15:
-            _context24.p = 15;
-            _t21 = _context24.v;
-            notice = _t21.message;
+          case 22:
+            _context25.p = 22;
+            _t24 = _context25.v;
+            notice = _t24.message;
             render([]);
-          case 16:
-            _context24.p = 16;
+          case 23:
+            _context25.p = 23;
             requesting = false;
             target.removeAttribute('aria-busy');
             nextPoll = 0;
             poll();
-            return _context24.f(16);
-          case 17:
-            return _context24.a(2);
+            return _context25.f(23);
+          case 24:
+            return _context25.a(2);
         }
-      }, _callee21, null, [[10, 15, 16, 17]]);
+      }, _callee22, null, [[11, 22, 23, 24]]);
     }));
-    return function (_x22) {
-      return _ref12.apply(this, arguments);
+    return function (_x23) {
+      return _ref13.apply(this, arguments);
     };
   }(), true);
   window.addEventListener('zain-artwork-updated', event => {
     var _event$detail;
     if (location.pathname !== '/admin/items') return;
     var ids = new Set(((_event$detail = event.detail) === null || _event$detail === void 0 ? void 0 : _event$detail.ids) || []);
-    var _iterator11 = _createForOfIteratorHelper(cards()),
-      _step11;
+    var _iterator13 = _createForOfIteratorHelper(cards()),
+      _step13;
     try {
-      for (_iterator11.s(); !(_step11 = _iterator11.n()).done;) {
-        var row = _step11.value;
+      for (_iterator13.s(); !(_step13 = _iterator13.n()).done;) {
+        var row = _step13.value;
         if (ids.has(row.id)) {
           var img = row.card.querySelector('img');
           if (img) {
@@ -2591,9 +2908,9 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
         }
       }
     } catch (err) {
-      _iterator11.e(err);
+      _iterator13.e(err);
     } finally {
-      _iterator11.f();
+      _iterator13.f();
     }
   });
   document.addEventListener('change', event => {
@@ -2609,6 +2926,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   });
   setInterval(() => {
     ensurePinnedButton();
+    enhanceItemTools();
     poll();
   }, 1000);
   poll();

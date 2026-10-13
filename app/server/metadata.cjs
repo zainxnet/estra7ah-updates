@@ -4,7 +4,7 @@ function hasContent(item){try{const c=JSON.parse(item.content?.contentJSON||'{}'
 function addedAt(item){for(const value of [item.addedAt,item.createdAt]){if(value===undefined||value===null||value==='')continue;const number=Number(value);if(Number.isFinite(number)&&number>0)return number<1e12?number*1000:number;const date=Date.parse(value);if(Number.isFinite(date))return date;}return 0;}
 function newestFirst(rows){return rows.map((item,index)=>({item,index})).sort((a,b)=>addedAt(b.item)-addedAt(a.item)||b.index-a.index).map(entry=>entry.item);}
 function supportsMetadata(item){return !!item&&!/\.(?:mp3|wav|ogg|aac|m4a|flac|wma|opus)$/i.test(item.path||'')&&require('./catalog-items.cjs').visible(item)&&(['movie','series'].includes(require('./public-catalog.cjs').publicType(item.type))||/^series\./.test(require('./public-catalog.cjs').publicType(item.type)))&&(!item.inItem||item.inItem==='null')}
-module.exports=function({settingsDir,items,getKey,saveContent,savePoster,saveActors,hasArtwork,getLookupName,getCanonicalId=id=>id,getRelatedIds=id=>[id],getCandidateIds=()=>items.keys(),request,translateTitle,rebuildIcon,translateDescription,canTranslateDescription,onEvent=()=>{},onArtworkEvent=onEvent,concurrency=3,requestIntervalMs=100,retryDelayMs=1000}){
+module.exports=function({settingsDir,items,getKey,saveContent,savePoster,saveActors,hasArtwork,getLookupName,getCanonicalId=id=>id,getRelatedIds=id=>[id],getCandidateIds=()=>items.keys(),getAllCandidateIds=()=>items.keys(),hasFolderIcon=async()=>false,ensureIcon,request,translateTitle,rebuildIcon,translateDescription,canTranslateDescription,onEvent=()=>{},onArtworkEvent=onEvent,concurrency=3,requestIntervalMs=100,retryDelayMs=1000}){
  const fs=require('node:fs'),path=require('node:path'),settingsFile=settingsDir&&path.join(settingsDir,'metadata-settings.json');
  let automaticEnabled=true;
  if(settingsFile&&fs.existsSync(settingsFile))automaticEnabled=JSON.parse(fs.readFileSync(settingsFile,'utf8')).automaticEnabled!==false;
@@ -42,11 +42,11 @@ module.exports=function({settingsDir,items,getKey,saveContent,savePoster,saveAct
   }
  }
  async function fillDescription(data,existing,arabicOverview,item,job){
-  if(isArabic(existing.descArabic)){data.descArabic=existing.descArabic;if(existing.descriptionTranslation)data.descriptionTranslation=existing.descriptionTranslation;else delete data.descriptionTranslation;return;}
+  if(!job.replaceData&&isArabic(existing.descArabic)){data.descArabic=existing.descArabic;if(existing.descriptionTranslation)data.descriptionTranslation=existing.descriptionTranslation;else delete data.descriptionTranslation;return;}
   delete data.descriptionTranslation;data.descArabic=isArabic(arabicOverview)?arabicOverview:'';
-  const source=typeof data.descEnglish==='string'?data.descEnglish.trim():'';if(data.descArabic||!source||typeof translateDescription!=='function')return;
-  try{if(typeof canTranslateDescription==='function'&&!canTranslateDescription()){if(job.rebuildIcon){job.warnings++;onEvent('لم يُترجم وصف '+item.name+'؛ فعّل ترجمة الوصف واضبط مفتاح Gemini في التحكم بالعناصر','warning');}return;}check(job);const result=await translateDescription({text:source,title:item.name,force:job.rebuildIcon===true});check(job);if(!isArabic(result?.text))throw Error('Invalid Arabic translation');data.descArabic=result.text.trim();data.descriptionTranslation={provider:typeof result.provider==='string'&&result.provider?result.provider:'Gemini',sourceHash:crypto.createHash('sha256').update(source).digest('hex')};onEvent('تمت ترجمة وصف المحتوى إلى العربية: '+item.name,'success');}
-  catch(error){if(error.code==='CANCELLED')throw error;job.warnings++;onEvent('تعذرت ترجمة الوصف إلى العربية: '+item.name+'؛ احتُفظ بالوصف الإنجليزي وبقية البيانات، ويمكن إعادة المزامنة لاحقًا','warning');}
+  const source=typeof data.descEnglish==='string'?data.descEnglish.trim():'';if(data.descArabic||!source||typeof translateDescription!=='function'){if(!data.descArabic&&isArabic(existing.descArabic)){data.descArabic=existing.descArabic;if(existing.descriptionTranslation)data.descriptionTranslation=existing.descriptionTranslation;}return;}
+  try{if(typeof canTranslateDescription==='function'&&!canTranslateDescription()){if(isArabic(existing.descArabic)){data.descArabic=existing.descArabic;if(existing.descriptionTranslation)data.descriptionTranslation=existing.descriptionTranslation;}if(job.rebuildIcon){job.warnings++;onEvent('لم يُترجم وصف '+item.name+'؛ فعّل ترجمة الوصف واضبط مفتاح Gemini في التحكم بالعناصر','warning');}return;}check(job);const result=await translateDescription({text:source,title:item.name,force:job.rebuildIcon===true});check(job);if(!isArabic(result?.text))throw Error('Invalid Arabic translation');data.descArabic=result.text.trim();data.descriptionTranslation={provider:typeof result.provider==='string'&&result.provider?result.provider:'Gemini',sourceHash:crypto.createHash('sha256').update(source).digest('hex')};onEvent('تمت ترجمة وصف المحتوى إلى العربية: '+item.name,'success');}
+  catch(error){if(error.code==='CANCELLED')throw error;if(isArabic(existing.descArabic)){data.descArabic=existing.descArabic;if(existing.descriptionTranslation)data.descriptionTranslation=existing.descriptionTranslation;}job.warnings++;onEvent('تعذرت ترجمة الوصف إلى العربية: '+item.name+'؛ احتُفظ بالوصف الإنجليزي وبقية البيانات، ويمكن إعادة المزامنة لاحقًا','warning');}
  }
  function notifyRelated(job,key,item){job[key]=[...new Set([...job[key],...relatedIds(item.id)])].slice(-200);}
  function posterReady(job,item){notifyRelated(job,'posterReadyIds',item);}
@@ -54,12 +54,13 @@ module.exports=function({settingsDir,items,getKey,saveContent,savePoster,saveAct
  async function sync(item,job){
   check(job);
   // A local poster is not evidence that the film or series metadata was synchronized.
+  if(job.incomplete&&alreadySynced(item)){if(ensureIcon){check(job);await ensureIcon(item.id);job.iconsQueued++;onArtworkEvent('طُلب تجهيز الأيقونة الناقصة: '+item.name,'success');}else job.skipped++;return;}
   if(job.onlyMissing&&alreadySynced(item)){job.skipped++;return;}
   let existing={};try{existing=JSON.parse(item.content?.contentJSON||'{}')||{};}catch{}
   const lookupName=getLookupName?getLookupName(item):item.name;
-  const kind=mediaType(item.type)==='series'||/^series\./.test(mediaType(item.type))||/\bS\d{1,3}(?:E\d{1,3})?\b/i.test(lookupName)?'tv':'movie';
+  let kind=mediaType(item.type)==='series'||/^series\./.test(mediaType(item.type))||/\bS\d{1,3}(?:E\d{1,3})?\b/i.test(lookupName)?'tv':'movie';
   const year=/\b(19\d{2}|20\d{2})\b/.exec(lookupName)?.[0],query=cleanTitle(lookupName),params={query,language:'en-US',include_adult:'false'};if(year&&kind==='movie')params.year=year;
-  const known=existing.tmdbType===kind&&/^\d+$/.test(String(existing.content_id));
+  const known=['movie','tv'].includes(existing.tmdbType)&&/^\d+$/.test(String(existing.content_id));if(known)kind=existing.tmdbType;
   const verified=!known&&require('./metadata-titles.cjs').verified(query,year,kind);
   let id;
   if(known)id=Number(existing.content_id);
@@ -74,6 +75,7 @@ module.exports=function({settingsDir,items,getKey,saveContent,savePoster,saveAct
    }
    exact=[...new Map(exact.map(row=>[row.id,row])).values()];
    if(exact.length>1&&year){const dated=exact.filter(r=>String(r.first_air_date||r.release_date||'').startsWith(year));if(dated.length)exact=dated;}
+   if(!exact.length&&year){const other=kind==='movie'?'tv':'movie';const fallback=await api('search/'+other,{query,language:'en-US',include_adult:'false'},job);const alternate=(fallback.results||[]).filter(row=>[row.title,row.original_title,row.name,row.original_name].some(name=>normal(name)===normal(query))&&String(row.release_date||row.first_air_date||'').startsWith(year));if(alternate.length===1){exact=alternate;kind=other;}}
    if(!exact.length)throw fail('لم توجد نتيجة مطابقة لاسم المجلد: '+lookupName,404);
    if(exact.length>1)throw fail('توجد عدة أعمال بهذا الاسم؛ يلزم تحديد العمل الصحيح: '+lookupName,409);
    id=exact[0].id;
@@ -94,9 +96,12 @@ module.exports=function({settingsDir,items,getKey,saveContent,savePoster,saveAct
   ]);
   if(job.rebuildIcon&&titleTranslationFailed)onArtworkEvent('لم تُستبدل الأيقونة السابقة بسبب تعذر ترجمة الاسم: '+item.name,'warning');
   if(job.rebuildIcon&&!titleTranslationFailed&&rebuildIcon){check(job);await rebuildIcon(item.id);onArtworkEvent('طُلب تحديث الأيقونة بالعربية بعد حفظ البيانات: '+item.name,'success');}
+  if(job.incomplete&&ensureIcon){check(job);await ensureIcon(item.id);job.iconsQueued++;onArtworkEvent('طُلب تجهيز الأيقونة الناقصة بعد حفظ البيانات: '+item.name,'success');}
  }
  async function run(job){
-  job.status='running';job.startedAt=new Date().toISOString();controllers.set(job.id,new AbortController());onEvent('بدء مزامنة بيانات '+job.total+' عنصر، الأحدث أولاً، حتى '+workers+' عناصر بالتوازي','success');let cursor=0;
+  job.status='running';job.startedAt=new Date().toISOString();controllers.set(job.id,new AbortController());
+  if(job.incomplete){const selected=[];job.phase='اختيار أحدث 100 عنصر ينقصه البيانات أو الأيقونة';job.scanned=0;try{for(const id of job.ids){check(job);const item=items.get(id);if(!item||!supported(item))continue;job.scanned++;let needs=!alreadySynced(item);if(!needs)try{needs=!(await hasFolderIcon(item));}catch{job.warnings++;onEvent('تعذر فحص أيقونة: '+item.name,'warning');continue;}check(job);if(needs)selected.push(id);if(selected.length===100)break;}job.ids=selected;job.total=selected.length;job.phase='';}catch(e){controllers.delete(job.id);job.status=e.code==='CANCELLED'?'cancelled':'interrupted';job.message=e.code==='CANCELLED'?'أُوقف الاختيار':'تعذر اختيار العناصر';job.finishedAt=new Date().toISOString();return;}}
+  onEvent('بدء مزامنة بيانات '+job.total+' عنصر، الأحدث أولاً، حتى '+workers+' عناصر بالتوازي','success');let cursor=0;
   async function worker(){while(cursor<job.ids.length&&!closed&&!job.cancelled&&job.status==='running'){
    const id=canonicalId(job.ids[cursor++]),item=items.get(id);job.activeItems.push({id,name:item?.name||id});job.currentItem=item?.name||id;onEvent('جارٍ جلب بيانات: '+(item?.name||id),'success');
    try{if(!item)throw fail('العنصر حذف',404);await sync(item,job);}
@@ -108,7 +113,7 @@ module.exports=function({settingsDir,items,getKey,saveContent,savePoster,saveAct
   onEvent('انتهاء مزامنة البيانات: '+job.completed+' محفوظ، '+job.skipped+' مزامن سابقاً، '+job.failed+' تعذر، من '+job.total+' — '+job.status,job.failed||job.warnings?'warning':'success');
  }
  async function pump(){if(running)return;running=true;try{while(queue.length&&!closed){const job=queue.shift();if(job.cancelled)continue;await run(job);}}finally{running=false;}}
- function enqueue(ids,{onlyMissing=false,automatic=false,rebuildIcon=false}={}){
+ function enqueue(ids,{onlyMissing=false,automatic=false,rebuildIcon=false,replaceData=false,incomplete=false}={}){
   if(automatic&&(!automaticEnabled||closed||!getKey()))return;if(closed)throw fail('الخدمة متوقفة',503);if(!getKey())throw fail('أدخل مفتاح TMDB في صفحة التحكم بالعناصر',422);
   if(!automatic&&(queue.length||jobs.some(job=>job.status==='running')))throw fail('انتظر اكتمال عملية جلب البيانات الحالية',409);
   const occupied=new Set(jobs.filter(job=>['running','queued'].includes(job.status)).flatMap(job=>job.ids).map(canonicalId));
@@ -116,15 +121,15 @@ module.exports=function({settingsDir,items,getKey,saveContent,savePoster,saveAct
   if(!unique.length&&automatic)return;
   const waiting=automatic&&queue.find(job=>job.automatic&&!job.cancelled);if(waiting){waiting.ids=newestSharedFirst([...new Set([...waiting.ids,...unique].map(canonicalId))].map(id=>items.get(id)).filter(Boolean)).map(item=>item.id);waiting.total=waiting.ids.length;return;}
   if(!unique.length)throw fail(onlyMissing?'لا توجد عناصر غير مزامنة':'لا توجد عناصر أفلام أو مسلسلات مطابقة',404);
-  if(rebuildIcon&&unique.length!==1)throw fail('إعادة إنشاء الأيقونة متاحة لعنصر واحد في كل طلب',400);
-  const job={rebuildIcon,id:crypto.randomUUID(),ids:unique,total:unique.length,processed:0,completed:0,failed:0,skipped:0,posters:0,warnings:0,completedIds:[],posterReadyIds:[],activeItems:[],concurrency:workers,onlyMissing,automatic,errors:[],status:'queued',createdAt:new Date().toISOString()};jobs.push(job);while(jobs.length>20&&!['running','queued'].includes(jobs[0].status))jobs.shift();queue.push(job);onEvent('أضيفت مهمة مزامنة بيانات '+job.total+' عنصر إلى الخلفية','success');setImmediate(pump);return {body:{msg:'ok',jobId:job.id,total:job.total}};
+  if(rebuildIcon&&unique.length>200)throw fail('المزامنة الشاملة متاحة حتى 200 عنصر معروض في الطلب',400);
+  const job={rebuildIcon,replaceData,incomplete,id:crypto.randomUUID(),ids:unique,total:unique.length,processed:0,completed:0,iconsQueued:0,failed:0,skipped:0,posters:0,warnings:0,completedIds:[],posterReadyIds:[],activeItems:[],concurrency:workers,onlyMissing,automatic,errors:[],status:'queued',createdAt:new Date().toISOString()};jobs.push(job);while(jobs.length>20&&!['running','queued'].includes(jobs[0].status))jobs.shift();queue.push(job);onEvent('أضيفت مهمة مزامنة بيانات '+job.total+' عنصر إلى الخلفية','success');setImmediate(pump);return {body:{msg:'ok',jobId:job.id,total:job.total}};
  }
  function cancel(job){if(!job||!['queued','running'].includes(job.status))return;job.cancelled=true;controllers.get(job.id)?.abort();if(job.status==='queued'){job.status='cancelled';job.finishedAt=new Date().toISOString();}}
  const publicJobs=()=>jobs.map(({ids,...job})=>structuredClone(job));
- return {jobs:publicJobs,hasContent,enqueueMissing:ids=>enqueue(ids,{onlyMissing:true,automatic:true}),adminReads:new Set(['metadataStatus']),adminActions:new Set(['getContentAndSaveIt','getContentAndSaveItAll','startDownloadItemsData','cancelMetadata','setAutomaticMetadata','cancelAllMetadata']),async admin(action,args,body,method){if(action==='metadataStatus')return {body:{jobs:publicJobs(),automaticEnabled}};if(action==='setAutomaticMetadata'){if(method!=='POST')throw fail('طريقة الطلب غير صالحة',405);return setAutomatic(body.enabled);}if(action==='cancelAllMetadata'){if(method!=='POST')throw fail('طريقة الطلب غير صالحة',405);jobs.forEach(cancel);return {body:{msg:'ok'}};}if(action==='cancelMetadata'){cancel(jobs.find(job=>job.id===args[0]));return {body:{msg:'ok'}};}if(action==='getContentAndSaveIt')return enqueue([args.at(-2)]);if(action==='getContentAndSaveItAll'){if(method!=='POST')throw fail('طريقة الطلب غير صالحة',405);return enqueue(String(body.ids||'').split(','),{rebuildIcon:body.rebuildIcon===true});}if(action==='startDownloadItemsData')return enqueue([...getCandidateIds()],{onlyMissing:true});},idle:async()=>{while(queue.length||running)await new Promise(resolve=>setTimeout(resolve,20));},close:()=>{closed=true;jobs.forEach(cancel);queue.length=0;}};
+ return {jobs:publicJobs,hasContent,enqueueMissing:ids=>enqueue(ids,{onlyMissing:true,automatic:true}),adminReads:new Set(['metadataStatus']),adminActions:new Set(['getContentAndSaveIt','getContentAndSaveItAll','startDownloadItemsData','refreshVisibleItems','prepareNewest100','cancelMetadata','setAutomaticMetadata','cancelAllMetadata']),async admin(action,args,body,method){if(action==='metadataStatus')return {body:{jobs:publicJobs(),automaticEnabled}};if(action==='setAutomaticMetadata'){if(method!=='POST')throw fail('طريقة الطلب غير صالحة',405);return setAutomatic(body.enabled);}if(action==='cancelAllMetadata'){if(method!=='POST')throw fail('طريقة الطلب غير صالحة',405);jobs.forEach(cancel);return {body:{msg:'ok'}};}if(action==='cancelMetadata'){cancel(jobs.find(job=>job.id===args[0]));return {body:{msg:'ok'}};}if(action==='getContentAndSaveIt')return enqueue([args.at(-2)]);if(action==='getContentAndSaveItAll'){if(method!=='POST')throw fail('طريقة الطلب غير صالحة',405);return enqueue(String(body.ids||'').split(','),{rebuildIcon:body.rebuildIcon===true});}if(action==='refreshVisibleItems'){if(method!=='POST')throw fail('طريقة الطلب غير صالحة',405);const ids=String(body.ids||'').split(',').filter(Boolean);if(ids.length>200)throw fail('الحد الأقصى 200 عنصر معروض',400);return enqueue(ids,{rebuildIcon:true,replaceData:true});}if(action==='prepareNewest100'){if(method!=='POST')throw fail('طريقة الطلب غير صالحة',405);return enqueue([...getAllCandidateIds()],{incomplete:true});}if(action==='startDownloadItemsData')return enqueue([...getCandidateIds()],{onlyMissing:true});},idle:async()=>{while(queue.length||running)await new Promise(resolve=>setTimeout(resolve,20));},close:()=>{closed=true;jobs.forEach(cancel);queue.length=0;}};
 };
 module.exports.hasContent=hasContent;module.exports.addedAt=addedAt;module.exports.newestFirst=newestFirst;
-function cleanTitle(name){return String(name||'').replace(/\b(?:19\d{2}|20\d{2})\b/g,'').replace(/\bS\d{1,2}(?:E\d{1,3})?\b/gi,'').replace(/\b(?:480p|720p|1080p|2160p|4k|webrip|web[ ._-]?dl|bluray|brrip|dvdrip|x264|x265|hevc)\b.*$/i,'').replace(/[()._\[\]]/g,' ').replace(/\s+/g,' ').replace(/^[\s-]+|[\s-]+$/g,'');}
+function cleanTitle(name){return String(name||'').replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g,'').replace(/[–—−]/g,'-').replace(/\b(?:19\d{2}|20\d{2})\b/g,'').replace(/\bS\d{1,2}(?:E\d{1,3})?\b/gi,'').replace(/\b(?:480p|720p|1080p|2160p|4k|webrip|web[ ._-]?dl|bluray|brrip|dvdrip|x264|x265|hevc)\b.*$/i,'').replace(/[()._\[\]]/g,' ').replace(/\s+/g,' ').replace(/^[\s-]+|[\s-]+$/g,'');}
 module.exports.cleanTitle=cleanTitle;
 
 module.exports.supportsMetadata=supportsMetadata;

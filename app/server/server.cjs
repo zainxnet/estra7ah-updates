@@ -15,7 +15,7 @@ const configFile = path.join(data, 'server-config.json');
 const config = fs.existsSync(configFile) ? JSON.parse(fs.readFileSync(configFile, 'utf8')) : { port: 80, bind: '0.0.0.0' };
 const port = config.port;
 let gemini;
-let ready = false, startupError = '', startupMessage='جار فتح قاعدة الاستراحة',startupInfo={}, sections = [], settings = {}, admin, services, content, operations, artwork, scanArtwork, uiCompat, speed, itemAdmin, backups, broadcast, metadata, folderIcons, posters, actorImages, exclusiveArtwork;
+let ready = false, startupError = '', startupMessage='جار فتح قاعدة الاستراحة',startupInfo={}, sections = [], settings = {}, admin, services, content, operations, artwork, scanArtwork, uiCompat, speed, itemAdmin, backups, broadcast, metadata, trailers, folderIcons, posters, actorImages, exclusiveArtwork;
 const responseCache=require('./browse-cache.cjs')();let catalogRevision=0,topCacheRevision=-1,topCache=[],monitorCache=null,monitorCacheAt=0;const normalizedNames=new WeakMap();
 let items = new Map(), children = new Map(), sectionItems = new Map(), files = new Map();
 let byMediaPath = new Map(), scannedAliases = new Map();
@@ -355,7 +355,7 @@ const server = http.createServer(async (req, res) => {
       if(req.method!=='POST'||!['127.0.0.1','::1','::ffff:127.0.0.1'].includes(req.socket.remoteAddress)||req.headers['x-zain-control']!==controlToken)return respond(res,{},403);
       if(updateClosing)return respond(res,{error:'التحديث قيد التنفيذ'},409);
       updateClosing=true;
-      const reason=require('./update-gate.cjs')({ready,syncJobs:services?.syncJobs()||[],metadataJobs:metadata?.jobs()||[],isBusy:backups?.isBusy()||!!folderIcons?.status().running||!!folderIcons?.status().queued||activeUpdateRequests>0,pendingRestore:fs.existsSync(path.join(data,'pending-restore.json'))});
+      const reason=require('./update-gate.cjs')({ready,syncJobs:services?.syncJobs()||[],metadataJobs:metadata?.jobs()||[],isBusy:trailers?.isBusy()||backups?.isBusy()||!!folderIcons?.status().running||!!folderIcons?.status().queued||activeUpdateRequests>0,pendingRestore:fs.existsSync(path.join(data,'pending-restore.json'))});
       if(reason){updateClosing=false;return respond(res,{error:reason},409);}
       respond(res,{ok:true});setTimeout(shutdown,100);return;
     }
@@ -439,7 +439,7 @@ const server = http.createServer(async (req, res) => {
 });
 let stopping = false;
 const closeServer=require('./shutdown.cjs')({
- cleanup:[()=>admin?.recordEvent('إيقاف خادم الاستراحة','warning'),()=>backups?.close(),()=>metadata?.close(),()=>folderIcons?.close(),()=>broadcast?.close(),()=>artwork?.close(),()=>scanArtwork?.close(),()=>services?.close(),()=>operations?.close(),()=>catalogStore.close?.()],
+ cleanup:[()=>admin?.recordEvent('إيقاف خادم الاستراحة','warning'),()=>backups?.close(),()=>metadata?.close(),()=>trailers?.close(),()=>folderIcons?.close(),()=>broadcast?.close(),()=>artwork?.close(),()=>scanArtwork?.close(),()=>services?.close(),()=>operations?.close(),()=>catalogStore.close?.()],
  close:()=>new Promise(resolve=>{server.close(resolve);server.closeIdleConnections?.();}),
  forceClose:()=>server.closeAllConnections(),exit:code=>process.exit(code),report:message=>console.error(message)
 });
@@ -481,7 +481,7 @@ server.listen(port, config.bind, async () => {
     const hasLocalArtwork=async item=>{const own={...artworkItem(item.id),inItem:null};const dir=(own.files||[]).some(f=>f.path===own.path)?path.dirname(own.path):own.path;own.files=(own.files||[]).filter(f=>f.path&&dir&&path.relative(dir,f.path)&&!path.relative(dir,f.path).startsWith('..')&&!path.isAbsolute(path.relative(dir,f.path)));scanArtwork.invalidate(own);return Boolean(await scanArtwork.read(own));};
     folderIcons=require('./folder-icons.cjs')({dir:data,translateTitle:gemini.translateTitle,getItem:id=>{const item=items.get(id);return item?require('./movie-folder.cjs')(sharedCatalog.view(item),sectionRow(item.sectionId)):null;},getKey:()=>admin.getMetadataKey()||source.settings?.api_key||'',getPoster:id=>posters.file(id),getLookupName:item=>path.basename(item.path||'')||item.name,onEvent:(msg,type)=>admin.recordEvent(msg,type,'artwork'),readEvents:admin.readEvents,onCreated:async item=>{artwork.invalidate(artworkItem(item.id));scanArtwork.invalidate(item);await artwork.read(artworkItem(item.id));},onInspected:item=>artwork.invalidate(artworkItem(item.id))});
     extensions.push(folderIcons);
-    metadata=require('./metadata.cjs')({settingsDir:data,items,getCanonicalId:sharedCatalog.canonical,getRelatedIds:sharedCatalog.related,getCandidateIds:()=>sharedCatalog.unique(topRows().filter(row=>!sharedCatalog.hasContent(row))).map(row=>row.id),translateTitle:gemini.translateTitle,rebuildIcon:id=>folderIcons.enqueue([id],{retry:true,replace:true}),translateDescription:gemini.translateDescription,canTranslateDescription:gemini.canTranslateDescription,getKey:()=>admin.getMetadataKey()||source.settings?.api_key||'',saveContent:itemAdmin.saveContent,onEvent:admin.recordEvent,onArtworkEvent:(msg,type)=>admin.recordEvent(msg,type,'artwork'),hasArtwork:hasLocalArtwork,getLookupName:item=>{const own=artworkItem(item.id);return path.basename((own.files||[]).some(f=>f.path===own.path)?path.dirname(own.path):own.path||'')||item.name;},savePoster:async(id,poster)=>{
+    metadata=require('./metadata.cjs')({settingsDir:data,items,getCanonicalId:sharedCatalog.canonical,getRelatedIds:sharedCatalog.related,getCandidateIds:()=>sharedCatalog.unique(topRows().filter(row=>!sharedCatalog.hasContent(row))).map(row=>row.id),getAllCandidateIds:()=>sharedCatalog.unique(topRows()).map(row=>row.id),hasFolderIcon:async item=>{const own=require('./movie-folder.cjs')(sharedCatalog.view(item),sectionRow(item.sectionId));const result=await require('./folder-icon-files.cjs').inspect(own.path);if(result.status==='failed')throw Error('ICON_CHECK_FAILED');return result.status==='existing';},ensureIcon:id=>folderIcons.enqueue([id],{retry:true}),translateTitle:gemini.translateTitle,rebuildIcon:id=>folderIcons.enqueue([id],{retry:true,replace:true}),translateDescription:gemini.translateDescription,canTranslateDescription:gemini.canTranslateDescription,getKey:()=>admin.getMetadataKey()||source.settings?.api_key||'',saveContent:itemAdmin.saveContent,onEvent:admin.recordEvent,onArtworkEvent:(msg,type)=>admin.recordEvent(msg,type,'artwork'),hasArtwork:hasLocalArtwork,getLookupName:item=>{const own=artworkItem(item.id);return path.basename((own.files||[]).some(f=>f.path===own.path)?path.dirname(own.path):own.path||'')||item.name;},savePoster:async(id,poster)=>{
       if(!posters.file(id))await posters.save(id,poster);
       const original=items.get(id);const result=await require('./poster-folder.cjs')(require('./movie-folder.cjs')(original,sectionRow(original?.sectionId)),posters.file(id));
       if(result.status==='saved')artwork.invalidate(artworkItem(id));
@@ -490,6 +490,8 @@ server.listen(port, config.bind, async () => {
       return result;
     },saveActors:actorImages.save});
     extensions.push(metadata);
+    trailers=require('./trailers.cjs')({base,getItem:id=>{const item=items.get(id);return item?require('./movie-folder.cjs')(sharedCatalog.view(item),sectionRow(item.sectionId)):null;},getKey:()=>admin.getMetadataKey()||source.settings?.api_key||'',onEvent:(msg,type)=>admin.recordEvent(msg,type,'trailer')});
+    extensions.push(trailers);
     operations = require('./operations.cjs')({ dir: data, items, sections, services, readEvents: admin.readEvents, clearEvents: admin.clearEvents, metadata,recordEvent:admin.recordEvent });
     extensions.push(operations);
     uiCompat = require('./ui-compat.cjs')({ interfaceDir: web });

@@ -4,6 +4,7 @@
     [Parameter(Mandatory=$true)][string]$Title,
     [string]$Season = '',
     [string]$Logo = '',
+    [string]$OriginalTitle = '',
     [string]$Preview = '',
     [switch]$PreferArabic
 )
@@ -48,6 +49,26 @@ public static class ZainFolderIconRenderer {
             return Color.FromArgb(r/256,gr/256,b/256);
         }
     }
+    static Color? TitleColor(string filename) {
+        if(String.IsNullOrWhiteSpace(filename))return null;
+        using(var source=OpenImage(filename))
+        using(var sample=new Bitmap(160,80,PixelFormat.Format32bppArgb)) {
+            using(var g=Graphics.FromImage(sample)){g.Clear(Color.Transparent);Contain(g,source,new RectangleF(0,0,160,80));}
+            var counts=new int[4096];var red=new long[4096];var green=new long[4096];var blue=new long[4096];
+            int best=-1;
+            for(int y=0;y<sample.Height;y++)for(int x=0;x<sample.Width;x++){
+                Color c=sample.GetPixel(x,y);if(c.A<220)continue;
+                int bin=((c.R>>4)<<8)|((c.G>>4)<<4)|(c.B>>4);
+                counts[bin]++;red[bin]+=c.R;green[bin]+=c.G;blue[bin]+=c.B;
+                if(best<0||counts[bin]>counts[best])best=bin;
+            }
+            if(best<0||counts[best]<10)return null;
+            return Color.FromArgb((int)(red[best]/counts[best]),(int)(green[best]/counts[best]),(int)(blue[best]/counts[best]));
+        }
+    }
+    static double Linear(byte value){double c=value/255.0;return c<=0.04045?c/12.92:Math.Pow((c+0.055)/1.055,2.4);}
+    static bool LightBackground(Color ink){double luminance=.2126*Linear(ink.R)+.7152*Linear(ink.G)+.0722*Linear(ink.B);return 1.05/(luminance+.05)>(luminance+.05)/.05;}
+
     static bool LogoIsLight(Image image) {
         using(var sample=new Bitmap(64,32,PixelFormat.Format32bppArgb)) {
             using(var g=Graphics.FromImage(sample)){g.Clear(Color.Transparent);g.DrawImage(image,0,0,64,32);}
@@ -60,7 +81,7 @@ public static class ZainFolderIconRenderer {
         if(String.IsNullOrWhiteSpace(value))return "";
         return Regex.Replace(value,@"[\x00-\x1f\x7f]"," ").Trim();
     }
-    static void FitText(Graphics g,string value,RectangleF rect,Color color,float max,float min) {
+    static void FitText(Graphics g,string value,RectangleF rect,Color color,float max,float min,FontFamily arabicFamily,float fill=1f) {
         value=Text(value);if(value.Length==0)return;
         // Measure and draw in an untransformed surface. Measuring directly after
         // the side-tab rotation can report clipped lines as fitting the box.
@@ -74,20 +95,34 @@ public static class ZainFolderIconRenderer {
             sf.Alignment=StringAlignment.Center;sf.LineAlignment=StringAlignment.Center;sf.Trimming=StringTrimming.None;
             if(Regex.IsMatch(value,@"[\u0600-\u06ff]"))sf.FormatFlags|=StringFormatFlags.DirectionRightToLeft;
             var box=new RectangleF(2,2,Math.Max(1,width-4),Math.Max(1,height-4));
+            bool arabic=Regex.IsMatch(value,@"[\u0600-\u06ff]");
             Font selected=null;
             try {
                 for(float size=max*scale;size>=1;size-=1) {
-                    var candidate=new Font("Tahoma",size,FontStyle.Bold,GraphicsUnit.Pixel);
+                    var candidate=arabic&&arabicFamily!=null?new Font(arabicFamily,size,FontStyle.Bold,GraphicsUnit.Pixel):new Font("Tahoma",size,FontStyle.Bold,GraphicsUnit.Pixel);
                     var measured=tg.MeasureString(value,candidate,new SizeF(box.Width,100000),sf);
                     if(measured.Height<=box.Height&&measured.Width<=box.Width+0.5f){selected=candidate;break;}
                     candidate.Dispose();
                 }
-                if(selected==null)selected=new Font("Tahoma",1,FontStyle.Bold,GraphicsUnit.Pixel);
+                if(selected==null)selected=arabic&&arabicFamily!=null?new Font(arabicFamily,1,FontStyle.Bold,GraphicsUnit.Pixel):new Font("Tahoma",1,FontStyle.Bold,GraphicsUnit.Pixel);
                 using(var shadow=new SolidBrush(Color.FromArgb(65,color.GetBrightness()>0.5f?Color.Black:Color.White))) {
                     var behind=box;behind.Offset(1,1);tg.DrawString(value,selected,shadow,behind,sf);
                 }
                 using(var ink=new SolidBrush(color))tg.DrawString(value,selected,ink,box,sf);
-                g.DrawImage(text,rect);
+                if(arabic) {
+                    // Fit visible glyphs rather than the font's generous line spacing.
+                    int left=width,top=height,right=-1,bottom=-1;
+                    for(int y=0;y<height;y++)for(int x=0;x<width;x++)if(text.GetPixel(x,y).A>0){
+                        left=Math.Min(left,x);top=Math.Min(top,y);right=Math.Max(right,x);bottom=Math.Max(bottom,y);
+                    }
+                    if(right>=left&&bottom>=top){
+                        float iw=right-left+1,ih=bottom-top+1;
+                        float fit=Math.Min((rect.Width-2)/iw,(rect.Height-2)/ih)*fill;
+                        float dw=iw*fit,dh=ih*fit;
+                        var dest=new RectangleF(rect.X+(rect.Width-dw)/2,rect.Y+(rect.Height-dh)/2,dw,dh);
+                        g.DrawImage(text,dest,new RectangleF(left,top,iw,ih),GraphicsUnit.Pixel);
+                    }
+                } else g.DrawImage(text,rect);
             }finally{if(selected!=null)selected.Dispose();}
         }
     }
@@ -108,7 +143,23 @@ public static class ZainFolderIconRenderer {
     static void WriteNew(string filename,byte[] bytes) {
         using(var stream=new FileStream(filename,FileMode.CreateNew,FileAccess.Write,FileShare.None)){stream.Write(bytes,0,bytes.Length);stream.Flush(true);}
     }
-    public static void Render(string poster,string output,string title,string season,string logo,string preview) {
+    public static void Render(string poster,string output,string title,string season,string logo,string preview,string fontPath,string colorSource) {
+        using(var fonts=new System.Drawing.Text.PrivateFontCollection()) {
+            FontFamily arabicFamily=null;
+            try {
+                if(Regex.IsMatch(title+" "+season,@"[\u0600-\u06ff]")) {
+                    fonts.AddFontFile(Path.GetFullPath(fontPath));
+                    foreach(var family in fonts.Families) {
+                        if(arabicFamily==null&&family.Name=="DIN Next LT Arabic")arabicFamily=family;
+                        else family.Dispose();
+                    }
+                    if(arabicFamily==null||!arabicFamily.IsStyleAvailable(FontStyle.Bold))throw new InvalidDataException("Bundled DIN Arabic Bold font is unavailable");
+                }
+                RenderCore(poster,output,title,season,logo,preview,arabicFamily,colorSource);
+            } finally { if(arabicFamily!=null)arabicFamily.Dispose(); }
+        }
+    }
+    static void RenderCore(string poster,string output,string title,string season,string logo,string preview,FontFamily arabicFamily,string colorSource) {
         if(Text(title).Length==0||title.Length>1000||season.Length>1000)throw new ArgumentException("A valid title and season are required");
         string ico=Destination(output,".ico");
         string png=String.IsNullOrWhiteSpace(preview)?null:Destination(preview,".png");
@@ -119,12 +170,13 @@ public static class ZainFolderIconRenderer {
                 Quality(g);g.Clear(Color.Transparent);g.ScaleTransform(4,4);
                 // Fill the icon canvas, keeping one pixel for antialiased outer edges.
                 g.TranslateTransform(1,1);g.ScaleTransform(254f/221f,254f/240f);g.TranslateTransform(-24.5f,-2.5f);
-                Color average=Tone(image);
+                Color average=Tone(image);Color? titleInk=TitleColor(colorSource);
                 bool light=0.2126*average.R+0.7152*average.G+0.0722*average.B>125;
                 // Keep the original wordmark readable without recoloring it.
                 if(wordmark!=null)light=!LogoIsLight(wordmark);
+                if(titleInk.HasValue)light=LightBackground(titleInk.Value);
                 Color tab=light?Color.FromArgb(235,235,232):Color.FromArgb(15,18,20);
-                Color ink=light?Color.FromArgb(20,23,25):Color.FromArgb(242,242,238);
+                Color ink=titleInk??(light?Color.FromArgb(20,23,25):Color.FromArgb(242,242,238));
                 using(var tabPath=new GraphicsPath()) {
                     tabPath.StartFigure();tabPath.AddLine(207,13,213,13);
                     tabPath.AddBezier(213,13,221,14,220,22,220,33);
@@ -144,14 +196,14 @@ public static class ZainFolderIconRenderer {
                     g.DrawImage(image,new RectangleF(26,4,185,237));
                     if(Text(season).Length>0) {
                         using(var band=new SolidBrush(Color.FromArgb(210,7,12,18)))g.FillRectangle(band,26,218,185,23);
-                        FitText(g,season,new RectangleF(29,219,179,21),Color.White,13,6);
+                        FitText(g,season,new RectangleF(29,219,179,21),Color.White,13,6,arabicFamily);
                     }
                     g.Restore(saved);
                     using(var pen=new Pen(light?Color.FromArgb(120,120,118):Color.FromArgb(47,52,55),1))g.DrawPath(pen,frame);
                 }
                 var state=g.Save();g.TranslateTransform(231,129);g.RotateTransform(90);
                 if(wordmark!=null)Contain(g,wordmark,new RectangleF(-79,-13,158,26));
-                else FitText(g,title,new RectangleF(-83,-14,166,28),ink,22,7);
+                else FitText(g,title,new RectangleF(-83,-14,166,28),ink,22,7,arabicFamily,.86f);
                 g.Restore(state);
             }
             int[] sizes={16,32,48,64,128,256};var frames=new byte[sizes.Length][];
@@ -180,8 +232,11 @@ $wordmarkTemp=[IO.Path]::GetFullPath($Output)+'.wordmark.png'
 try {
     . (Join-Path $PSScriptRoot 'poster-wordmark.ps1')
     $fromPoster=$null
-    if(-not $PreferArabic){$fromPoster=Get-PosterWordmark -Poster $Poster -Title $Title -Output $wordmarkTemp}
+    $lookupTitle=if($PreferArabic -and $OriginalTitle){$OriginalTitle}else{$Title}
+    $fromPoster=Get-PosterWordmark -Poster $Poster -Title $lookupTitle -Output $wordmarkTemp
     $selectedLogo=if($PreferArabic){''}elseif($fromPoster){$fromPoster}else{$Logo}
-    [ZainFolderIconRenderer]::Render($Poster,$Output,$Title,$Season,$selectedLogo,$Preview)
+    $arabicFont=Join-Path $PSScriptRoot '../interface/static/media/din-next-lt-arabic-bold.ttf'
+    $colorSource=if($PreferArabic -and $fromPoster){$fromPoster}else{''}
+    [ZainFolderIconRenderer]::Render($Poster,$Output,$Title,$Season,$selectedLogo,$Preview,$arabicFont,$colorSource)
 } finally { if([IO.File]::Exists($wordmarkTemp)){[IO.File]::Delete($wordmarkTemp)} }
 Write-Output 'Icon rendered successfully'

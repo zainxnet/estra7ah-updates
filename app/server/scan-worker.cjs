@@ -199,7 +199,7 @@ process.once('message', async configuration => {
             if(!skip)directories.push(fullPath);
             await emitProgress(); continue;
           }
-          if (folderOnly || !entry.isFile()) continue;
+          if (folderOnly || !entry.isFile() || /^إعلان - .+\.mp4$/i.test(entry.name)) continue;
           const extension = path.extname(entry.name).slice(1).toLowerCase();
           const mime = types[extension];
           if (!mime || !allowed(section.type, mime, extension)) { await emitProgress(); continue; }

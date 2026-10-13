@@ -10,7 +10,7 @@ module.exports=function({dir,getItem,getKey,getPoster=()=>null,getLookupName,tra
  const stats={status:'idle',runId:null,total:0,processed:0,created:0,updatedIds:[],postersSaved:0,skipped:0,failed:0,currentItem:'',phase:''};
  const event=(m,k='success')=>{try{onEvent(m,k);}catch{}};
  function runRender(a){return new Promise((resolve,reject)=>{
-  const argv=['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'folder-icon-render.ps1'),'-Poster',a.poster,'-Output',a.output,'-Title',a.title,'-Preview',a.preview];if(a.preferArabic)argv.push('-PreferArabic');if(a.season)argv.push('-Season',a.season);if(a.logo)argv.push('-Logo',a.logo);
+  const argv=['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'folder-icon-render.ps1'),'-Poster',a.poster,'-Output',a.output,'-Title',a.title,'-Preview',a.preview];if(a.preferArabic)argv.push('-PreferArabic');if(a.originalTitle)argv.push('-OriginalTitle',a.originalTitle);if(a.season)argv.push('-Season',a.season);if(a.logo)argv.push('-Logo',a.logo);
   const child=spawn('powershell.exe',argv,{windowsHide:true,stdio:['ignore','ignore','pipe']});activeChild=child;let done=false;
   const timeout=setTimeout(()=>{child.kill();finish(Error('RENDER_TIMEOUT'));},45000);
   function finish(error){if(done)return;done=true;clearTimeout(timeout);if(activeChild===child)activeChild=null;error?reject(error):resolve();}
@@ -44,7 +44,7 @@ module.exports=function({dir,getItem,getKey,getPoster=()=>null,getLookupName,tra
    if(!arabicTitle&&translateTitle){stats.phase='ترجمة معنى الاسم إلى العربية';try{const translated=await translateTitle({title:label.folderTitle(lookup),kind:parent?'series':item.type});if(!label.arabic(translated?.text))throw Error('لم تصل ترجمة عربية صالحة');arabicTitle=translated.text;event('تُرجم اسم الأيقونة: '+label.folderTitle(lookup)+' ← '+arabicTitle);}catch(error){throw Error('تعذرت ترجمة اسم الأيقونة؛ أُجّل إنشاؤها: '+error.message);}}
    if(closed)return;
    const title=arabicTitle||lookup;
-   stats.phase='تصميم الأيقونة وكتابة العنوان';await renderer({poster,output,preview,title,preferArabic:!!arabicTitle,season:parent?label.season(path.basename(item.path)):''});if(closed)return;
+   stats.phase='تصميم الأيقونة وكتابة العنوان';await renderer({poster,output,preview,title,originalTitle:label.folderTitle(lookup),preferArabic:!!arabicTitle,season:parent?label.season(path.basename(item.path)):''});if(closed)return;
    stats.phase='حفظ الأيقونة وإعداد عرض المجلد';const backupDir=path.join(dir,'folder-icon-originals');if(replace)fs.mkdirSync(backupDir,{recursive:true});const installed=await io.install(item.path,output,{replace,backupDir});if(installed.status==='existing'){stats.skipped++;return;}if(installed.status!=='created')throw Error(installed.code||'WRITE_FAILED');
    stats.created++;stats.updatedIds=[...new Set([...stats.updatedIds,item.id])].slice(-200);await onCreated(item);event((replace?'أعيد تجهيز أيقونة المجلد بالعربية: ':'تم إنشاء أيقونة المجلد: ')+item.name+(parent?' — '+path.basename(item.path):''));
    if(installed.datesReady===false)event('حُفظت الأيقونة؛ تعذر ضبط تاريخ تعديل المجلد والصور: '+item.name,'warning');
