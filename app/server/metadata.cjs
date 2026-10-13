@@ -82,6 +82,7 @@ module.exports=function({settingsDir,items,getKey,saveContent,savePoster,saveAct
   if(verified&&(normal(en.original_name)!==normal(verified.original)||!(en.origin_country||[]).includes('TR')||!String(en.first_air_date||'').startsWith(verified.year)))throw fail('تعذر التحقق من هوية المسلسل التركي؛ لم تحفظ بيانات غير مؤكدة',409);
 
   const data={...existing,descArabic:'',descEnglish:en.overview||existing.descEnglish||'',content_id:String(id),Runtime:String(en.runtime||en.episode_run_time?.[0]||''),ReleaseDate:en.release_date||en.first_air_date||'',castEnglish:(en.credits?.cast||[]).slice(0,20).map(actor=>actor.name),directedByEnglish:(en.credits?.crew||[]).filter(actor=>actor.job==='Director').map(actor=>actor.name),tagsArabic:(ar.genres||[]).map(genre=>genre.name),imdbRating:String(en.vote_average||0),imdbVotes:String(en.vote_count||0),tmdbType:kind};
+  data.titleArabic=isArabic(ar.title||ar.name)?(ar.title||ar.name).trim():'';
   if(en.poster_path)data.poster_path=en.poster_path;
   await fillDescription(data,existing,ar.overview,item,job);check(job);
   await saveContent(item.id,{...item.content,contentJSON:JSON.stringify(data),imdb_ratings:en.vote_average||0,year:parseInt(data.ReleaseDate)||0});saved(job,item);

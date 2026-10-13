@@ -4,7 +4,8 @@
     [Parameter(Mandatory=$true)][string]$Title,
     [string]$Season = '',
     [string]$Logo = '',
-    [string]$Preview = ''
+    [string]$Preview = '',
+    [switch]$PreferArabic
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'folder-icon-title.ps1')
@@ -178,8 +179,9 @@ Add-Type -TypeDefinition $source -ReferencedAssemblies System.Drawing
 $wordmarkTemp=[IO.Path]::GetFullPath($Output)+'.wordmark.png'
 try {
     . (Join-Path $PSScriptRoot 'poster-wordmark.ps1')
-    $fromPoster=Get-PosterWordmark -Poster $Poster -Title $Title -Output $wordmarkTemp
-    $selectedLogo=if($fromPoster){$fromPoster}else{$Logo}
+    $fromPoster=$null
+    if(-not $PreferArabic){$fromPoster=Get-PosterWordmark -Poster $Poster -Title $Title -Output $wordmarkTemp}
+    $selectedLogo=if($PreferArabic){''}elseif($fromPoster){$fromPoster}else{$Logo}
     [ZainFolderIconRenderer]::Render($Poster,$Output,$Title,$Season,$selectedLogo,$Preview)
 } finally { if([IO.File]::Exists($wordmarkTemp)){[IO.File]::Delete($wordmarkTemp)} }
 Write-Output 'Icon rendered successfully'

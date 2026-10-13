@@ -82,14 +82,14 @@ module.exports=function({dir,getKey=()=>'',getLookupName,request,download}){
  }
  async function getManifest(key){try{const value=JSON.parse(await fs.promises.readFile(path.join(root,key+'.json'),'utf8'));return value.version===1&&Number.isFinite(value.checkedAt)&&Date.now()-value.checkedAt<CACHE_AGE&&value.checkedAt<=Date.now()?value:null;}catch{return null;}}
  async function writeManifest(key,value){await fs.promises.mkdir(root,{recursive:true});const destination=path.join(root,key+'.json'),temp=destination+'.'+crypto.randomUUID()+'.tmp';try{await fs.promises.writeFile(temp,JSON.stringify({...value,version:1,checkedAt:Date.now()}),{flag:'wx'});await fs.promises.rename(temp,destination);}finally{await fs.promises.unlink(temp).catch(()=>{});}}
- async function resolve(item,{parent,posterNeeded=true,logoNeeded=true}={}){
+ async function resolve(item,{parent,posterNeeded=true,logoNeeded=true,titleNeeded=false}={}){
   check();if(!item)return {reason:'unsupported'};
   const itemType=publicType(item.type),isSeason=itemType==='season',identity=isSeason&&parent?parent:item;
   const type=publicType(identity.type),kind=isSeason||type==='series'||/^series\./.test(type||'')?'tv':type==='movie'?'movie':null;
   if(!kind)return {reason:'unsupported'};
   const ownName=getLookupName?.(item)||item.name||'',name=getLookupName?.(identity)||identity.name||'',season=isSeason?seasonNumber(ownName):null;
   const lookup=isSeason&&!parent?withoutSeason(name):name,year=/\b(19\d{2}|20\d{2})\b/.exec(lookup)?.[0],query=cleanTitle(lookup),existing=content(identity);
-  const key=hash(JSON.stringify([kind,query,year||'',existing.tmdbType,existing.content_id,season,logoNeeded]));
+  const key=hash(JSON.stringify([kind,query,year||'',existing.tmdbType,existing.content_id,season,logoNeeded,titleNeeded]));
   // One manifest lookup covers the poster and logo, including a season's own poster.
   const metadata=async()=>{
    const cached=await getManifest(key);if(cached)return cached;
@@ -102,7 +102,8 @@ module.exports=function({dir,getKey=()=>'',getLookupName,request,download}){
    let images={};try{if(logoNeeded)images=await api(kind+'/'+match.id+'/images');}catch(error){if(error.code==='CANCELLED')throw error;}
    const rank=row=>row.iso_639_1==='ar'?4:row.iso_639_1===detail.original_language?3:row.iso_639_1==='en'?2:!row.iso_639_1?1:0;
    const logo=(images.logos||[]).filter(row=>imagePath(row.file_path)&&/\.png$/i.test(row.file_path)).sort((a,b)=>rank(b)-rank(a)||(b.vote_average||0)-(a.vote_average||0)||(b.width||0)-(a.width||0))[0]?.file_path||null;
-   const result={poster,logo,tmdbId:match.id,tmdbType:kind};await writeManifest(key,result);return result;
+   let titleArabic='';if(titleNeeded)try{const ar=await api(kind+'/'+match.id,{language:'ar-SA'});const title=kind==='movie'?ar.title:ar.name;if((!ar.id||ar.id===match.id)&&typeof title==='string'&&/\p{Script=Arabic}/u.test(title))titleArabic=title.trim();}catch(error){if(error.code==='CANCELLED')throw error;}
+   const result={poster,logo,tmdbId:match.id,tmdbType:kind,...(titleNeeded?{titleArabic}:{})};await writeManifest(key,result);return result;
   };
   let work=pending.get(key);if(!work){work=metadata();pending.set(key,work);work.finally(()=>{if(pending.get(key)===work)pending.delete(key);}).catch(()=>{});}
   const result=await work;check();if(result.reason)return result;
@@ -110,7 +111,7 @@ module.exports=function({dir,getKey=()=>'',getLookupName,request,download}){
   if(posterNeeded&&imagePath(result.poster))posterPath=await saveImage(result.poster);
   // Logos are optional: an unavailable logo must not prevent the text-based icon.
   if(logoNeeded&&imagePath(result.logo))try{logoPath=await saveImage(result.logo);}catch(error){if(error.code==='CANCELLED')throw error;}
-  return {posterPath,logoPath,tmdbId:result.tmdbId,tmdbType:result.tmdbType,...(posterNeeded&&!posterPath?{reason:'no-poster'}:{})};
+  return {posterPath,logoPath,...(titleNeeded?{titleArabic:result.titleArabic||''}:{}),tmdbId:result.tmdbId,tmdbType:result.tmdbType,...(posterNeeded&&!posterPath?{reason:'no-poster'}:{})};
  }
  return {resolve,close(){controller.abort();}};
 };

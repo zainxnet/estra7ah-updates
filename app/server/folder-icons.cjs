@@ -1,5 +1,6 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{spawn}=require('node:child_process');
+const label=require('./folder-icon-label.cjs');
 const pathKey=v=>path.normalize(v||'').replace(/[\\/]+$/,'').toLowerCase(),hash=v=>crypto.createHash('sha256').update(pathKey(v)).digest('hex');
 const supported=x=>{const type=require('./public-catalog.cjs').publicType(x?.type);return !!x&&!!x.path&&path.isAbsolute(x.path)&&x.recordKind!=='file'&&(['movie','series','season'].includes(type)||/^series\./.test(type||''))&&!/\.(?:mkv|mp4|avi|mp3|wav|ogg|m4a)$/i.test(x.path);};
 module.exports=function({dir,getItem,getKey,getPoster=()=>null,getLookupName,onEvent=()=>{},readEvents=()=>[],onCreated=()=>{},onInspected=()=>{},savePoster=require('./poster-folder.cjs'),files,source,render,delayMs=250,maxQueue=2048}){
@@ -8,7 +9,7 @@ module.exports=function({dir,getItem,getKey,getPoster=()=>null,getLookupName,onE
  const stats={status:'idle',runId:null,total:0,processed:0,created:0,postersSaved:0,skipped:0,failed:0,currentItem:'',phase:''};
  const event=(m,k='success')=>{try{onEvent(m,k);}catch{}};
  function runRender(a){return new Promise((resolve,reject)=>{
-  const argv=['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'folder-icon-render.ps1'),'-Poster',a.poster,'-Output',a.output,'-Title',a.title,'-Preview',a.preview];if(a.season)argv.push('-Season',a.season);if(a.logo)argv.push('-Logo',a.logo);
+  const argv=['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'folder-icon-render.ps1'),'-Poster',a.poster,'-Output',a.output,'-Title',a.title,'-Preview',a.preview];if(a.preferArabic)argv.push('-PreferArabic');if(a.season)argv.push('-Season',a.season);if(a.logo)argv.push('-Logo',a.logo);
   const child=spawn('powershell.exe',argv,{windowsHide:true,stdio:['ignore','ignore','pipe']});activeChild=child;let done=false;
   const timeout=setTimeout(()=>{child.kill();finish(Error('RENDER_TIMEOUT'));},45000);
   function finish(error){if(done)return;done=true;clearTimeout(timeout);if(activeChild===child)activeChild=null;error?reject(error):resolve();}
@@ -20,9 +21,11 @@ module.exports=function({dir,getItem,getKey,getPoster=()=>null,getLookupName,onE
   stats.phase='فحص الصورة والأيقونة';
   const result=await io.inspect(item.path);if(closed)return;onInspected(item);if(result.status==='existing'){stats.skipped++;return;}if(result.status!=='ready')throw Error(result.code||'FOLDER_UNAVAILABLE');
   const parent=item.type==='season'?getItem(item.inItem):null;if(parent&&pathKey(parent.path)===pathKey(item.path)){stats.skipped++;return;}
+  const identity=parent||item,lookup=getLookupName?.(identity)||identity.name;
+  let arabicTitle=label.stored(identity);
   let poster=result.posterPath||getPoster(item.id),remote={};
   if(!poster&&parent){const parentArt=await io.inspect(parent.path,{includePoster:true});poster=parentArt.posterPath||getPoster(parent.id);}
-  if(!poster)try{stats.phase='البحث عن بوستر مطابق وتنزيله';remote=await resolver.resolve(item,{parent,posterNeeded:true,logoNeeded:false});}catch{throw Error('POSTER_UNAVAILABLE');}
+  if(!poster)try{stats.phase='البحث عن بوستر مطابق وتنزيله';remote=await resolver.resolve(item,{parent,posterNeeded:true,logoNeeded:false,titleNeeded:!arabicTitle});}catch{throw Error('POSTER_UNAVAILABLE');}
   poster=poster||remote.posterPath;if(closed)return;if(!poster)throw Error('NO_CONFIRMED_POSTER');
   if(!result.posterPath){
    // Keep a real cover beside the new icon even when automatic metadata is off.
@@ -33,8 +36,12 @@ module.exports=function({dir,getItem,getKey,getPoster=()=>null,getLookupName,onE
   }
   const tmp=path.join(folder,hash(item.path)+'-'+crypto.randomUUID()),output=tmp+'.ico',preview=tmp+'.png';
   try{
-   const title=parent?(getLookupName?.(parent)||parent.name):(getLookupName?.(item)||item.name);
-   stats.phase='تصميم الأيقونة وكتابة العنوان';await renderer({poster,output,preview,title,season:parent?path.basename(item.path):''});if(closed)return;
+   if(!arabicTitle&&label.arabic(remote.titleArabic))arabicTitle=remote.titleArabic;
+   if(!arabicTitle&&label.arabic(lookup))arabicTitle=label.folderTitle(lookup);
+   if(!arabicTitle&&remote.titleArabic===undefined)try{stats.phase='البحث عن الاسم العربي الموثوق';const named=await resolver.resolve(item,{parent,posterNeeded:false,logoNeeded:false,titleNeeded:true});if(label.arabic(named.titleArabic))arabicTitle=named.titleArabic;}catch{}
+   if(closed)return;
+   const title=arabicTitle||lookup;
+   stats.phase='تصميم الأيقونة وكتابة العنوان';await renderer({poster,output,preview,title,preferArabic:!!arabicTitle,season:parent?label.season(path.basename(item.path)):''});if(closed)return;
    stats.phase='حفظ الأيقونة وإعداد عرض المجلد';const installed=await io.install(item.path,output);if(installed.status==='existing'){stats.skipped++;return;}if(installed.status!=='created')throw Error(installed.code||'WRITE_FAILED');
    stats.created++;await onCreated(item);event('تم إنشاء أيقونة المجلد: '+item.name+(parent?' — '+path.basename(item.path):''));
    if(installed.datesReady===false)event('حُفظت الأيقونة؛ تعذر ضبط تاريخ تعديل المجلد والصور: '+item.name,'warning');

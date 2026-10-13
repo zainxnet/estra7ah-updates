@@ -637,19 +637,19 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   });
   document.addEventListener('click', function () {
     var _ref7 = _asyncToGenerator(_regenerator().m(function _callee8(e) {
-      var button, card, mode, r, v, msg, _t6;
+      var button, all, card, mode, r, v, msg, _t6;
       return _regenerator().w(function (_context9) {
         while (1) switch (_context9.p = _context9.n) {
           case 0:
-            button = e.target.closest && e.target.closest('.zain-section-sync');
+            button = e.target.closest && e.target.closest('.zain-section-sync,.zain-all-sync');
             if (button) {
               _context9.n = 1;
               break;
             }
             return _context9.a(2);
           case 1:
-            card = button.closest('.sec[id]');
-            if (card) {
+            all = button.classList.contains('zain-all-sync'), card = button.closest('.sec[id]');
+            if (!(!all && !card)) {
               _context9.n = 2;
               break;
             }
@@ -657,19 +657,24 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
           case 2:
             e.preventDefault();
             e.stopImmediatePropagation();
-            if (!(button.disabled || button.dataset.busy === 'yes')) {
+            if (!(button.disabled || button.dataset.busy === 'yes' || all && allSyncPending)) {
               _context9.n = 3;
               break;
             }
             return _context9.a(2);
           case 3:
             mode = button.dataset.syncMode === 'quick' ? 'quick' : 'full';
+            if (all) {
+              document.querySelectorAll('.btns.zain-tools-open').forEach(closeSectionTools);
+              allSyncPending = true;
+              document.querySelectorAll('.zain-all-sync').forEach(b => b.disabled = true);
+            }
             button.disabled = true;
             button.dataset.busy = 'yes';
             button.setAttribute('aria-busy', 'true');
             _context9.p = 4;
             _context9.n = 5;
-            return fetch('/admin/api/SyncSection/' + encodeURIComponent(card.id) + '?mode=' + mode, {
+            return fetch('/admin/api/' + (all ? 'SyncSectionAll' : 'SyncSection/' + encodeURIComponent(card.id)) + '?mode=' + mode, {
               method: 'POST',
               credentials: 'same-origin'
             });
@@ -706,6 +711,10 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             msg.textContent = _t6.message;
           case 9:
             _context9.p = 9;
+            if (all) {
+              allSyncPending = false;
+              document.querySelectorAll('.zain-all-sync').forEach(b => b.disabled = false);
+            }
             button.disabled = false;
             button.dataset.busy = 'no';
             button.setAttribute('aria-busy', 'false');
@@ -719,6 +728,35 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
       return _ref7.apply(this, arguments);
     };
   }(), true);
+  var allSyncPending = false;
+  function allSectionSync() {
+    var host = document.querySelector('.sections-cont');
+    if (!host) return;
+    var group = host.querySelector('#zain-sync-all');
+    var previous = Array.from(host.querySelectorAll('button,.admin-button')).filter(b => !b.closest('.sec,#zain-sync-all') && /^مزامنة (?:الأ|الا)قسام$/.test(b.textContent.trim()));
+    if (!group) {
+      group = element('div');
+      group.id = 'zain-sync-all';
+      group.setAttribute('role', 'group');
+      group.setAttribute('aria-label', 'مزامنة جميع الأقسام');
+      for (var _i2 = 0, _arr2 = ['quick', 'full']; _i2 < _arr2.length; _i2++) {
+        var mode = _arr2[_i2];
+        var b = element('button', mode === 'quick' ? 'مزامنة جميع الأقسام — سريعة' : 'مزامنة جميع الأقسام — شاملة');
+        b.type = 'button';
+        b.className = 'admin-button zain-all-sync';
+        b.dataset.syncMode = mode;
+        b.disabled = allSyncPending;
+        b.title = mode === 'quick' ? 'إضافة الجديد في جميع الأقسام وتجهيز صوره وأيقوناته' : 'فحص جميع الأقسام ومراجعة المحذوف والصور والأيقونات';
+        group.append(b);
+      }
+      if (previous[0]) previous[0].parentNode.insertBefore(group, previous[0]);else host.append(group);
+    }
+    previous.forEach(b => {
+      b.classList.add('zain-old-sync-all');
+      b.setAttribute('aria-hidden', 'true');
+      b.tabIndex = -1;
+    });
+  }
   function scan() {
     if (location.pathname === '/admin/items') {
       var _iterator4 = _createForOfIteratorHelper(document.querySelectorAll('form')),
@@ -748,6 +786,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
       }
     }
     if (location.pathname !== '/admin/sections') return;
+    allSectionSync();
     var _iterator6 = _createForOfIteratorHelper(document.querySelectorAll('.sections-cont .sec[id]')),
       _step6;
     try {
@@ -911,7 +950,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   }
   function _genres() {
     _genres = _asyncToGenerator(_regenerator().m(function _callee1() {
-      var select, here, r, data, selected, _i2, _arr2, name, option;
+      var select, here, r, data, selected, _i3, _arr3, name, option;
       return _regenerator().w(function (_context10) {
         while (1) switch (_context10.p = _context10.n) {
           case 0:
@@ -954,8 +993,8 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
           case 7:
             selected = select.value;
             select.replaceChildren();
-            for (_i2 = 0, _arr2 = ['الكل', ...data.genres]; _i2 < _arr2.length; _i2++) {
-              name = _arr2[_i2];
+            for (_i3 = 0, _arr3 = ['الكل', ...data.genres]; _i3 < _arr3.length; _i3++) {
+              name = _arr3[_i3];
               option = element('option', name);
               option.value = name === 'الكل' ? 'all' : name;
               select.append(option);
@@ -1556,7 +1595,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   function _settings() {
     _settings = _asyncToGenerator(_regenerator().m(function _callee16() {
       var _document$querySelect;
-      var host, response, current, area, form, key, model, reveal, enabled, translation, status, save, test, help, _iterator1, _step1, name, option, old, searchLabel, translationLabel, refreshHelp, _i3, _arr3, input, busy, submit, _submit;
+      var host, response, current, area, form, key, model, reveal, enabled, translation, status, save, test, help, _iterator1, _step1, name, option, old, searchLabel, translationLabel, refreshHelp, _i4, _arr4, input, busy, submit, _submit;
       return _regenerator().w(function (_context19) {
         while (1) switch (_context19.p = _context19.n) {
           case 0:
@@ -1696,8 +1735,8 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             status.setAttribute('role', 'status');
             status.setAttribute('aria-live', 'polite');
             status.style.cssText = 'white-space:pre-wrap;min-height:28px';
-            for (_i3 = 0, _arr3 = [key, model]; _i3 < _arr3.length; _i3++) {
-              input = _arr3[_i3];
+            for (_i4 = 0, _arr4 = [key, model]; _i4 < _arr4.length; _i4++) {
+              input = _arr4[_i4];
               input.style.cssText = 'display:block;width:95%;margin:10px 0;padding:10px;color:white;background:#101523';
             }
             reveal.type = 'button';
@@ -1800,14 +1839,16 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
 
   var style = document.createElement('style');
   style.textContent = `
-.admin-cont .sections-cont .sec .btns{display:grid!important;grid-template-columns:repeat(4,26px)!important;grid-auto-rows:26px!important;gap:2px!important;position:absolute!important;left:6px!important;right:auto!important;top:6px!important;bottom:auto!important;width:auto!important;height:auto!important;padding:0!important;background:transparent;border-radius:8px;z-index:5!important;box-sizing:border-box;direction:ltr}
+.admin-cont .sections-cont .sec .btns{display:grid!important;grid-template-columns:repeat(4,26px)!important;grid-auto-rows:26px!important;gap:2px!important;position:absolute!important;left:6px!important;right:auto!important;top:auto!important;bottom:6px!important;width:auto!important;height:auto!important;padding:0!important;background:transparent;border-radius:8px;z-index:5!important;box-sizing:border-box;direction:ltr}
 .admin-cont .sections-cont .sec .btns>.admin-button-icon{position:static!important;float:none!important;display:flex!important;align-items:center!important;justify-content:center!important;width:26px!important;height:26px!important;min-width:26px!important;margin:0!important;padding:0!important;border:0!important;border-radius:8px!important;box-sizing:border-box;cursor:pointer;font-size:15px!important;line-height:1!important}
-.admin-cont .sections-cont .sec .btns>.zain-tools-toggle{grid-row:1;grid-column:1;background:#309843!important;color:white!important;font:bold 25px Arial!important}
-.admin-cont .sections-cont .sec .btns>.zain-section-sync{grid-row:2;width:54px!important;color:white!important;font:bold 12px Arial!important;direction:rtl}
+.admin-cont .sections-cont .sec .btns>.zain-tools-toggle{grid-row:2;grid-column:1;background:#309843!important;color:white!important;font:bold 25px Arial!important}
+.admin-cont .sections-cont .sec .btns>.zain-section-sync{grid-row:3;width:54px!important;color:white!important;font:bold 12px Arial!important;direction:rtl}
 .admin-cont .sections-cont .sec .btns>[data-sync-mode=quick]{grid-column:3 / span 2;background:#218a64!important}
 .admin-cont .sections-cont .sec .btns>[data-sync-mode=full]{grid-column:1 / span 2;background:#456eac!important}
-.admin-cont .sections-cont .sec .btns>.zain-section-tool{grid-row:3;grid-column:var(--zain-tool-column)}
+.admin-cont .sections-cont .sec .btns>.zain-section-tool{grid-row:1;grid-column:var(--zain-tool-column)}
 .admin-cont .sections-cont .sec .btns:not(.zain-tools-open)>.zain-section-tool{display:none!important}
+.admin-cont .sections-cont .sec .btns:not(.zain-tools-open)>.zain-tools-toggle{grid-row:1}.admin-cont .sections-cont .sec .btns:not(.zain-tools-open)>.zain-section-sync{grid-row:2}
+.zain-old-sync-all{display:none!important}#zain-sync-all{display:inline-flex;flex-wrap:wrap;gap:6px;float:left;clear:both;margin:5px 10px;direction:rtl;max-width:100%;box-sizing:border-box}#zain-sync-all>.zain-all-sync{border:0;border-radius:18px;padding:9px 13px;color:white;cursor:pointer;font:14px Arial;min-height:36px;margin:0;background:#456eac}#zain-sync-all>[data-sync-mode=quick]{background:#218a64}#zain-sync-all>button:disabled{opacity:.55;cursor:wait}
 .admin-cont .sections-cont .sec .btns svg{pointer-events:none;display:block;flex:none}.admin-cont .sections-cont .sec .btns>[aria-busy=true]{opacity:.55;cursor:wait}.admin-cont .sections-cont .sec .btns>button:focus{outline:2px solid white;outline-offset:1px}
 header .zain-main-link .item{margin-left:16px!important;padding-left:16px!important;border-left:1px solid #ffffff35}header .zain-home-entry>.zain-home-section{font:700 14px Estra7ahBold,Arial,sans-serif!important;line-height:22px!important;padding:6px 5px!important;max-width:180px;overflow:hidden;text-overflow:ellipsis}header .zain-nav-expand{font-size:16px!important;padding:8px 5px!important}
 .zain-home-compact .NetWorkTitle{padding:12px 0 8px!important;margin:0!important;height:auto!important;min-height:0!important}.zain-home-compact:not(.zain-has-hero) .NetWorkTitle{padding-top:calc(var(--zain-header-height,72px) + 12px)!important}.zain-home-compact .NetWorkTitle .cont{height:auto!important;min-height:0!important;padding:0!important;margin:0!important}.zain-home-compact .NetWorkTitle .title{font-size:28px!important;line-height:1.4!important;margin:0!important}.zain-home-compact .NetWorkTitle .desc{margin:3px 0!important;line-height:1.6!important}.zain-home-compact .zain-news-wrap{height:auto!important;min-height:48px!important;margin:0!important;padding:0!important}.zain-home-compact .news{margin:4px 0!important;padding:0!important;min-height:40px!important}.zain-home-compact .startSections{padding:0!important;margin:8px 0 14px!important}.zain-home-compact .zain-start-wrap{margin:0!important;padding:0!important}
