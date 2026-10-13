@@ -44,7 +44,7 @@ module.exports=function({base,getItem,getKey,onEvent=()=>{},request,runTool=exec
  const existing=async folder=>(await fsp.readdir(folder,{withFileTypes:true})).some(e=>e.isFile()&&/\.(mp4|mkv|webm|mov|avi)$/i.test(e.name)&&/(?:trailer|preview|إعلان|اعلان)/i.test(e.name));
  async function run(job){
   job.status='running';controllers.set(job.id,new AbortController());const signal=controllers.get(job.id).signal;
-  const stage=path.join(root,job.id);let temporary,folderStat;
+  const stage=path.join(root,job.id);let temporary,folderStat,releaseToolLock;
   onEvent('بدء تحميل إعلان: '+job.name,'success');
   try{
    const item=getItem(job.itemId);if(!item)throw fail('العنصر لم يعد موجودًا',404);
@@ -53,6 +53,7 @@ module.exports=function({base,getItem,getKey,onEvent=()=>{},request,runTool=exec
    folderStat=await fsp.stat(folder);job.folder=folder;
    const key=await videoFor(item,job);check(job);
    const {exe,ffmpeg,node}=resolveTools(base);if(!exe||!ffmpeg||!node)throw fail('لم تُوجد أدوات الإعلان في runtime أو C:\\Tools',503);
+   try{releaseToolLock=require('./trailer-tool-lock.cjs')(exe);}catch(error){throw fail(error.message,409);}
    const common=['--ignore-config','--no-plugin-dirs','--no-cache-dir','--no-remote-components','--no-js-runtimes','--js-runtimes','node:'+node,'--no-playlist','--no-colors','--socket-timeout','20','--retries','2','--ffmpeg-location',path.dirname(ffmpeg)];
    const url='https://www.youtube.com/watch?v='+key;
    job.message='جارٍ فحص الإعلان';
@@ -77,7 +78,7 @@ module.exports=function({base,getItem,getKey,onEvent=()=>{},request,runTool=exec
    // Only this job's UUID directory may be removed.
    if(path.dirname(path.resolve(stage))===root&&path.basename(stage)===job.id)await fsp.rm(stage,{recursive:true,force:true}).catch(()=>{});
    if(folderStat&&job.folder)await fsp.utimes(job.folder,folderStat.atime,folderStat.mtime).catch(()=>{});
-   controllers.delete(job.id);job.finishedAt=new Date().toISOString();onEvent(job.name+': '+job.message,job.status==='completed'?'success':'warning');
+   releaseToolLock?.();controllers.delete(job.id);job.finishedAt=new Date().toISOString();onEvent(job.name+': '+job.message,job.status==='completed'?'success':'warning');
   }
  }
  async function pump(){if(running)return;running=true;try{while(queue.length&&!closed){const job=queue.shift();if(!job.cancelled)await run(job);}}finally{running=false;}}
