@@ -2005,31 +2005,31 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     return _pollTrailers.apply(this, arguments);
   }
   function _pollTrailers() {
-    _pollTrailers = _asyncToGenerator(_regenerator().m(function _callee24() {
+    _pollTrailers = _asyncToGenerator(_regenerator().m(function _callee25() {
       var _trailerPanel2;
-      var result, jobs, host, _trailerPanel, _iterator14, _step14, _loop8, _t26;
-      return _regenerator().w(function (_context28) {
-        while (1) switch (_context28.p = _context28.n) {
+      var result, jobs, host, _trailerPanel, _iterator17, _step17, _loop1, _t27;
+      return _regenerator().w(function (_context29) {
+        while (1) switch (_context29.p = _context29.n) {
           case 0:
-            _context28.n = 1;
+            _context29.n = 1;
             return api('trailerStatus');
           case 1:
-            result = _context28.v;
+            result = _context29.v;
             jobs = result.jobs || [];
             host = document.querySelector('.items-cont .items');
             if (host) {
-              _context28.n = 2;
+              _context29.n = 2;
               break;
             }
-            return _context28.a(2, false);
+            return _context29.a(2, false);
           case 2:
             if (jobs.length) {
-              _context28.n = 3;
+              _context29.n = 3;
               break;
             }
             (_trailerPanel = trailerPanel) === null || _trailerPanel === void 0 || _trailerPanel.remove();
             trailerPanel = null;
-            return _context28.a(2, false);
+            return _context29.a(2, false);
           case 3:
             if (!((_trailerPanel2 = trailerPanel) !== null && _trailerPanel2 !== void 0 && _trailerPanel2.isConnected)) {
               trailerPanel = el('section');
@@ -2038,76 +2038,76 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               host.parentNode.insertBefore(trailerPanel, host);
             }
             trailerPanel.replaceChildren(el('strong', 'تحميل الإعلانات'));
-            _iterator14 = _createForOfIteratorHelper(jobs.slice(-5));
-            _context28.p = 4;
-            _loop8 = _regenerator().m(function _loop8() {
+            _iterator17 = _createForOfIteratorHelper(jobs.slice(-5));
+            _context29.p = 4;
+            _loop1 = _regenerator().m(function _loop1() {
               var job, busy, cancel;
-              return _regenerator().w(function (_context27) {
-                while (1) switch (_context27.n) {
+              return _regenerator().w(function (_context28) {
+                while (1) switch (_context28.n) {
                   case 0:
-                    job = _step14.value;
+                    job = _step17.value;
                     busy = ['queued', 'running'].includes(job.status);
                     trailerPanel.appendChild(el('p', job.name + ' — ' + job.message + (busy && job.percent ? ' — ' + job.percent + '%' : '')));
                     if (busy) {
                       cancel = el('button', 'إيقاف تحميل الإعلان');
-                      cancel.onclick = _asyncToGenerator(_regenerator().m(function _callee23() {
-                        var _t25;
-                        return _regenerator().w(function (_context26) {
-                          while (1) switch (_context26.p = _context26.n) {
+                      cancel.onclick = _asyncToGenerator(_regenerator().m(function _callee24() {
+                        var _t26;
+                        return _regenerator().w(function (_context27) {
+                          while (1) switch (_context27.p = _context27.n) {
                             case 0:
                               cancel.disabled = true;
-                              _context26.p = 1;
-                              _context26.n = 2;
+                              _context27.p = 1;
+                              _context27.n = 2;
                               return api('cancelTrailer', {
                                 id: job.id
                               });
                             case 2:
                               nextPoll = 0;
                               poll();
-                              _context26.n = 4;
+                              _context27.n = 4;
                               break;
                             case 3:
-                              _context26.p = 3;
-                              _t25 = _context26.v;
-                              notice = _t25.message;
+                              _context27.p = 3;
+                              _t26 = _context27.v;
+                              notice = _t26.message;
                               render([]);
                             case 4:
-                              return _context26.a(2);
+                              return _context27.a(2);
                           }
-                        }, _callee23, null, [[1, 3]]);
+                        }, _callee24, null, [[1, 3]]);
                       }));
                       trailerPanel.appendChild(cancel);
                     }
                   case 1:
-                    return _context27.a(2);
+                    return _context28.a(2);
                 }
-              }, _loop8);
+              }, _loop1);
             });
-            _iterator14.s();
+            _iterator17.s();
           case 5:
-            if ((_step14 = _iterator14.n()).done) {
-              _context28.n = 7;
+            if ((_step17 = _iterator17.n()).done) {
+              _context29.n = 7;
               break;
             }
-            return _context28.d(_regeneratorValues(_loop8()), 6);
+            return _context29.d(_regeneratorValues(_loop1()), 6);
           case 6:
-            _context28.n = 5;
+            _context29.n = 5;
             break;
           case 7:
-            _context28.n = 9;
+            _context29.n = 9;
             break;
           case 8:
-            _context28.p = 8;
-            _t26 = _context28.v;
-            _iterator14.e(_t26);
+            _context29.p = 8;
+            _t27 = _context29.v;
+            _iterator17.e(_t27);
           case 9:
-            _context28.p = 9;
-            _iterator14.f();
-            return _context28.f(9);
+            _context29.p = 9;
+            _iterator17.f();
+            return _context29.f(9);
           case 10:
-            return _context28.a(2, jobs.some(j => ['queued', 'running'].includes(j.status)));
+            return _context29.a(2, jobs.some(j => ['queued', 'running'].includes(j.status)));
         }
-      }, _callee24, null, [[4, 8, 9, 10]]);
+      }, _callee25, null, [[4, 8, 9, 10]]);
     }));
     return _pollTrailers.apply(this, arguments);
   }
@@ -2268,12 +2268,12 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     return _api.apply(this, arguments);
   }
   function _api() {
-    _api = _asyncToGenerator(_regenerator().m(function _callee25(action, body) {
+    _api = _asyncToGenerator(_regenerator().m(function _callee26(action, body) {
       var response, data;
-      return _regenerator().w(function (_context29) {
-        while (1) switch (_context29.n) {
+      return _regenerator().w(function (_context30) {
+        while (1) switch (_context30.n) {
           case 0:
-            _context29.n = 1;
+            _context30.n = 1;
             return fetch('/admin/api/' + action, _objectSpread({
               credentials: 'same-origin',
               cache: 'no-store',
@@ -2285,20 +2285,20 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               body: JSON.stringify(body)
             } : {}));
           case 1:
-            response = _context29.v;
-            _context29.n = 2;
+            response = _context30.v;
+            _context30.n = 2;
             return response.json();
           case 2:
-            data = _context29.v;
+            data = _context30.v;
             if (!(!response.ok || data.msg === 'error')) {
-              _context29.n = 3;
+              _context30.n = 3;
               break;
             }
             throw Error(data.error || 'تعذر الاتصال بخدمة المزامنة');
           case 3:
-            return _context29.a(2, data);
+            return _context30.a(2, data);
         }
-      }, _callee25);
+      }, _callee26);
     }));
     return _api.apply(this, arguments);
   }
@@ -2337,6 +2337,122 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     }
     return panel;
   }
+  function renderMatchChoices(host, jobs) {
+    var active = jobs.some(job => ['queued', 'running'].includes(job.status));
+    var _iterator12 = _createForOfIteratorHelper(jobs.slice(-10)),
+      _step12;
+    try {
+      var _loop7 = function _loop7() {
+        var job = _step12.value;
+        var _iterator13 = _createForOfIteratorHelper(job.errors || []),
+          _step13;
+        try {
+          var _loop8 = function _loop8() {
+            var _error$matches;
+            var error = _step13.value;
+            if (error.resolved || !((_error$matches = error.matches) !== null && _error$matches !== void 0 && _error$matches.length)) return 1;
+            var box = el('details');
+            box.className = 'zain-metadata-choices';
+            box.open = true;
+            box.style.cssText = 'border:1px solid #536783;border-radius:8px;padding:10px;margin:10px 0;max-height:430px;overflow:auto';
+            box.appendChild(el('summary', 'اختر العمل الصحيح: ' + (error.name || error.id)));
+            var _iterator14 = _createForOfIteratorHelper(error.matches),
+              _step14;
+            try {
+              var _loop9 = function _loop9() {
+                var match = _step14.value;
+                var row = el('div');
+                row.style.cssText = 'display:flex;gap:12px;align-items:flex-start;border-top:1px solid #39445b;margin-top:8px;padding-top:8px';
+                if (match.poster && /^\/[a-zA-Z0-9_.-]+$/.test(match.poster)) {
+                  var img = el('img');
+                  img.src = 'https://image.tmdb.org/t/p/w185' + match.poster;
+                  img.alt = match.title;
+                  img.loading = 'lazy';
+                  img.style.cssText = 'width:64px;height:96px;object-fit:cover;border-radius:5px';
+                  row.appendChild(img);
+                }
+                var info = el('div');
+                info.style.cssText = 'flex:1;min-width:0';
+                info.appendChild(el('strong', match.title + ' — ' + (match.date || 'تاريخ غير متاح') + ' — ' + (match.kind === 'tv' ? 'مسلسل' : 'فيلم')));
+                if (match.original && match.original !== match.title) info.appendChild(el('p', match.original));
+                if (match.overview) info.appendChild(el('p', match.overview));
+                var button = el('button', 'اعتماد هذا العمل وجلب بياناته');
+                button.type = 'button';
+                button.className = 'zain-select-metadata';
+                button.style.background = '#218a64';
+                button.disabled = active || requesting;
+                button.onclick = _asyncToGenerator(_regenerator().m(function _callee19() {
+                  var _t18;
+                  return _regenerator().w(function (_context22) {
+                    while (1) switch (_context22.p = _context22.n) {
+                      case 0:
+                        if (!requesting) {
+                          _context22.n = 1;
+                          break;
+                        }
+                        return _context22.a(2);
+                      case 1:
+                        requesting = true;
+                        button.disabled = true;
+                        _context22.p = 2;
+                        _context22.n = 3;
+                        return api('selectMetadataMatch', {
+                          jobId: job.id,
+                          itemId: error.id,
+                          tmdbId: match.id,
+                          kind: match.kind
+                        });
+                      case 3:
+                        notice = 'بدأ جلب بيانات العمل الذي اخترته، ثم تحديث الأيقونة.';
+                        _context22.n = 5;
+                        break;
+                      case 4:
+                        _context22.p = 4;
+                        _t18 = _context22.v;
+                        notice = _t18.message;
+                      case 5:
+                        _context22.p = 5;
+                        requesting = false;
+                        nextPoll = 0;
+                        poll();
+                        return _context22.f(5);
+                      case 6:
+                        return _context22.a(2);
+                    }
+                  }, _callee19, null, [[2, 4, 5, 6]]);
+                }));
+                info.appendChild(button);
+                row.appendChild(info);
+                box.appendChild(row);
+              };
+              for (_iterator14.s(); !(_step14 = _iterator14.n()).done;) {
+                _loop9();
+              }
+            } catch (err) {
+              _iterator14.e(err);
+            } finally {
+              _iterator14.f();
+            }
+            host.appendChild(box);
+          };
+          for (_iterator13.s(); !(_step13 = _iterator13.n()).done;) {
+            if (_loop8()) continue;
+          }
+        } catch (err) {
+          _iterator13.e(err);
+        } finally {
+          _iterator13.f();
+        }
+      };
+      for (_iterator12.s(); !(_step12 = _iterator12.n()).done;) {
+        _loop7();
+      }
+    } catch (err) {
+      _iterator12.e(err);
+    } finally {
+      _iterator12.f();
+    }
+  }
   function render(jobs) {
     var host = ensurePanel();
     if (!host) return;
@@ -2348,38 +2464,38 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     toggle.checked = automaticEnabled;
     toggle.disabled = settingBusy;
     toggle.style.cssText = 'width:20px;height:20px;vertical-align:middle;margin-left:8px';
-    toggle.onchange = _asyncToGenerator(_regenerator().m(function _callee19() {
-      var result, _t18;
-      return _regenerator().w(function (_context22) {
-        while (1) switch (_context22.p = _context22.n) {
+    toggle.onchange = _asyncToGenerator(_regenerator().m(function _callee20() {
+      var result, _t19;
+      return _regenerator().w(function (_context23) {
+        while (1) switch (_context23.p = _context23.n) {
           case 0:
             settingBusy = true;
             toggle.disabled = true;
-            _context22.p = 1;
-            _context22.n = 2;
+            _context23.p = 1;
+            _context23.n = 2;
             return api('setAutomaticMetadata', {
               enabled: toggle.checked
             });
           case 2:
-            result = _context22.v;
+            result = _context23.v;
             automaticEnabled = result.automaticEnabled;
             notice = automaticEnabled ? 'المزامنة التلقائية للبيانات مفعلة بعد اكتشاف المحتوى.' : 'المزامنة التلقائية للبيانات معطلة؛ تستمر مزامنة المجلدات، وتبقى المزامنة اليدوية متاحة.';
-            _context22.n = 4;
+            _context23.n = 4;
             break;
           case 3:
-            _context22.p = 3;
-            _t18 = _context22.v;
-            notice = _t18.message;
+            _context23.p = 3;
+            _t19 = _context23.v;
+            notice = _t19.message;
           case 4:
-            _context22.p = 4;
+            _context23.p = 4;
             settingBusy = false;
             nextPoll = 0;
             poll();
-            return _context22.f(4);
+            return _context23.f(4);
           case 5:
-            return _context22.a(2);
+            return _context23.a(2);
         }
-      }, _callee19, null, [[1, 3, 4, 5]]);
+      }, _callee20, null, [[1, 3, 4, 5]]);
     }));
     label.appendChild(toggle);
     label.appendChild(document.createTextNode('مزامنة بيانات المحتوى تلقائيًا بعد إضافة الجديد'));
@@ -2393,38 +2509,38 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     if (active.length) {
       var cancelAll = el('button', 'إلغاء جميع مهام مزامنة البيانات');
       cancelAll.style.cssText = 'display:block;background:#cf303d;color:white;padding:10px 18px;font-weight:bold';
-      cancelAll.onclick = _asyncToGenerator(_regenerator().m(function _callee20() {
-        var _t19;
-        return _regenerator().w(function (_context23) {
-          while (1) switch (_context23.p = _context23.n) {
+      cancelAll.onclick = _asyncToGenerator(_regenerator().m(function _callee21() {
+        var _t20;
+        return _regenerator().w(function (_context24) {
+          while (1) switch (_context24.p = _context24.n) {
             case 0:
               cancelAll.disabled = true;
-              _context23.p = 1;
-              _context23.n = 2;
+              _context24.p = 1;
+              _context24.n = 2;
               return api('cancelAllMetadata', {});
             case 2:
               notice = 'تم طلب إلغاء جميع مهام البيانات الحالية.';
-              _context23.n = 4;
+              _context24.n = 4;
               break;
             case 3:
-              _context23.p = 3;
-              _t19 = _context23.v;
-              notice = _t19.message;
+              _context24.p = 3;
+              _t20 = _context24.v;
+              notice = _t20.message;
             case 4:
               nextPoll = 0;
               poll();
             case 5:
-              return _context23.a(2);
+              return _context24.a(2);
           }
-        }, _callee20, null, [[1, 3]]);
+        }, _callee21, null, [[1, 3]]);
       }));
       host.appendChild(cancelAll);
     }
-    var _iterator12 = _createForOfIteratorHelper(active.length ? active : jobs.slice(-1)),
-      _step12;
+    var _iterator15 = _createForOfIteratorHelper(active.length ? active : jobs.slice(-1)),
+      _step15;
     try {
-      var _loop7 = function _loop7() {
-        var job = _step12.value;
+      var _loop0 = function _loop0() {
+        var job = _step15.value;
         var row = el('p', (statusNames[job.status] || job.status) + ' — ' + job.completed + ' محفوظ، ' + job.failed + ' تعذر، ' + (job.skipped || 0) + ' مكتمل سابقاً، من ' + job.total);
         host.appendChild(row);
         var current = (job.activeItems || []).map(item => item.name).filter(Boolean);
@@ -2436,42 +2552,43 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
           var button = el('button', 'إيقاف مزامنة البيانات');
           button.type = 'button';
           button.disabled = !!job.cancelled;
-          button.onclick = _asyncToGenerator(_regenerator().m(function _callee21() {
-            var _t20;
-            return _regenerator().w(function (_context24) {
-              while (1) switch (_context24.p = _context24.n) {
+          button.onclick = _asyncToGenerator(_regenerator().m(function _callee22() {
+            var _t21;
+            return _regenerator().w(function (_context25) {
+              while (1) switch (_context25.p = _context25.n) {
                 case 0:
                   button.disabled = true;
-                  _context24.p = 1;
-                  _context24.n = 2;
+                  _context25.p = 1;
+                  _context25.n = 2;
                   return api('cancelMetadata/' + encodeURIComponent(job.id), {});
                 case 2:
                   notice = 'أرسل طلب الإيقاف؛ تبقى البيانات المحفوظة متاحة.';
-                  _context24.n = 4;
+                  _context25.n = 4;
                   break;
                 case 3:
-                  _context24.p = 3;
-                  _t20 = _context24.v;
-                  notice = _t20.message;
+                  _context25.p = 3;
+                  _t21 = _context25.v;
+                  notice = _t21.message;
                 case 4:
                   nextPoll = 0;
                   poll();
                 case 5:
-                  return _context24.a(2);
+                  return _context25.a(2);
               }
-            }, _callee21, null, [[1, 3]]);
+            }, _callee22, null, [[1, 3]]);
           }));
           host.appendChild(button);
         }
       };
-      for (_iterator12.s(); !(_step12 = _iterator12.n()).done;) {
-        _loop7();
+      for (_iterator15.s(); !(_step15 = _iterator15.n()).done;) {
+        _loop0();
       }
     } catch (err) {
-      _iterator12.e(err);
+      _iterator15.e(err);
     } finally {
-      _iterator12.f();
+      _iterator15.f();
     }
+    renderMatchChoices(host, jobs);
     var link = el('a', 'عرض التفاصيل في سجل الأحداث');
     link.href = '/admin/events';
     link.style.color = '#c2d4ff';
@@ -2495,13 +2612,13 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     return _poll.apply(this, arguments);
   }
   function _poll() {
-    _poll = _asyncToGenerator(_regenerator().m(function _callee26() {
-      var active, option, rows, ids, _status, jobs, states, byId, changed, _iterator15, _step15, _row$card$querySelect, _row, _item, picture, reload, becameSaved, _iterator16, _step16, job, _iterator21, _step21, id, _key, _iterator17, _step17, _job, _iterator22, _step22, _id, _key2, updated, _iterator18, _step18, item, _iterator19, _step19, row, img, url, _iterator20, _step20, _id2, _t27, _t28, _t29, _t30;
-      return _regenerator().w(function (_context30) {
-        while (1) switch (_context30.p = _context30.n) {
+    _poll = _asyncToGenerator(_regenerator().m(function _callee27() {
+      var active, option, rows, ids, _status, jobs, states, byId, changed, _iterator18, _step18, _row$card$querySelect, _row, _item, picture, reload, becameSaved, _iterator19, _step19, job, _iterator24, _step24, id, _key, _iterator20, _step20, _job, _iterator25, _step25, _id, _key2, updated, _iterator21, _step21, item, _iterator22, _step22, row, img, url, _iterator23, _step23, _id2, _t28, _t29, _t30, _t31;
+      return _regenerator().w(function (_context31) {
+        while (1) switch (_context31.p = _context31.n) {
           case 0:
             if (!(location.pathname !== '/admin/items')) {
-              _context30.n = 1;
+              _context31.n = 1;
               break;
             }
             if (wasItems) {
@@ -2513,75 +2630,75 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               nextPoll = 0;
               wasItems = false;
             }
-            return _context30.a(2);
+            return _context31.a(2);
           case 1:
             wasItems = true;
             if (!(polling || Date.now() < nextPoll)) {
-              _context30.n = 2;
+              _context31.n = 2;
               break;
             }
-            return _context30.a(2);
+            return _context31.a(2);
           case 2:
             polling = true;
             active = false;
-            _context30.p = 3;
+            _context31.p = 3;
             ensurePinnedButton();
             enhanceItemTools();
             option = document.querySelector('.items-cont option[value="no-content"]');
             if (option) option.textContent = 'العناصر غير المزامنة — الأحدث أولاً';
             rows = cards();
             ids = rows.map(row => row.id);
-            _context30.n = 4;
+            _context31.n = 4;
             return api('metadataStatus');
           case 4:
-            _status = _context30.v;
+            _status = _context31.v;
             jobs = Array.isArray(_status.jobs) ? _status.jobs : [];
             automaticEnabled = _status.automaticEnabled !== false;
             active = jobs.some(job => job.status === 'queued' || job.status === 'running');
             render(jobs);
-            _context30.p = 5;
-            _context30.n = 6;
+            _context31.p = 5;
+            _context31.n = 6;
             return pollTrailers();
           case 6:
-            _t27 = _context30.v;
-            if (_t27) {
-              _context30.n = 7;
+            _t28 = _context31.v;
+            if (_t28) {
+              _context31.n = 7;
               break;
             }
-            _t27 = active;
+            _t28 = active;
           case 7:
-            active = _t27;
-            _context30.n = 9;
+            active = _t28;
+            _context31.n = 9;
             break;
           case 8:
-            _context30.p = 8;
-            _t28 = _context30.v;
+            _context31.p = 8;
+            _t29 = _context31.v;
           case 9:
             if (!ids.length) {
-              _context30.n = 21;
+              _context31.n = 21;
               break;
             }
-            _context30.n = 10;
+            _context31.n = 10;
             return api('getItemSyncState/' + encodeURIComponent(ids.slice(0, 200).join(',')));
           case 10:
-            states = _context30.v;
+            states = _context31.v;
             byId = new Map((states.items || []).map(item => [item.id, item]));
             changed = new Set();
-            _iterator15 = _createForOfIteratorHelper(rows);
-            _context30.p = 11;
-            _iterator15.s();
+            _iterator18 = _createForOfIteratorHelper(rows);
+            _context31.p = 11;
+            _iterator18.s();
           case 12:
-            if ((_step15 = _iterator15.n()).done) {
-              _context30.n = 15;
+            if ((_step18 = _iterator18.n()).done) {
+              _context31.n = 15;
               break;
             }
-            _row = _step15.value;
+            _row = _step18.value;
             _item = byId.get(_row.id);
             if (_item) {
-              _context30.n = 13;
+              _context31.n = 13;
               break;
             }
-            return _context30.a(3, 14);
+            return _context31.a(3, 14);
           case 13:
             picture = _row.card.querySelector('.img'), reload = (_row$card$querySelect = _row.card.querySelector('.lni-reload')) === null || _row$card$querySelect === void 0 ? void 0 : _row$card$querySelect.closest('.ic');
             if (picture) {
@@ -2600,28 +2717,28 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               reload.title = 'تحديث البيانات وترجمتها وإعادة إنشاء الأيقونة بالعربية';
             }
           case 14:
-            _context30.n = 12;
+            _context31.n = 12;
             break;
           case 15:
-            _context30.n = 17;
+            _context31.n = 17;
             break;
           case 16:
-            _context30.p = 16;
-            _t29 = _context30.v;
-            _iterator15.e(_t29);
+            _context31.p = 16;
+            _t30 = _context31.v;
+            _iterator18.e(_t30);
           case 17:
-            _context30.p = 17;
-            _iterator15.f();
-            return _context30.f(17);
+            _context31.p = 17;
+            _iterator18.f();
+            return _context31.f(17);
           case 18:
-            _iterator16 = _createForOfIteratorHelper(jobs);
+            _iterator19 = _createForOfIteratorHelper(jobs);
             try {
-              for (_iterator16.s(); !(_step16 = _iterator16.n()).done;) {
-                job = _step16.value;
-                _iterator21 = _createForOfIteratorHelper(job.completedIds || []);
+              for (_iterator19.s(); !(_step19 = _iterator19.n()).done;) {
+                job = _step19.value;
+                _iterator24 = _createForOfIteratorHelper(job.completedIds || []);
                 try {
-                  for (_iterator21.s(); !(_step21 = _iterator21.n()).done;) {
-                    id = _step21.value;
+                  for (_iterator24.s(); !(_step24 = _iterator24.n()).done;) {
+                    id = _step24.value;
                     _key = job.id + ':' + id;
                     if (byId.has(id) && !seenCompletions.has(_key)) {
                       changed.add(id);
@@ -2629,24 +2746,24 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                     }
                   }
                 } catch (err) {
-                  _iterator21.e(err);
+                  _iterator24.e(err);
                 } finally {
-                  _iterator21.f();
+                  _iterator24.f();
                 }
               }
             } catch (err) {
-              _iterator16.e(err);
+              _iterator19.e(err);
             } finally {
-              _iterator16.f();
+              _iterator19.f();
             }
-            _iterator17 = _createForOfIteratorHelper(jobs);
+            _iterator20 = _createForOfIteratorHelper(jobs);
             try {
-              for (_iterator17.s(); !(_step17 = _iterator17.n()).done;) {
-                _job = _step17.value;
-                _iterator22 = _createForOfIteratorHelper(_job.posterReadyIds || []);
+              for (_iterator20.s(); !(_step20 = _iterator20.n()).done;) {
+                _job = _step20.value;
+                _iterator25 = _createForOfIteratorHelper(_job.posterReadyIds || []);
                 try {
-                  for (_iterator22.s(); !(_step22 = _iterator22.n()).done;) {
-                    _id = _step22.value;
+                  for (_iterator25.s(); !(_step25 = _iterator25.n()).done;) {
+                    _id = _step25.value;
                     _key2 = _job.id + ':poster:' + _id;
                     if (byId.has(_id) && !seenCompletions.has(_key2)) {
                       changed.add(_id);
@@ -2654,39 +2771,39 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                     }
                   }
                 } catch (err) {
-                  _iterator22.e(err);
+                  _iterator25.e(err);
                 } finally {
-                  _iterator22.f();
+                  _iterator25.f();
                 }
               }
             } catch (err) {
-              _iterator17.e(err);
+              _iterator20.e(err);
             } finally {
-              _iterator17.f();
+              _iterator20.f();
             }
             if (!changed.size) {
-              _context30.n = 20;
+              _context31.n = 20;
               break;
             }
-            _context30.n = 19;
+            _context31.n = 19;
             return api('getItemSyncState/' + encodeURIComponent(Array.from(changed).join(',')) + '/content');
           case 19:
-            updated = _context30.v;
-            _iterator18 = _createForOfIteratorHelper(updated.items || []);
+            updated = _context31.v;
+            _iterator21 = _createForOfIteratorHelper(updated.items || []);
             try {
-              for (_iterator18.s(); !(_step18 = _iterator18.n()).done;) {
-                item = _step18.value;
+              for (_iterator21.s(); !(_step21 = _iterator21.n()).done;) {
+                item = _step21.value;
                 fresh.set(item.id, item);
               }
             } catch (err) {
-              _iterator18.e(err);
+              _iterator21.e(err);
             } finally {
-              _iterator18.f();
+              _iterator21.f();
             }
-            _iterator19 = _createForOfIteratorHelper(rows);
+            _iterator22 = _createForOfIteratorHelper(rows);
             try {
-              for (_iterator19.s(); !(_step19 = _iterator19.n()).done;) {
-                row = _step19.value;
+              for (_iterator22.s(); !(_step22 = _iterator22.n()).done;) {
+                row = _step22.value;
                 if (changed.has(row.id)) {
                   img = row.card.querySelector('img');
                   if (img) {
@@ -2697,206 +2814,206 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                 }
               }
             } catch (err) {
-              _iterator19.e(err);
+              _iterator22.e(err);
             } finally {
-              _iterator19.f();
+              _iterator22.f();
             }
           case 20:
-            _iterator20 = _createForOfIteratorHelper(fresh.keys());
+            _iterator23 = _createForOfIteratorHelper(fresh.keys());
             try {
-              for (_iterator20.s(); !(_step20 = _iterator20.n()).done;) {
-                _id2 = _step20.value;
+              for (_iterator23.s(); !(_step23 = _iterator23.n()).done;) {
+                _id2 = _step23.value;
                 if (!byId.has(_id2)) fresh.delete(_id2);
               }
             } catch (err) {
-              _iterator20.e(err);
+              _iterator23.e(err);
             } finally {
-              _iterator20.f();
+              _iterator23.f();
             }
           case 21:
-            _context30.n = 23;
+            _context31.n = 23;
             break;
           case 22:
-            _context30.p = 22;
-            _t30 = _context30.v;
-            notice = _t30.message;
+            _context31.p = 22;
+            _t31 = _context31.v;
+            notice = _t31.message;
             render([]);
           case 23:
-            _context30.p = 23;
+            _context31.p = 23;
             polling = false;
             nextPoll = Date.now() + (document.hidden ? 10000 : active ? 1000 : 5000);
-            return _context30.f(23);
+            return _context31.f(23);
           case 24:
-            return _context30.a(2);
+            return _context31.a(2);
         }
-      }, _callee26, null, [[11, 16, 17, 18], [5, 8], [3, 22, 23, 24]]);
+      }, _callee27, null, [[11, 16, 17, 18], [5, 8], [3, 22, 23, 24]]);
     }));
     return _poll.apply(this, arguments);
   }
   document.addEventListener('click', function () {
-    var _ref13 = _asyncToGenerator(_regenerator().m(function _callee22(event) {
-      var target, ids, all, rebuildIcon, full, incomplete, id, text, _ids, result, _t21, _t22, _t23, _t24;
-      return _regenerator().w(function (_context25) {
-        while (1) switch (_context25.p = _context25.n) {
+    var _ref14 = _asyncToGenerator(_regenerator().m(function _callee23(event) {
+      var target, ids, all, rebuildIcon, full, incomplete, id, text, _ids, result, _t22, _t23, _t24, _t25;
+      return _regenerator().w(function (_context26) {
+        while (1) switch (_context26.p = _context26.n) {
           case 0:
             if (!(location.pathname !== '/admin/items')) {
-              _context25.n = 1;
+              _context26.n = 1;
               break;
             }
-            return _context25.a(2);
+            return _context26.a(2);
           case 1:
             target = event.target.closest && event.target.closest('.items-cont .items>.item .ic,.items-cont .admin-fancy-button');
             if (target) {
-              _context25.n = 2;
+              _context26.n = 2;
               break;
             }
-            return _context25.a(2);
+            return _context26.a(2);
           case 2:
             all = false, rebuildIcon = false, full = false, incomplete = false;
             if (!target.closest('.items>.item')) {
-              _context25.n = 5;
+              _context26.n = 5;
               break;
             }
             if (target.querySelector('.lni-reload')) {
-              _context25.n = 3;
+              _context26.n = 3;
               break;
             }
-            return _context25.a(2);
+            return _context26.a(2);
           case 3:
             id = cardId(target.closest('.items>.item'));
             if (id) {
-              _context25.n = 4;
+              _context26.n = 4;
               break;
             }
-            return _context25.a(2);
+            return _context26.a(2);
           case 4:
             ids = [id];
             rebuildIcon = true;
-            _context25.n = 9;
+            _context26.n = 9;
             break;
           case 5:
             text = target.textContent;
             if (!/مزامنة كل العناصر بدون محتوى/.test(text)) {
-              _context25.n = 6;
+              _context26.n = 6;
               break;
             }
             all = true;
-            _context25.n = 9;
+            _context26.n = 9;
             break;
           case 6:
             if (!(target.dataset.zainSync === 'incomplete')) {
-              _context25.n = 7;
+              _context26.n = 7;
               break;
             }
             incomplete = true;
-            _context25.n = 9;
+            _context26.n = 9;
             break;
           case 7:
             if (!(target.dataset.zainSync === 'full' || /مزامنة كل العناصر الحالية/.test(text))) {
-              _context25.n = 8;
+              _context26.n = 8;
               break;
             }
             ids = cards().map(row => row.id);
             full = true;
             rebuildIcon = true;
-            _context25.n = 9;
+            _context26.n = 9;
             break;
           case 8:
-            return _context25.a(2);
+            return _context26.a(2);
           case 9:
             event.preventDefault();
             event.stopImmediatePropagation();
             if (!requesting) {
-              _context25.n = 10;
+              _context26.n = 10;
               break;
             }
-            return _context25.a(2);
+            return _context26.a(2);
           case 10:
             requesting = true;
             target.setAttribute('aria-busy', 'true');
-            _context25.p = 11;
+            _context26.p = 11;
             if (!incomplete) {
-              _context25.n = 13;
+              _context26.n = 13;
               break;
             }
-            _context25.n = 12;
+            _context26.n = 12;
             return api('prepareNewest100', {});
           case 12:
-            _t21 = _context25.v;
-            _context25.n = 21;
+            _t22 = _context26.v;
+            _context26.n = 21;
             break;
           case 13:
             if (!full) {
-              _context25.n = 15;
+              _context26.n = 15;
               break;
             }
-            _context25.n = 14;
+            _context26.n = 14;
             return api('refreshVisibleItems', {
               ids: ids.join(',')
             });
           case 14:
-            _t22 = _context25.v;
-            _context25.n = 20;
+            _t23 = _context26.v;
+            _context26.n = 20;
             break;
           case 15:
             if (!all) {
-              _context25.n = 17;
+              _context26.n = 17;
               break;
             }
-            _context25.n = 16;
+            _context26.n = 16;
             return api('startDownloadItemsData', {});
           case 16:
-            _t23 = _context25.v;
-            _context25.n = 19;
+            _t24 = _context26.v;
+            _context26.n = 19;
             break;
           case 17:
-            _context25.n = 18;
+            _context26.n = 18;
             return api('getContentAndSaveItAll', {
               ids: ids.join(','),
               rebuildIcon
             });
           case 18:
-            _t23 = _context25.v;
+            _t24 = _context26.v;
           case 19:
-            _t22 = _t23;
+            _t23 = _t24;
           case 20:
-            _t21 = _t22;
+            _t22 = _t23;
           case 21:
-            result = _t21;
+            result = _t22;
             notice = incomplete ? 'بدأ اختيار أحدث 100 عنصر ينقصه البيانات أو الأيقونة؛ يكتمل الجزء الناقص فقط.' : rebuildIcon ? 'بدأ تحديث البيانات وترجمتها؛ بعدها يعاد إنشاء الأيقونة بالاسم العربي. يظهر التقدم والنتيجة في سجل المزامنة.' : 'بدأت مزامنة ' + (result.total || ((_ids = ids) === null || _ids === void 0 ? void 0 : _ids.length) || 0) + ' عنصر، من الأحدث إلى الأقدم؛ تتحدث حالة البطاقات أثناء العمل.';
             render([]);
-            _context25.n = 23;
+            _context26.n = 23;
             break;
           case 22:
-            _context25.p = 22;
-            _t24 = _context25.v;
-            notice = _t24.message;
+            _context26.p = 22;
+            _t25 = _context26.v;
+            notice = _t25.message;
             render([]);
           case 23:
-            _context25.p = 23;
+            _context26.p = 23;
             requesting = false;
             target.removeAttribute('aria-busy');
             nextPoll = 0;
             poll();
-            return _context25.f(23);
+            return _context26.f(23);
           case 24:
-            return _context25.a(2);
+            return _context26.a(2);
         }
-      }, _callee22, null, [[11, 22, 23, 24]]);
+      }, _callee23, null, [[11, 22, 23, 24]]);
     }));
     return function (_x23) {
-      return _ref13.apply(this, arguments);
+      return _ref14.apply(this, arguments);
     };
   }(), true);
   window.addEventListener('zain-artwork-updated', event => {
     var _event$detail;
     if (location.pathname !== '/admin/items') return;
     var ids = new Set(((_event$detail = event.detail) === null || _event$detail === void 0 ? void 0 : _event$detail.ids) || []);
-    var _iterator13 = _createForOfIteratorHelper(cards()),
-      _step13;
+    var _iterator16 = _createForOfIteratorHelper(cards()),
+      _step16;
     try {
-      for (_iterator13.s(); !(_step13 = _iterator13.n()).done;) {
-        var row = _step13.value;
+      for (_iterator16.s(); !(_step16 = _iterator16.n()).done;) {
+        var row = _step16.value;
         if (ids.has(row.id)) {
           var img = row.card.querySelector('img');
           if (img) {
@@ -2908,9 +3025,9 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
         }
       }
     } catch (err) {
-      _iterator13.e(err);
+      _iterator16.e(err);
     } finally {
-      _iterator13.f();
+      _iterator16.f();
     }
   });
   document.addEventListener('change', event => {
