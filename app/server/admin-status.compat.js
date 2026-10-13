@@ -530,7 +530,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
         var row = element('p', 'artwork-entry');
         row.dataset.type = event.type || '';
         var time = new Date(Number(event.createdAt) * 1000);
-        row.textContent = (Number.isFinite(time.getTime()) ? time.toLocaleTimeString('ar') + ' — ' : '') + String(event.msg || '');
+        row.textContent = (Number.isFinite(time.getTime()) ? time.toLocaleTimeString('ar') + ' — ' : '') + String(event.msg || '').replace('جارٍ تجهيز أيقونات المجلدات في الخلفية', 'بدأ تجهيز أيقونات المجلدات');
         view.log.append(row);
       }
     } catch (err) {
@@ -540,7 +540,19 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     }
     view.log.scrollTop = scroll;
   }
+  var artworkRevision = '';
   function renderArtwork() {
+    var stats = artworkData.stats || {},
+      revision = String(stats.runId) + ':' + stats.created;
+    if (artworkRevision !== revision) {
+      var _stats$updatedIds;
+      artworkRevision = revision;
+      if ((_stats$updatedIds = stats.updatedIds) !== null && _stats$updatedIds !== void 0 && _stats$updatedIds.length) window.dispatchEvent(new CustomEvent('zain-artwork-updated', {
+        detail: {
+          ids: stats.updatedIds
+        }
+      }));
+    }
     paintArtwork(artworkPanel);
     var target = location.pathname === '/admin/events' && document.querySelector('.localevents-cont .cont-ev');
     if (!target) {
@@ -678,10 +690,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     stopAll.hidden = !active.length;
     if (location.pathname === '/admin/sections') {
       var cont = document.querySelector('.sections-cont');
-      if (cont && !cont.contains(inlineStop)) {
-        var anchor = Array.from(cont.querySelectorAll('button,.admin-button')).find(b => /مزامنة (?:الأ|الا)قسام/.test(b.textContent));
-        if (anchor) anchor.parentNode.insertBefore(inlineStop, anchor.nextSibling);else cont.append(inlineStop);
-      }
+      if (cont && !cont.contains(inlineStop)) cont.append(inlineStop);
     } else inlineStop.remove();
   }
   function cancelAll() {
@@ -843,7 +852,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     };
   }
   function render(jobs) {
-    var _artworkData$stats, _artworkData$events, _artworkData$stats2, _artworkData$stats3;
+    var _artworkData$stats, _artworkData$events, _window$zainPlaceSect, _window, _artworkData$stats2, _artworkData$stats3;
     updateStopControls(jobs);
     renderArtwork();
     var hasArtwork = !!((_artworkData$stats = artworkData.stats) !== null && _artworkData$stats !== void 0 && _artworkData$stats.total) || !!((_artworkData$events = artworkData.events) !== null && _artworkData$events !== void 0 && _artworkData$events.length);
@@ -852,6 +861,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
       if (!sectionsHost.contains(inlineShow)) sectionsHost.append(inlineShow);
       inlineShow.hidden = !jobs.length && !hasArtwork;
     } else inlineShow.remove();
+    if (location.pathname === '/admin/sections') (_window$zainPlaceSect = (_window = window).zainPlaceSectionActions) === null || _window$zainPlaceSect === void 0 || _window$zainPlaceSect.call(_window);
     if (dismissed && jobs.some(j => !dismissedJobs.has(String(j.id || j.jobId)))) clearDismissal();
     host.hidden = dismissed || !jobs.length && !hasArtwork || !/^\/admin(?:\/|$)/.test(location.pathname);
     if (host.hidden) return;
@@ -888,7 +898,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
       card.name.textContent = (job.mode === 'quick' ? 'مزامنة سريعة — ' : 'مزامنة شاملة — ') + (job.sectionId == null ? 'جميع الأقسام' : sectionName(job.sectionId));
       card.status.textContent = statusNames[job.status] || 'حالة غير معروفة';
       card.status.dataset.status = String(job.status || '');
-      card.stats.textContent = 'الملفات: ' + count(job.files) + (job.mode === 'quick' ? ' · العناصر الجديدة: ' : ' · العناصر المفهرسة: ') + count(job.indexedItems) + '\nالمجلدات المفحوصة: ' + count(job.scannedDirectories) + (job.mode === 'quick' ? ' · دون مراجعة القديم أو الحذف\nصور وأيقونات الجديد تُجهّز في الخلفية؛ التفاصيل في سجل الأحداث' : '\nالحجم المكتشف: ' + bytes(job.discoveredBytes));
+      card.stats.textContent = 'الملفات: ' + count(job.files) + (job.mode === 'quick' ? ' · العناصر الجديدة: ' : ' · العناصر المفهرسة: ') + count(job.indexedItems) + '\nالمجلدات المفحوصة: ' + count(job.scannedDirectories) + (job.mode === 'quick' ? ' · دون مراجعة القديم أو الحذف\nتقدم الصور والأيقونات موضح في السجل المنفصل أدناه' : '\nالحجم المكتشف: ' + bytes(job.discoveredBytes));
       card.cancelButton.hidden = !activeStatuses.has(job.status);
       card.cancelButton.disabled = cancelling.has(id) || !!job.cancelRequested;
       card.cancelButton.textContent = card.cancelButton.disabled ? 'جارٍ الإيقاف…' : 'إيقاف المزامنة';

@@ -1,6 +1,6 @@
 'use strict';
 const {fork}=require('node:child_process'),path=require('node:path');
-function run(action,target,source,{timeoutMs=8000,includePoster=false}={}){
+function run(action,target,source,{timeoutMs=8000,includePoster=false,replace=false,backupDir}={}){
  return new Promise(resolve=>{
   let child,timer,settled=false;
   function finish(result){
@@ -14,7 +14,7 @@ function run(action,target,source,{timeoutMs=8000,includePoster=false}={}){
    child.once('error',()=>finish({status:'failed',code:'WORKER_ERROR'}));
    child.once('exit',()=>finish({status:'failed',code:'WORKER_EXIT'}));
    child.once('message',finish);
-   child.send({action,target,source,includePoster:includePoster===true},error=>{if(error)finish({status:'failed',code:'WORKER_SEND'});});
+   child.send({action,target,source,includePoster:includePoster===true,replace:replace===true,backupDir},error=>{if(error)finish({status:'failed',code:'WORKER_SEND'});});
   }catch{finish({status:'failed',code:'WORKER_ERROR'});}
  });
 }

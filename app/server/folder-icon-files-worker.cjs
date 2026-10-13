@@ -53,7 +53,7 @@ async function inspect(target,includePoster=false){
  let existing;
  for(const entry of icons){
   const filename=path.join(target,entry.name),stat=await fs.lstat(filename);
-  // Never replace a user icon, including an invalid one or a symbolic link.
+  // Automatic sync preserves existing icons; explicit replacement still refuses symbolic links.
   if(stat.isFile()&&!stat.isSymbolicLink())existing={status:'existing',iconPath:filename};
   else if(stat.isSymbolicLink())existing={status:'existing',code:'EXISTING_ICON_LINK'};
   if(existing){if(!includePoster)return existing;break;}
@@ -113,11 +113,22 @@ async function configureIni(target){
 function attrib(args){
  return new Promise((resolve,reject)=>execFile(path.join(process.env.SystemRoot||'C:\\Windows','System32','attrib.exe'),args,{windowsHide:true,timeout:2500},error=>error?reject(error):resolve()));
 }
-async function install(target,source){
- const before=await inspect(target);
- if(before.status!=='ready')return before;
- const bytes=await readIco(source),iconPath=path.join(target,'folder.ico');
- try{await fs.writeFile(iconPath,bytes,{flag:'wx'});}catch(error){if(error.code==='EEXIST')return {status:'existing'};throw error;}
+async function install(target,source,replace=false,backupDir){
+ const before=await inspect(target,replace);
+ if(before.status!=='ready'&&!(replace&&before.status==='existing'&&before.iconPath))return before;
+ const bytes=await readIco(source),iconPath=before.iconPath||path.join(target,'folder.ico');
+ let backupPath;
+ if(replace&&before.iconPath){
+  const backupRoot=await directory(backupDir),stat=await fs.lstat(iconPath);
+  if(stat.isSymbolicLink()||!stat.isFile()||stat.size>MAX_ICO)fail('UNSAFE_EXISTING_ICON');
+  const previous=await fs.readFile(iconPath),id=require('node:crypto').randomUUID();
+  backupPath=path.join(backupRoot,id+'-folder.ico');
+  await fs.writeFile(backupPath,previous,{flag:'wx'});
+  await fs.writeFile(path.join(backupRoot,id+'.json'),JSON.stringify({originalPath:iconPath,backupFile:path.basename(backupPath),createdAt:new Date().toISOString()}),{flag:'wx'});
+  const staged=path.join(target,'.zain-icon-'+id+'.tmp');
+  try{await fs.writeFile(staged,bytes,{flag:'wx'});const latest=await fs.lstat(iconPath);if(latest.isSymbolicLink()||!latest.isFile()||!(await fs.readFile(iconPath)).equals(previous))fail('ICON_CHANGED');await fs.rename(staged,iconPath);}
+  finally{await fs.unlink(staged).catch(()=>{});}
+ }else try{await fs.writeFile(iconPath,bytes,{flag:'wx'});}catch(error){if(error.code==='EEXIST')return {status:'existing'};throw error;}
  let iniPath;
  try{iniPath=await configureIni(target);}catch(error){return {status:'created',iconPath,explorerReady:false,code:error.code||'INI_FAILED'};}
  if(process.platform!=='win32')return {status:'created',iconPath,explorerReady:false,code:'EXPLORER_REQUIRES_WINDOWS'};
@@ -132,14 +143,14 @@ async function install(target,source){
    for(const filename of [before.posterPath,iconPath,target]){const stat=await fs.lstat(filename);if(stat.isSymbolicLink())fail('UNSAFE_DATE_TARGET');await fs.utimes(filename,stat.atime,date);}
   }catch{return {status:'created',iconPath,explorerReady:true,datesReady:false,code:'ICON_DATES_FAILED'};}
  }
- return {status:'created',iconPath,explorerReady:true,datesReady:true};
+ return {status:'created',iconPath,explorerReady:true,datesReady:true,replaced:!!backupPath,backupPath};
 }
 process.once('message',async message=>{
  let result;
  try{
   const target=await directory(message.target);
   if(message.action==='inspect')result=await inspect(target,message.includePoster===true);
-  else if(message.action==='install')result=await install(target,message.source);
+  else if(message.action==='install')result=await install(target,message.source,message.replace===true,message.backupDir);
   else fail('INVALID_ACTION');
  }catch(error){result={status:'failed',code:error.code||'ICON_FILES_FAILED'};}
  if(process.connected)process.send(result,()=>process.disconnect());

@@ -732,8 +732,17 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   function allSectionSync() {
     var host = document.querySelector('.sections-cont');
     if (!host) return;
+    var controls = Array.from(host.querySelectorAll('.admin-fancy-button,.admin-button,button')).filter(b => !b.closest('.sec,#zain-sync-all,#zain-section-monitor'));
+    var plain = b => (b.querySelector('.text>.text') || b).textContent.replace(/\s+/g, ' ').trim();
+    var previous = controls.find(b => /^مزامنة (?:الأ|الا)قسام$/.test(plain(b)));
+    var add = controls.find(b => /^(?:إضافة|اضافة|إضافه|اضافه) قسم جديد$/.test(plain(b)));
+    var automatic = controls.find(b => /^(?:إنشاء|انشاء) (?:الأ|الا)قسام تلقائي/.test(plain(b)));
+    var footer = (previous === null || previous === void 0 ? void 0 : previous.parentElement) || (automatic === null || automatic === void 0 ? void 0 : automatic.parentElement) || (add === null || add === void 0 ? void 0 : add.parentElement);
+    if (!footer || footer === host) return;
+    footer.classList.add('zain-section-actions');
+    if (add) add.classList.add('zain-add-section');
+    if (automatic) automatic.classList.add('zain-auto-sections');
     var group = host.querySelector('#zain-sync-all');
-    var previous = Array.from(host.querySelectorAll('button,.admin-button')).filter(b => !b.closest('.sec,#zain-sync-all') && /^مزامنة (?:الأ|الا)قسام$/.test(b.textContent.trim()));
     if (!group) {
       group = element('div');
       group.id = 'zain-sync-all';
@@ -749,14 +758,26 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
         b.title = mode === 'quick' ? 'إضافة الجديد في جميع الأقسام وتجهيز صوره وأيقوناته' : 'فحص جميع الأقسام ومراجعة المحذوف والصور والأيقونات';
         group.append(b);
       }
-      if (previous[0]) previous[0].parentNode.insertBefore(group, previous[0]);else host.append(group);
     }
-    previous.forEach(b => {
-      b.classList.add('zain-old-sync-all');
-      b.setAttribute('aria-hidden', 'true');
-      b.tabIndex = -1;
-    });
+    if (group.parentElement !== footer) footer.append(group);
+    if (previous) {
+      previous.classList.add('zain-old-sync-all');
+      previous.setAttribute('aria-hidden', 'true');
+      previous.tabIndex = -1;
+    }
+    var monitor = footer.querySelector('#zain-section-monitor');
+    if (!monitor) {
+      monitor = element('div');
+      monitor.id = 'zain-section-monitor';
+      footer.append(monitor);
+    }
+    for (var _i3 = 0, _arr3 = ['zain-stop-sync', 'zain-show-sync']; _i3 < _arr3.length; _i3++) {
+      var id = _arr3[_i3];
+      var _b = document.getElementById(id);
+      if (_b && _b.parentElement !== monitor) monitor.append(_b);
+    }
   }
+  window.zainPlaceSectionActions = allSectionSync;
   function scan() {
     if (location.pathname === '/admin/items') {
       var _iterator4 = _createForOfIteratorHelper(document.querySelectorAll('form')),
@@ -950,7 +971,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   }
   function _genres() {
     _genres = _asyncToGenerator(_regenerator().m(function _callee1() {
-      var select, here, r, data, selected, _i3, _arr3, name, option;
+      var select, here, r, data, selected, _i4, _arr4, name, option;
       return _regenerator().w(function (_context10) {
         while (1) switch (_context10.p = _context10.n) {
           case 0:
@@ -993,8 +1014,8 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
           case 7:
             selected = select.value;
             select.replaceChildren();
-            for (_i3 = 0, _arr3 = ['الكل', ...data.genres]; _i3 < _arr3.length; _i3++) {
-              name = _arr3[_i3];
+            for (_i4 = 0, _arr4 = ['الكل', ...data.genres]; _i4 < _arr4.length; _i4++) {
+              name = _arr4[_i4];
               option = element('option', name);
               option.value = name === 'الكل' ? 'all' : name;
               select.append(option);
@@ -1595,7 +1616,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   function _settings() {
     _settings = _asyncToGenerator(_regenerator().m(function _callee16() {
       var _document$querySelect;
-      var host, response, current, area, form, key, model, reveal, enabled, translation, status, save, test, help, _iterator1, _step1, name, option, old, searchLabel, translationLabel, refreshHelp, _i4, _arr4, input, busy, submit, _submit;
+      var host, response, current, area, form, key, model, reveal, enabled, translation, status, save, test, help, _iterator1, _step1, name, option, old, searchLabel, translationLabel, refreshHelp, _i5, _arr5, input, busy, submit, _submit;
       return _regenerator().w(function (_context19) {
         while (1) switch (_context19.p = _context19.n) {
           case 0:
@@ -1695,7 +1716,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             area.id = 'zain-gemini-settings';
             area.open = !current.configured;
             area.style.cssText = 'background:#202638;padding:15px;margin:20px 0;direction:rtl';
-            area.append(el('summary', 'إعداد Gemini — البحث المتقدم وترجمة الوصف'));
+            area.append(el('summary', 'إعداد Gemini — البحث المتقدم وترجمة الأسماء والوصف'));
             form = el('form'), key = el('input'), model = el('select'), reveal = el('button', 'إظهار المفتاح'), enabled = el('input'), translation = el('input'), status = el('p'), save = el('button', 'حفظ إعدادات Gemini'), test = el('button', 'فحص المفتاح'), help = el('p');
             key.type = 'password';
             key.name = 'gemini-key';
@@ -1735,8 +1756,8 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             status.setAttribute('role', 'status');
             status.setAttribute('aria-live', 'polite');
             status.style.cssText = 'white-space:pre-wrap;min-height:28px';
-            for (_i4 = 0, _arr4 = [key, model]; _i4 < _arr4.length; _i4++) {
-              input = _arr4[_i4];
+            for (_i5 = 0, _arr5 = [key, model]; _i5 < _arr5.length; _i5++) {
+              input = _arr5[_i5];
               input.style.cssText = 'display:block;width:95%;margin:10px 0;padding:10px;color:white;background:#101523';
             }
             reveal.type = 'button';
@@ -1791,7 +1812,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             save.type = 'submit';
             test.id = 'zain-gemini-test';
             save.id = 'zain-gemini-save';
-            form.append(help, searchLabel, translationLabel, el('p', 'المفتاح يبقى على السيرفر ولا يُرسل للزوار. الفحص يرسل طلبًا قصيرًا إلى Google وقد يُحتسب ضمن حصة حسابك. الترجمة تحتفظ بالوصف الإنجليزي ولا تستبدل وصفًا عربيًا موجودًا.'), key, reveal, el('label', 'اسم النموذج'), model, test, save, status);
+            form.append(help, searchLabel, translationLabel, el('p', 'المفتاح يبقى على السيرفر ولا يُرسل للزوار. الفحص يرسل طلبًا قصيرًا إلى Google وقد يُحتسب ضمن حصة حسابك. الترجمة تحتفظ بالوصف الإنجليزي ولا تستبدل وصفًا عربيًا موجودًا. يُستخدم المفتاح أيضًا لترجمة اسم الأيقونة إذا لم يتوفر اسم عربي للعمل.'), key, reveal, el('label', 'اسم النموذج'), model, test, save, status);
             area.append(form);
             host.prepend(area);
             busy = false;
@@ -1848,7 +1869,16 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
 .admin-cont .sections-cont .sec .btns>.zain-section-tool{grid-row:1;grid-column:var(--zain-tool-column)}
 .admin-cont .sections-cont .sec .btns:not(.zain-tools-open)>.zain-section-tool{display:none!important}
 .admin-cont .sections-cont .sec .btns:not(.zain-tools-open)>.zain-tools-toggle{grid-row:1}.admin-cont .sections-cont .sec .btns:not(.zain-tools-open)>.zain-section-sync{grid-row:2}
-.zain-old-sync-all{display:none!important}#zain-sync-all{display:inline-flex;flex-wrap:wrap;gap:6px;float:left;clear:both;margin:5px 10px;direction:rtl;max-width:100%;box-sizing:border-box}#zain-sync-all>.zain-all-sync{border:0;border-radius:18px;padding:9px 13px;color:white;cursor:pointer;font:14px Arial;min-height:36px;margin:0;background:#456eac}#zain-sync-all>[data-sync-mode=quick]{background:#218a64}#zain-sync-all>button:disabled{opacity:.55;cursor:wait}
+.admin-cont .zain-section-actions>.zain-old-sync-all{display:none!important}
+.zain-section-actions{display:grid;grid-template-columns:minmax(150px,1fr) auto auto;grid-template-areas:"add add add" "monitor auto bulk";gap:10px;align-items:center;clear:both;direction:rtl;padding-top:8px}
+.zain-section-actions>.zain-add-section{grid-area:add;justify-self:end}.zain-section-actions>.zain-auto-sections{grid-area:auto}
+#zain-sync-all{grid-area:bulk;display:flex;flex-wrap:wrap;gap:8px;direction:rtl;align-items:center}
+#zain-section-monitor{grid-area:monitor;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-start}
+.zain-section-actions>.admin-fancy-button,.zain-section-actions>.admin-button,#zain-sync-all>button,#zain-section-monitor>button{float:none!important;margin:0!important;box-sizing:border-box!important;min-height:38px!important;height:auto!important;display:inline-flex!important;align-items:center;justify-content:center;gap:6px;border:0!important;border-radius:20px!important;padding:9px 18px!important;font:14px Estra7ahBold,Arial,sans-serif!important;line-height:20px!important;color:white;cursor:pointer;white-space:nowrap}
+.zain-section-actions .text{font:inherit!important}#zain-sync-all>[data-sync-mode=quick]{background:#218a64}#zain-sync-all>[data-sync-mode=full]{background:#456eac}#zain-sync-all>button:disabled{opacity:.55;cursor:wait}
+@media(max-width:1000px){.zain-section-actions{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"add add" "monitor auto" "bulk bulk"}#zain-sync-all{justify-content:flex-end}}
+@media(max-width:540px){.zain-section-actions{display:flex;flex-direction:column;align-items:stretch}.zain-section-actions>.zain-add-section{align-self:flex-end}#zain-sync-all{justify-content:flex-start}.zain-section-actions button{white-space:normal!important}}
+
 .admin-cont .sections-cont .sec .btns svg{pointer-events:none;display:block;flex:none}.admin-cont .sections-cont .sec .btns>[aria-busy=true]{opacity:.55;cursor:wait}.admin-cont .sections-cont .sec .btns>button:focus{outline:2px solid white;outline-offset:1px}
 header .zain-main-link .item{margin-left:16px!important;padding-left:16px!important;border-left:1px solid #ffffff35}header .zain-home-entry>.zain-home-section{font:700 14px Estra7ahBold,Arial,sans-serif!important;line-height:22px!important;padding:6px 5px!important;max-width:180px;overflow:hidden;text-overflow:ellipsis}header .zain-nav-expand{font-size:16px!important;padding:8px 5px!important}
 .zain-home-compact .NetWorkTitle{padding:12px 0 8px!important;margin:0!important;height:auto!important;min-height:0!important}.zain-home-compact:not(.zain-has-hero) .NetWorkTitle{padding-top:calc(var(--zain-header-height,72px) + 12px)!important}.zain-home-compact .NetWorkTitle .cont{height:auto!important;min-height:0!important;padding:0!important;margin:0!important}.zain-home-compact .NetWorkTitle .title{font-size:28px!important;line-height:1.4!important;margin:0!important}.zain-home-compact .NetWorkTitle .desc{margin:3px 0!important;line-height:1.6!important}.zain-home-compact .zain-news-wrap{height:auto!important;min-height:48px!important;margin:0!important;padding:0!important}.zain-home-compact .news{margin:4px 0!important;padding:0!important;min-height:40px!important}.zain-home-compact .startSections{padding:0!important;margin:8px 0 14px!important}.zain-home-compact .zain-start-wrap{margin:0!important;padding:0!important}
@@ -2206,7 +2236,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   }
   function _poll() {
     _poll = _asyncToGenerator(_regenerator().m(function _callee23() {
-      var active, option, rows, ids, _status, jobs, states, byId, changed, _iterator11, _step11, _row$card$querySelect, _row, _item, picture, reload, becameSaved, _iterator12, _step12, job, _iterator17, _step17, id, _key, _iterator13, _step13, _job, _iterator18, _step18, _id, _key2, updated, _iterator14, _step14, item, _iterator15, _step15, row, img, url, _iterator16, _step16, _id2, _t22, _t23;
+      var active, option, rows, ids, _status, jobs, states, byId, changed, _iterator12, _step12, _row$card$querySelect, _row, _item, picture, reload, becameSaved, _iterator13, _step13, job, _iterator18, _step18, id, _key, _iterator14, _step14, _job, _iterator19, _step19, _id, _key2, updated, _iterator15, _step15, item, _iterator16, _step16, row, img, url, _iterator17, _step17, _id2, _t22, _t23;
       return _regenerator().w(function (_context26) {
         while (1) switch (_context26.p = _context26.n) {
           case 0:
@@ -2258,15 +2288,15 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             states = _context26.v;
             byId = new Map((states.items || []).map(item => [item.id, item]));
             changed = new Set();
-            _iterator11 = _createForOfIteratorHelper(rows);
+            _iterator12 = _createForOfIteratorHelper(rows);
             _context26.p = 6;
-            _iterator11.s();
+            _iterator12.s();
           case 7:
-            if ((_step11 = _iterator11.n()).done) {
+            if ((_step12 = _iterator12.n()).done) {
               _context26.n = 10;
               break;
             }
-            _row = _step11.value;
+            _row = _step12.value;
             _item = byId.get(_row.id);
             if (_item) {
               _context26.n = 8;
@@ -2288,7 +2318,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             if (reload) {
               reload.classList.toggle('no', _item.hasContent);
               reload.classList.toggle('ok', !_item.hasContent);
-              reload.title = _item.hasContent ? 'تمت مزامنة البيانات — انقر لتحديثها' : 'تنزيل ومزامنة بيانات المحتوى';
+              reload.title = 'تحديث البيانات وترجمتها وإعادة إنشاء الأيقونة بالعربية';
             }
           case 9:
             _context26.n = 7;
@@ -2299,49 +2329,24 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
           case 11:
             _context26.p = 11;
             _t22 = _context26.v;
-            _iterator11.e(_t22);
+            _iterator12.e(_t22);
           case 12:
             _context26.p = 12;
-            _iterator11.f();
+            _iterator12.f();
             return _context26.f(12);
           case 13:
-            _iterator12 = _createForOfIteratorHelper(jobs);
+            _iterator13 = _createForOfIteratorHelper(jobs);
             try {
-              for (_iterator12.s(); !(_step12 = _iterator12.n()).done;) {
-                job = _step12.value;
-                _iterator17 = _createForOfIteratorHelper(job.completedIds || []);
+              for (_iterator13.s(); !(_step13 = _iterator13.n()).done;) {
+                job = _step13.value;
+                _iterator18 = _createForOfIteratorHelper(job.completedIds || []);
                 try {
-                  for (_iterator17.s(); !(_step17 = _iterator17.n()).done;) {
-                    id = _step17.value;
+                  for (_iterator18.s(); !(_step18 = _iterator18.n()).done;) {
+                    id = _step18.value;
                     _key = job.id + ':' + id;
                     if (byId.has(id) && !seenCompletions.has(_key)) {
                       changed.add(id);
                       seenCompletions.add(_key);
-                    }
-                  }
-                } catch (err) {
-                  _iterator17.e(err);
-                } finally {
-                  _iterator17.f();
-                }
-              }
-            } catch (err) {
-              _iterator12.e(err);
-            } finally {
-              _iterator12.f();
-            }
-            _iterator13 = _createForOfIteratorHelper(jobs);
-            try {
-              for (_iterator13.s(); !(_step13 = _iterator13.n()).done;) {
-                _job = _step13.value;
-                _iterator18 = _createForOfIteratorHelper(_job.posterReadyIds || []);
-                try {
-                  for (_iterator18.s(); !(_step18 = _iterator18.n()).done;) {
-                    _id = _step18.value;
-                    _key2 = _job.id + ':poster:' + _id;
-                    if (byId.has(_id) && !seenCompletions.has(_key2)) {
-                      changed.add(_id);
-                      seenCompletions.add(_key2);
                     }
                   }
                 } catch (err) {
@@ -2355,6 +2360,31 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             } finally {
               _iterator13.f();
             }
+            _iterator14 = _createForOfIteratorHelper(jobs);
+            try {
+              for (_iterator14.s(); !(_step14 = _iterator14.n()).done;) {
+                _job = _step14.value;
+                _iterator19 = _createForOfIteratorHelper(_job.posterReadyIds || []);
+                try {
+                  for (_iterator19.s(); !(_step19 = _iterator19.n()).done;) {
+                    _id = _step19.value;
+                    _key2 = _job.id + ':poster:' + _id;
+                    if (byId.has(_id) && !seenCompletions.has(_key2)) {
+                      changed.add(_id);
+                      seenCompletions.add(_key2);
+                    }
+                  }
+                } catch (err) {
+                  _iterator19.e(err);
+                } finally {
+                  _iterator19.f();
+                }
+              }
+            } catch (err) {
+              _iterator14.e(err);
+            } finally {
+              _iterator14.f();
+            }
             if (!changed.size) {
               _context26.n = 15;
               break;
@@ -2363,21 +2393,21 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             return api('getItemSyncState/' + encodeURIComponent(Array.from(changed).join(',')) + '/content');
           case 14:
             updated = _context26.v;
-            _iterator14 = _createForOfIteratorHelper(updated.items || []);
+            _iterator15 = _createForOfIteratorHelper(updated.items || []);
             try {
-              for (_iterator14.s(); !(_step14 = _iterator14.n()).done;) {
-                item = _step14.value;
+              for (_iterator15.s(); !(_step15 = _iterator15.n()).done;) {
+                item = _step15.value;
                 fresh.set(item.id, item);
               }
             } catch (err) {
-              _iterator14.e(err);
+              _iterator15.e(err);
             } finally {
-              _iterator14.f();
+              _iterator15.f();
             }
-            _iterator15 = _createForOfIteratorHelper(rows);
+            _iterator16 = _createForOfIteratorHelper(rows);
             try {
-              for (_iterator15.s(); !(_step15 = _iterator15.n()).done;) {
-                row = _step15.value;
+              for (_iterator16.s(); !(_step16 = _iterator16.n()).done;) {
+                row = _step16.value;
                 if (changed.has(row.id)) {
                   img = row.card.querySelector('img');
                   if (img) {
@@ -2388,21 +2418,21 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                 }
               }
             } catch (err) {
-              _iterator15.e(err);
-            } finally {
-              _iterator15.f();
-            }
-          case 15:
-            _iterator16 = _createForOfIteratorHelper(fresh.keys());
-            try {
-              for (_iterator16.s(); !(_step16 = _iterator16.n()).done;) {
-                _id2 = _step16.value;
-                if (!byId.has(_id2)) fresh.delete(_id2);
-              }
-            } catch (err) {
               _iterator16.e(err);
             } finally {
               _iterator16.f();
+            }
+          case 15:
+            _iterator17 = _createForOfIteratorHelper(fresh.keys());
+            try {
+              for (_iterator17.s(); !(_step17 = _iterator17.n()).done;) {
+                _id2 = _step17.value;
+                if (!byId.has(_id2)) fresh.delete(_id2);
+              }
+            } catch (err) {
+              _iterator17.e(err);
+            } finally {
+              _iterator17.f();
             }
           case 16:
             _context26.n = 18;
@@ -2426,7 +2456,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   }
   document.addEventListener('click', function () {
     var _ref12 = _asyncToGenerator(_regenerator().m(function _callee21(event) {
-      var target, ids, all, id, text, _ids, result, _t20, _t21;
+      var target, ids, all, rebuildIcon, id, text, _ids, result, _t20, _t21;
       return _regenerator().w(function (_context24) {
         while (1) switch (_context24.p = _context24.n) {
           case 0:
@@ -2443,7 +2473,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             }
             return _context24.a(2);
           case 2:
-            all = false;
+            all = false, rebuildIcon = false;
             if (!target.closest('.items>.item')) {
               _context24.n = 5;
               break;
@@ -2462,6 +2492,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             return _context24.a(2);
           case 4:
             ids = [id];
+            rebuildIcon = true;
             _context24.n = 8;
             break;
           case 5:
@@ -2508,13 +2539,14 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
           case 12:
             _context24.n = 13;
             return api('getContentAndSaveItAll', {
-              ids: ids.join(',')
+              ids: ids.join(','),
+              rebuildIcon
             });
           case 13:
             _t20 = _context24.v;
           case 14:
             result = _t20;
-            notice = 'بدأت مزامنة ' + (result.total || ((_ids = ids) === null || _ids === void 0 ? void 0 : _ids.length) || 0) + ' عنصر، من الأحدث إلى الأقدم؛ تتحدث حالة البطاقات أثناء العمل.';
+            notice = rebuildIcon ? 'بدأ تحديث البيانات وترجمتها؛ بعدها يعاد إنشاء الأيقونة بالاسم العربي. يظهر التقدم والنتيجة في سجل المزامنة.' : 'بدأت مزامنة ' + (result.total || ((_ids = ids) === null || _ids === void 0 ? void 0 : _ids.length) || 0) + ' عنصر، من الأحدث إلى الأقدم؛ تتحدث حالة البطاقات أثناء العمل.';
             render([]);
             _context24.n = 16;
             break;
@@ -2539,6 +2571,31 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
       return _ref12.apply(this, arguments);
     };
   }(), true);
+  window.addEventListener('zain-artwork-updated', event => {
+    var _event$detail;
+    if (location.pathname !== '/admin/items') return;
+    var ids = new Set(((_event$detail = event.detail) === null || _event$detail === void 0 ? void 0 : _event$detail.ids) || []);
+    var _iterator11 = _createForOfIteratorHelper(cards()),
+      _step11;
+    try {
+      for (_iterator11.s(); !(_step11 = _iterator11.n()).done;) {
+        var row = _step11.value;
+        if (ids.has(row.id)) {
+          var img = row.card.querySelector('img');
+          if (img) {
+            var url = new URL('/ItemImage/' + encodeURIComponent(row.id), location.origin);
+            url.searchParams.set('zainArtwork', Date.now());
+            img.setAttribute('data-zain-src', url.href);
+            img.src = url.href;
+          }
+        }
+      }
+    } catch (err) {
+      _iterator11.e(err);
+    } finally {
+      _iterator11.f();
+    }
+  });
   document.addEventListener('change', event => {
     if (event.target.closest && event.target.closest('.items-cont')) {
       ensurePinnedButton();
