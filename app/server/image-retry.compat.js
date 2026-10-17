@@ -85,7 +85,8 @@ function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length)
       } catch (_unused2) {}
     }
     if (s && raw === s.rendered && (!desired || desired === s.url)) return s;
-    var url = desired || source(raw);
+    var incoming = source(raw);
+    var url = incoming && (!s || raw !== s.rendered) ? incoming : desired || incoming;
     if (!url && (!raw || /^data:image\//i.test(raw))) {
       var _a$getAttribute;
       var a = img.closest('a[href*="/itemView/"]'),
@@ -94,6 +95,7 @@ function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length)
     }
     if (s) release(img, s);
     if (!url) return null;
+    if (img.getAttribute('data-zain-src') !== url) img.setAttribute('data-zain-src', url);
     s = {
       url,
       rendered: raw,

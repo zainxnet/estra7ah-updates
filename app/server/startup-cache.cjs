@@ -18,10 +18,10 @@ class DiskMap extends Map {
  *entries(){for(const key of this.keys())yield [key,this.get(key)];}
  [Symbol.iterator](){return this.entries();}
  forEach(callback,thisArg){for(const [key,value]of this)callback.call(thisArg,value,key,this);}
- topFilter({keys,types,section,missing}={}){
+ topFilter({keys,types,section,sections,missing}={}){
   const normalize=value=>String(value||'').replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/[ؤئ]/g,'ء').replace(/ى/g,'ي').toLowerCase();
-  const where=['visible=1'],args=[];if(keys){where.push(keys.length?'('+keys.map(()=> 'instr(name,?)>0').join(' OR ')+')':'0');args.push(...keys);}if(types){where.push(types.length?'type IN ('+types.map(()=>'?').join(',')+')':'0');args.push(...types);}if(section){where.push('section=?');args.push(section);}if(missing)where.push('has_content=0');
-  const matches=row=>require('./catalog-items.cjs').visible(row)&&(!row.inItem||row.inItem==='null')&&(!keys||keys.some(key=>normalize(row.name).includes(key)))&&(!types||types.includes(row.type))&&(!section||row.sectionId===section)&&(!missing||!require('./metadata.cjs').hasContent(row));
+  const where=['visible=1'],args=[];if(keys){where.push(keys.length?'('+keys.map(()=> 'instr(name,?)>0').join(' OR ')+')':'0');args.push(...keys);}if(types){where.push(types.length?'type IN ('+types.map(()=>'?').join(',')+')':'0');args.push(...types);}if(section){where.push('section=?');args.push(section);}if(sections){where.push(sections.length?'section IN ('+sections.map(()=>'?').join(',')+')':'0');args.push(...sections);}if(missing)where.push('has_content=0');
+  const matches=row=>require('./catalog-items.cjs').visible(row)&&(!row.inItem||row.inItem==='null')&&(!keys||keys.some(key=>normalize(row.name).includes(key)))&&(!types||types.includes(row.type))&&(!section||row.sectionId===section)&&(!sections||sections.includes(String(row.sectionId)))&&(!missing||!require('./metadata.cjs').hasContent(row));
   return {clause:where.length?' WHERE '+where.join(' AND '):'',args,matches};
  }
  countTop(filters={}){const {clause,args,matches}=this.topFilter(filters);let count=this.db.prepare('SELECT count(*) n FROM top_items'+clause).get(...args).n;const changed=new Set([...super.keys(),...this.removed]);for(const key of changed){if(this.db.prepare('SELECT 1 FROM top_items'+clause+(clause?' AND ':' WHERE ')+'key=?').get(...args,key))count--;const row=super.get(key);if(row&&matches(row))count++;}return count;}

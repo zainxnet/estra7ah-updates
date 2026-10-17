@@ -2005,31 +2005,31 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     return _pollTrailers.apply(this, arguments);
   }
   function _pollTrailers() {
-    _pollTrailers = _asyncToGenerator(_regenerator().m(function _callee25() {
+    _pollTrailers = _asyncToGenerator(_regenerator().m(function _callee26() {
       var _trailerPanel2;
-      var result, jobs, host, _trailerPanel, _iterator17, _step17, _loop1, _t27;
-      return _regenerator().w(function (_context29) {
-        while (1) switch (_context29.p = _context29.n) {
+      var result, jobs, host, _trailerPanel, _iterator19, _step19, _loop1, _t28;
+      return _regenerator().w(function (_context30) {
+        while (1) switch (_context30.p = _context30.n) {
           case 0:
-            _context29.n = 1;
+            _context30.n = 1;
             return api('trailerStatus');
           case 1:
-            result = _context29.v;
+            result = _context30.v;
             jobs = result.jobs || [];
             host = document.querySelector('.items-cont .items');
             if (host) {
-              _context29.n = 2;
+              _context30.n = 2;
               break;
             }
-            return _context29.a(2, false);
+            return _context30.a(2, false);
           case 2:
             if (jobs.length) {
-              _context29.n = 3;
+              _context30.n = 3;
               break;
             }
             (_trailerPanel = trailerPanel) === null || _trailerPanel === void 0 || _trailerPanel.remove();
             trailerPanel = null;
-            return _context29.a(2, false);
+            return _context30.a(2, false);
           case 3:
             if (!((_trailerPanel2 = trailerPanel) !== null && _trailerPanel2 !== void 0 && _trailerPanel2.isConnected)) {
               trailerPanel = el('section');
@@ -2038,76 +2038,76 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               host.parentNode.insertBefore(trailerPanel, host);
             }
             trailerPanel.replaceChildren(el('strong', 'تحميل الإعلانات'));
-            _iterator17 = _createForOfIteratorHelper(jobs.slice(-5));
-            _context29.p = 4;
+            _iterator19 = _createForOfIteratorHelper(jobs.slice(-5));
+            _context30.p = 4;
             _loop1 = _regenerator().m(function _loop1() {
               var job, busy, cancel;
-              return _regenerator().w(function (_context28) {
-                while (1) switch (_context28.n) {
+              return _regenerator().w(function (_context29) {
+                while (1) switch (_context29.n) {
                   case 0:
-                    job = _step17.value;
+                    job = _step19.value;
                     busy = ['queued', 'running'].includes(job.status);
                     trailerPanel.appendChild(el('p', job.name + ' — ' + job.message + (busy && job.percent ? ' — ' + job.percent + '%' : '')));
                     if (busy) {
                       cancel = el('button', 'إيقاف تحميل الإعلان');
-                      cancel.onclick = _asyncToGenerator(_regenerator().m(function _callee24() {
-                        var _t26;
-                        return _regenerator().w(function (_context27) {
-                          while (1) switch (_context27.p = _context27.n) {
+                      cancel.onclick = _asyncToGenerator(_regenerator().m(function _callee25() {
+                        var _t27;
+                        return _regenerator().w(function (_context28) {
+                          while (1) switch (_context28.p = _context28.n) {
                             case 0:
                               cancel.disabled = true;
-                              _context27.p = 1;
-                              _context27.n = 2;
+                              _context28.p = 1;
+                              _context28.n = 2;
                               return api('cancelTrailer', {
                                 id: job.id
                               });
                             case 2:
                               nextPoll = 0;
                               poll();
-                              _context27.n = 4;
+                              _context28.n = 4;
                               break;
                             case 3:
-                              _context27.p = 3;
-                              _t26 = _context27.v;
-                              notice = _t26.message;
+                              _context28.p = 3;
+                              _t27 = _context28.v;
+                              notice = _t27.message;
                               render([]);
                             case 4:
-                              return _context27.a(2);
+                              return _context28.a(2);
                           }
-                        }, _callee24, null, [[1, 3]]);
+                        }, _callee25, null, [[1, 3]]);
                       }));
                       trailerPanel.appendChild(cancel);
                     }
                   case 1:
-                    return _context28.a(2);
+                    return _context29.a(2);
                 }
               }, _loop1);
             });
-            _iterator17.s();
+            _iterator19.s();
           case 5:
-            if ((_step17 = _iterator17.n()).done) {
-              _context29.n = 7;
+            if ((_step19 = _iterator19.n()).done) {
+              _context30.n = 7;
               break;
             }
-            return _context29.d(_regeneratorValues(_loop1()), 6);
+            return _context30.d(_regeneratorValues(_loop1()), 6);
           case 6:
-            _context29.n = 5;
+            _context30.n = 5;
             break;
           case 7:
-            _context29.n = 9;
+            _context30.n = 9;
             break;
           case 8:
-            _context29.p = 8;
-            _t27 = _context29.v;
-            _iterator17.e(_t27);
+            _context30.p = 8;
+            _t28 = _context30.v;
+            _iterator19.e(_t28);
           case 9:
-            _context29.p = 9;
-            _iterator17.f();
-            return _context29.f(9);
+            _context30.p = 9;
+            _iterator19.f();
+            return _context30.f(9);
           case 10:
-            return _context29.a(2, jobs.some(j => ['queued', 'running'].includes(j.status)));
+            return _context30.a(2, jobs.some(j => ['queued', 'running'].includes(j.status)));
         }
-      }, _callee25, null, [[4, 8, 9, 10]]);
+      }, _callee26, null, [[4, 8, 9, 10]]);
     }));
     return _pollTrailers.apply(this, arguments);
   }
@@ -2268,12 +2268,12 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     return _api.apply(this, arguments);
   }
   function _api() {
-    _api = _asyncToGenerator(_regenerator().m(function _callee26(action, body) {
+    _api = _asyncToGenerator(_regenerator().m(function _callee27(action, body) {
       var response, data;
-      return _regenerator().w(function (_context30) {
-        while (1) switch (_context30.n) {
+      return _regenerator().w(function (_context31) {
+        while (1) switch (_context31.n) {
           case 0:
-            _context30.n = 1;
+            _context31.n = 1;
             return fetch('/admin/api/' + action, _objectSpread({
               credentials: 'same-origin',
               cache: 'no-store',
@@ -2285,27 +2285,29 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               body: JSON.stringify(body)
             } : {}));
           case 1:
-            response = _context30.v;
-            _context30.n = 2;
+            response = _context31.v;
+            _context31.n = 2;
             return response.json();
           case 2:
-            data = _context30.v;
+            data = _context31.v;
             if (!(!response.ok || data.msg === 'error')) {
-              _context30.n = 3;
+              _context31.n = 3;
               break;
             }
             throw Error(data.error || 'تعذر الاتصال بخدمة المزامنة');
           case 3:
-            return _context30.a(2, data);
+            return _context31.a(2, data);
         }
-      }, _callee26);
+      }, _callee27);
     }));
     return _api.apply(this, arguments);
   }
   function cardId(card) {
+    if (card.dataset.zainItemId) return card.dataset.zainItemId;
     var img = card.querySelector('img');
     if (!img) return '';
-    var raw = img.getAttribute('data-zain-src') || img.getAttribute('src') || '';
+    var current = img.getAttribute('src') || '';
+    var raw = /\/ItemImage\//i.test(current) ? current : img.getAttribute('data-zain-src') || current;
     var match = raw.match(/\/ItemImage\/([^/?]+)/i);
     if (match) {
       try {
@@ -2324,61 +2326,61 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     return _sectionRows.apply(this, arguments);
   }
   function _sectionRows() {
-    _sectionRows = _asyncToGenerator(_regenerator().m(function _callee28() {
-      return _regenerator().w(function (_context32) {
-        while (1) switch (_context32.n) {
+    _sectionRows = _asyncToGenerator(_regenerator().m(function _callee29() {
+      return _regenerator().w(function (_context33) {
+        while (1) switch (_context33.n) {
           case 0:
             if (!(zainSectionRows.length && Date.now() - zainSectionRowsAt < 60000)) {
-              _context32.n = 1;
+              _context33.n = 1;
               break;
             }
-            return _context32.a(2, zainSectionRows);
+            return _context33.a(2, zainSectionRows);
           case 1:
             if (!zainSectionFetch) {
-              _context32.n = 2;
+              _context33.n = 2;
               break;
             }
-            return _context32.a(2, zainSectionFetch);
+            return _context33.a(2, zainSectionFetch);
           case 2:
-            zainSectionFetch = _asyncToGenerator(_regenerator().m(function _callee27() {
+            zainSectionFetch = _asyncToGenerator(_regenerator().m(function _callee28() {
               var response, rows;
-              return _regenerator().w(function (_context31) {
-                while (1) switch (_context31.n) {
+              return _regenerator().w(function (_context32) {
+                while (1) switch (_context32.n) {
                   case 0:
-                    _context31.n = 1;
+                    _context32.n = 1;
                     return fetch('/admin/api/getAllSections', {
                       credentials: 'same-origin',
                       cache: 'no-store'
                     });
                   case 1:
-                    response = _context31.v;
+                    response = _context32.v;
                     if (response.ok) {
-                      _context31.n = 2;
+                      _context32.n = 2;
                       break;
                     }
                     throw Error('تعذر تحميل ترتيب الأقسام');
                   case 2:
-                    _context31.n = 3;
+                    _context32.n = 3;
                     return response.json();
                   case 3:
-                    rows = _context31.v;
+                    rows = _context32.v;
                     if (Array.isArray(rows)) {
-                      _context31.n = 4;
+                      _context32.n = 4;
                       break;
                     }
                     throw Error('قائمة الأقسام غير صالحة');
                   case 4:
                     zainSectionRows = rows.filter(row => row && row.id !== undefined && row.id !== null);
                     zainSectionRowsAt = Date.now();
-                    return _context31.a(2, zainSectionRows);
+                    return _context32.a(2, zainSectionRows);
                 }
-              }, _callee27);
+              }, _callee28);
             }))().finally(() => {
               zainSectionFetch = null;
             });
-            return _context32.a(2, zainSectionFetch);
+            return _context33.a(2, zainSectionFetch);
         }
-      }, _callee28);
+      }, _callee29);
     }));
     return _sectionRows.apply(this, arguments);
   }
@@ -2386,240 +2388,256 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     return _enhanceSectionFilter.apply(this, arguments);
   }
   function _enhanceSectionFilter() {
-    _enhanceSectionFilter = _asyncToGenerator(_regenerator().m(function _callee29() {
-      var select, rows, byId, children, _iterator18, _step18, row, parent, cmp, _iterator19, _step19, list, roots, ordered, visit, _iterator21, _step21, root, _iterator22, _step22, _loop11, signature, selected, special, fragment, _iterator23, _step23, option, groups, _loop10, _i6, _ordered, _iterator24, _step24, _byId$get, _step24$value, rootId, entries, group, _iterator25, _step25, entry, _option, _t28, _t29;
-      return _regenerator().w(function (_context35) {
-        while (1) switch (_context35.p = _context35.n) {
+    _enhanceSectionFilter = _asyncToGenerator(_regenerator().m(function _callee30() {
+      var select, rows, signature, widget, _style, byId, children, compare, _iterator20, _step20, row, parent, _iterator21, _step21, list, roots, selected, known, _iterator22, _step22, _row, option, host, summary, _panel, labels, buttons, visited, sync, choose, nameButton, appendRow, _iterator25, _step25, _row2, _iterator26, _step26, _row3, _t29, _t30;
+      return _regenerator().w(function (_context34) {
+        while (1) switch (_context34.p = _context34.n) {
           case 0:
             if (!(location.pathname !== '/admin/items')) {
-              _context35.n = 1;
+              _context34.n = 1;
               break;
             }
-            return _context35.a(2);
+            return _context34.a(2);
           case 1:
             select = document.querySelector('.items-cont select');
             if (select) {
-              _context35.n = 2;
+              _context34.n = 2;
               break;
             }
-            return _context35.a(2);
+            return _context34.a(2);
           case 2:
-            _context35.p = 2;
-            _context35.n = 3;
-            return sectionRows();
-          case 3:
-            rows = _context35.v;
-            if (select.isConnected) {
-              _context35.n = 4;
+            _context34.p = 2;
+            appendRow = function _appendRow(row, parent, trail) {
+              var id = String(row.id);
+              if (visited.has(id)) return;
+              visited.add(id);
+              var names = [...trail, String(row.name || '')];
+              labels.set(id, names.join(' › '));
+              var branch = el('div'),
+                line = el('div');
+              line.className = 'zain-section-row';
+              var descendants = (children.get(id) || []).filter(child => !visited.has(String(child.id)));
+              if (descendants.length) {
+                var toggle = el('button', '+'),
+                  group = el('div');
+                toggle.type = 'button';
+                toggle.className = 'zain-section-toggle';
+                toggle.dataset.sectionExpand = id;
+                toggle.setAttribute('aria-label', 'فتح أقسام ' + row.name);
+                toggle.setAttribute('aria-expanded', 'false');
+                group.className = 'zain-section-children';
+                group.hidden = true;
+                toggle.onclick = () => {
+                  group.hidden = !group.hidden;
+                  toggle.textContent = group.hidden ? '+' : '−';
+                  toggle.setAttribute('aria-expanded', String(!group.hidden));
+                  toggle.setAttribute('aria-label', (group.hidden ? 'فتح أقسام ' : 'طي أقسام ') + row.name);
+                };
+                line.append(toggle, nameButton(id, String(row.name || '')));
+                branch.append(line, group);
+                var _iterator24 = _createForOfIteratorHelper(descendants),
+                  _step24;
+                try {
+                  for (_iterator24.s(); !(_step24 = _iterator24.n()).done;) {
+                    var child = _step24.value;
+                    appendRow(child, group, names);
+                  }
+                } catch (err) {
+                  _iterator24.e(err);
+                } finally {
+                  _iterator24.f();
+                }
+              } else {
+                var spacer = el('span');
+                spacer.className = 'zain-section-spacer';
+                line.append(spacer, nameButton(id, String(row.name || '')));
+                branch.append(line);
+              }
+              parent.append(branch);
+            };
+            if (!zainSectionRows.length) {
+              _context34.n = 3;
               break;
             }
-            return _context35.a(2);
+            _t29 = zainSectionRows;
+            _context34.n = 5;
+            break;
+          case 3:
+            _context34.n = 4;
+            return sectionRows();
           case 4:
+            _t29 = _context34.v;
+          case 5:
+            rows = _t29;
+            if (Date.now() - zainSectionRowsAt >= 60000) sectionRows().catch(() => {});
+            if (!(!select.isConnected || location.pathname !== '/admin/items')) {
+              _context34.n = 6;
+              break;
+            }
+            return _context34.a(2);
+          case 6:
+            signature = JSON.stringify(rows.map(row => [String(row.id), row.name, row.in_section, row.order]));
+            widget = select._zainSectionWidget;
+            if (!(widget && widget.host.isConnected && widget.signature === signature)) {
+              _context34.n = 7;
+              break;
+            }
+            select.style.setProperty('display', 'none', 'important');
+            widget.sync();
+            return _context34.a(2);
+          case 7:
+            if (widget) widget.host.remove();
+            if (!document.getElementById('zain-section-tree-style')) {
+              _style = el('style');
+              _style.id = 'zain-section-tree-style';
+              _style.textContent = '.zain-section-picker{position:relative;width:100%;direction:rtl;color:#fff;font:inherit;margin:0 0 12px}.zain-section-picker summary{cursor:pointer;padding:10px 14px;border:1px solid #52617a;border-radius:7px;background:#101624;overflow-wrap:anywhere}.zain-section-panel{margin-top:5px;padding:8px;background:#101624;border:1px solid #52617a;border-radius:7px;max-height:360px;overflow:auto}.zain-section-row{display:flex;align-items:center;gap:7px;min-height:36px}.zain-section-picker button{font:inherit;cursor:pointer;color:#fff;border:0}.zain-section-name{flex:1;text-align:right;background:transparent;border-radius:5px;padding:8px;overflow-wrap:anywhere}.zain-section-name:hover,.zain-section-name[aria-pressed="true"]{background:#33496c}.zain-section-toggle{flex:0 0 26px;width:26px;height:26px;padding:0!important;background:#32984e;border-radius:5px;font-size:20px!important;line-height:26px}.zain-section-spacer{width:26px;flex:0 0 26px}.zain-section-children{margin-right:13px;padding-right:14px;border-right:1px solid #46516a}.zain-section-children[hidden]{display:none!important}.zain-section-picker button:focus-visible,.zain-section-picker summary:focus-visible{outline:2px solid #94beff;outline-offset:2px}';
+              document.head.append(_style);
+            }
             byId = new Map(rows.map(row => [String(row.id), row])), children = new Map();
-            _iterator18 = _createForOfIteratorHelper(rows);
+            compare = (a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || String(a.name || '').localeCompare(String(b.name || ''), 'ar');
+            _iterator20 = _createForOfIteratorHelper(rows);
             try {
-              for (_iterator18.s(); !(_step18 = _iterator18.n()).done;) {
-                row = _step18.value;
-                parent = String(row.in_section || 'null');
-                if (parent !== 'null' && byId.has(parent)) {
+              for (_iterator20.s(); !(_step20 = _iterator20.n()).done;) {
+                row = _step20.value;
+                parent = String(row.in_section);
+                if (byId.has(parent) && parent !== String(row.id)) {
                   if (!children.has(parent)) children.set(parent, []);
                   children.get(parent).push(row);
                 }
               }
             } catch (err) {
-              _iterator18.e(err);
+              _iterator20.e(err);
             } finally {
-              _iterator18.f();
+              _iterator20.f();
             }
-            cmp = (a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || String(a.name || '').localeCompare(String(b.name || ''), 'ar');
-            _iterator19 = _createForOfIteratorHelper(children.values());
-            try {
-              for (_iterator19.s(); !(_step19 = _iterator19.n()).done;) {
-                list = _step19.value;
-                list.sort(cmp);
-              }
-            } catch (err) {
-              _iterator19.e(err);
-            } finally {
-              _iterator19.f();
-            }
-            roots = rows.filter(row => !row.in_section || row.in_section === 'null' || !byId.has(String(row.in_section))).sort(cmp);
-            ordered = [];
-            visit = (row, trail, seen) => {
-              var id = String(row.id);
-              if (seen.has(id)) return;
-              var chain = [...trail, String(row.name || '')];
-              ordered.push({
-                row,
-                trail: chain
-              });
-              var next = new Set(seen);
-              next.add(id);
-              var _iterator20 = _createForOfIteratorHelper(children.get(id) || []),
-                _step20;
-              try {
-                for (_iterator20.s(); !(_step20 = _iterator20.n()).done;) {
-                  var child = _step20.value;
-                  visit(child, chain, next);
-                }
-              } catch (err) {
-                _iterator20.e(err);
-              } finally {
-                _iterator20.f();
-              }
-            };
-            _iterator21 = _createForOfIteratorHelper(roots);
+            _iterator21 = _createForOfIteratorHelper(children.values());
             try {
               for (_iterator21.s(); !(_step21 = _iterator21.n()).done;) {
-                root = _step21.value;
-                visit(root, [], new Set());
+                list = _step21.value;
+                list.sort(compare);
               }
             } catch (err) {
               _iterator21.e(err);
             } finally {
               _iterator21.f();
             }
+            roots = rows.filter(row => !byId.has(String(row.in_section)) || String(row.in_section) === String(row.id)).sort(compare);
+            selected = select.value, known = new Set(Array.from(select.options).map(option => option.value));
             _iterator22 = _createForOfIteratorHelper(rows);
-            _context35.p = 5;
-            _loop11 = _regenerator().m(function _loop11() {
-              var row;
-              return _regenerator().w(function (_context34) {
-                while (1) switch (_context34.n) {
-                  case 0:
-                    row = _step22.value;
-                    if (!ordered.some(entry => String(entry.row.id) === String(row.id))) visit(row, [], new Set());
-                  case 1:
-                    return _context34.a(2);
+            try {
+              for (_iterator22.s(); !(_step22 = _iterator22.n()).done;) {
+                _row = _step22.value;
+                if (!known.has(String(_row.id))) {
+                  option = el('option', String(_row.name || ''));
+                  option.value = String(_row.id);
+                  select.append(option);
                 }
-              }, _loop11);
-            });
-            _iterator22.s();
-          case 6:
-            if ((_step22 = _iterator22.n()).done) {
-              _context35.n = 8;
-              break;
+              }
+            } catch (err) {
+              _iterator22.e(err);
+            } finally {
+              _iterator22.f();
             }
-            return _context35.d(_regeneratorValues(_loop11()), 7);
-          case 7:
-            _context35.n = 6;
+            select.value = selected;
+            select.style.setProperty('display', 'none', 'important');
+            select.setAttribute('aria-hidden', 'true');
+            host = el('details');
+            host.className = 'zain-section-picker';
+            summary = el('summary'), _panel = el('div');
+            _panel.className = 'zain-section-panel';
+            _panel.setAttribute('aria-label', 'الأقسام الرئيسية والفرعية');
+            host.append(summary, _panel);
+            labels = new Map([['all', 'الكل']]), buttons = new Map(), visited = new Set();
+            sync = () => {
+              var _select$options$selec;
+              summary.textContent = 'اختر القسم: ' + (labels.get(select.value) || ((_select$options$selec = select.options[select.selectedIndex]) === null || _select$options$selec === void 0 ? void 0 : _select$options$selec.textContent) || 'الكل');
+              var _iterator23 = _createForOfIteratorHelper(buttons),
+                _step23;
+              try {
+                for (_iterator23.s(); !(_step23 = _iterator23.n()).done;) {
+                  var _step23$value = _slicedToArray(_step23.value, 2),
+                    id = _step23$value[0],
+                    button = _step23$value[1];
+                  button.setAttribute('aria-pressed', String(id === select.value));
+                }
+              } catch (err) {
+                _iterator23.e(err);
+              } finally {
+                _iterator23.f();
+              }
+            };
+            choose = id => {
+              var setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+              setter.call(select, id);
+              select.dispatchEvent(new Event('change', {
+                bubbles: true
+              }));
+              sync();
+              host.open = false;
+              summary.focus();
+            };
+            nameButton = (id, label) => {
+              var button = el('button', label);
+              button.type = 'button';
+              button.className = 'zain-section-name';
+              button.dataset.sectionId = id;
+              button.title = 'عرض عناصر هذا القسم وجميع أقسامه الفرعية';
+              button.onclick = () => choose(id);
+              buttons.set(id, button);
+              return button;
+            };
+            _panel.append(nameButton('all', 'الكل'));
+            _iterator25 = _createForOfIteratorHelper(roots);
+            try {
+              for (_iterator25.s(); !(_step25 = _iterator25.n()).done;) {
+                _row2 = _step25.value;
+                appendRow(_row2, _panel, []);
+              }
+            } catch (err) {
+              _iterator25.e(err);
+            } finally {
+              _iterator25.f();
+            }
+            _iterator26 = _createForOfIteratorHelper(rows);
+            try {
+              for (_iterator26.s(); !(_step26 = _iterator26.n()).done;) {
+                _row3 = _step26.value;
+                if (!visited.has(String(_row3.id))) appendRow(_row3, _panel, []);
+              }
+            } catch (err) {
+              _iterator26.e(err);
+            } finally {
+              _iterator26.f();
+            }
+            host.addEventListener('keydown', event => {
+              if (event.key === 'Escape') {
+                host.open = false;
+                summary.focus();
+                event.stopPropagation();
+              }
+            });
+            select.insertAdjacentElement('afterend', host);
+            select._zainSectionWidget = {
+              host,
+              signature,
+              sync
+            };
+            sync();
+            _context34.n = 9;
             break;
           case 8:
-            _context35.n = 10;
-            break;
+            _context34.p = 8;
+            _t30 = _context34.v;
           case 9:
-            _context35.p = 9;
-            _t28 = _context35.v;
-            _iterator22.e(_t28);
-          case 10:
-            _context35.p = 10;
-            _iterator22.f();
-            return _context35.f(10);
-          case 11:
-            signature = ordered.map(entry => String(entry.row.id) + '=' + entry.trail.join(' › ')).join('|');
-            if (!(select.dataset.zainSectionTree === signature && select.options.length)) {
-              _context35.n = 12;
-              break;
-            }
-            return _context35.a(2);
-          case 12:
-            selected = select.value;
-            special = Array.from(select.options).filter(option => !byId.has(String(option.value)));
-            fragment = document.createDocumentFragment();
-            _iterator23 = _createForOfIteratorHelper(special);
-            try {
-              for (_iterator23.s(); !(_step23 = _iterator23.n()).done;) {
-                option = _step23.value;
-                fragment.append(option.cloneNode(true));
-              }
-            } catch (err) {
-              _iterator23.e(err);
-            } finally {
-              _iterator23.f();
-            }
-            groups = new Map();
-            _loop10 = _regenerator().m(function _loop10() {
-              var entry, rootId;
-              return _regenerator().w(function (_context33) {
-                while (1) switch (_context33.n) {
-                  case 0:
-                    entry = _ordered[_i6];
-                    rootId = String((() => {
-                      var row = entry.row,
-                        guard = new Set();
-                      while (row.in_section && byId.has(String(row.in_section)) && !guard.has(String(row.id))) {
-                        guard.add(String(row.id));
-                        row = byId.get(String(row.in_section));
-                      }
-                      return row.id;
-                    })());
-                    if (!groups.has(rootId)) groups.set(rootId, []);
-                    groups.get(rootId).push(entry);
-                  case 1:
-                    return _context33.a(2);
-                }
-              }, _loop10);
-            });
-            _i6 = 0, _ordered = ordered;
-          case 13:
-            if (!(_i6 < _ordered.length)) {
-              _context35.n = 15;
-              break;
-            }
-            return _context35.d(_regeneratorValues(_loop10()), 14);
-          case 14:
-            _i6++;
-            _context35.n = 13;
-            break;
-          case 15:
-            _iterator24 = _createForOfIteratorHelper(groups);
-            try {
-              for (_iterator24.s(); !(_step24 = _iterator24.n()).done;) {
-                _step24$value = _slicedToArray(_step24.value, 2), rootId = _step24$value[0], entries = _step24$value[1];
-                group = document.createElement('optgroup');
-                group.label = ((_byId$get = byId.get(rootId)) === null || _byId$get === void 0 ? void 0 : _byId$get.name) || 'أقسام أخرى';
-                _iterator25 = _createForOfIteratorHelper(entries);
-                try {
-                  for (_iterator25.s(); !(_step25 = _iterator25.n()).done;) {
-                    entry = _step25.value;
-                    _option = document.createElement('option');
-                    _option.value = String(entry.row.id);
-                    _option.textContent = entry.trail.join(' › ');
-                    _option.title = _option.textContent;
-                    group.append(_option);
-                  }
-                } catch (err) {
-                  _iterator25.e(err);
-                } finally {
-                  _iterator25.f();
-                }
-                fragment.append(group);
-              }
-            } catch (err) {
-              _iterator24.e(err);
-            } finally {
-              _iterator24.f();
-            }
-            select.replaceChildren(fragment);
-            if (Array.from(select.options).some(option => option.value === selected)) select.value = selected;else select.value = 'all';
-            select.dataset.zainSectionTree = signature;
-            select.setAttribute('aria-label', 'تصفح الأقسام حسب التسلسل الهرمي');
-            select.title = 'الأقسام مرتبة هرميًا: القسم الرئيسي › الفرعي › الفرعي الأعمق';
-            _context35.n = 17;
-            break;
-          case 16:
-            _context35.p = 16;
-            _t29 = _context35.v;
-          case 17:
-            return _context35.a(2);
+            return _context34.a(2);
         }
-      }, _callee29, null, [[5, 9, 10, 11], [2, 16]]);
+      }, _callee30, null, [[2, 8]]);
     }));
     return _enhanceSectionFilter.apply(this, arguments);
   }
   function cards() {
     return Array.from(document.querySelectorAll('.items-cont .items>.item')).map(card => {
       var id = cardId(card);
-      if (id) card.dataset.zainItemId = id;
       return {
         card,
         id
@@ -2912,13 +2930,13 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     return _poll.apply(this, arguments);
   }
   function _poll() {
-    _poll = _asyncToGenerator(_regenerator().m(function _callee30() {
-      var active, option, rows, ids, _status, jobs, states, byId, changed, _iterator26, _step26, _row$card$querySelect, _row, _item, picture, reload, becameSaved, _iterator27, _step27, job, _iterator32, _step32, id, _key, _iterator28, _step28, _job, _iterator33, _step33, _id, _key2, updated, _iterator29, _step29, item, _iterator30, _step30, row, img, url, _iterator31, _step31, _id2, _t30, _t31, _t32, _t33;
-      return _regenerator().w(function (_context36) {
-        while (1) switch (_context36.p = _context36.n) {
+    _poll = _asyncToGenerator(_regenerator().m(function _callee31() {
+      var active, option, rows, ids, _status, jobs, states, byId, changed, _iterator27, _step27, _row4$card$querySelec, _row4, _item, picture, reload, becameSaved, _iterator28, _step28, job, _iterator33, _step33, id, _key, _iterator29, _step29, _job, _iterator34, _step34, _id, _key2, updated, _iterator30, _step30, item, _iterator31, _step31, row, img, url, _iterator32, _step32, _id2, _t31, _t32, _t33, _t34;
+      return _regenerator().w(function (_context35) {
+        while (1) switch (_context35.p = _context35.n) {
           case 0:
             if (!(location.pathname !== '/admin/items')) {
-              _context36.n = 1;
+              _context35.n = 1;
               break;
             }
             if (wasItems) {
@@ -2930,18 +2948,18 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               nextPoll = 0;
               wasItems = false;
             }
-            return _context36.a(2);
+            return _context35.a(2);
           case 1:
             wasItems = true;
             if (!(polling || Date.now() < nextPoll)) {
-              _context36.n = 2;
+              _context35.n = 2;
               break;
             }
-            return _context36.a(2);
+            return _context35.a(2);
           case 2:
             polling = true;
             active = false;
-            _context36.p = 3;
+            _context35.p = 3;
             ensurePinnedButton();
             enhanceItemTools();
             enhanceSectionFilter();
@@ -2949,68 +2967,68 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             if (option) option.textContent = 'العناصر غير المزامنة — الأحدث أولاً';
             rows = cards();
             ids = rows.map(row => row.id);
-            _context36.n = 4;
+            _context35.n = 4;
             return api('metadataStatus');
           case 4:
-            _status = _context36.v;
+            _status = _context35.v;
             jobs = Array.isArray(_status.jobs) ? _status.jobs : [];
             automaticEnabled = _status.automaticEnabled !== false;
             active = jobs.some(job => job.status === 'queued' || job.status === 'running');
             render(jobs);
-            _context36.p = 5;
-            _context36.n = 6;
+            _context35.p = 5;
+            _context35.n = 6;
             return pollTrailers();
           case 6:
-            _t30 = _context36.v;
-            if (_t30) {
-              _context36.n = 7;
+            _t31 = _context35.v;
+            if (_t31) {
+              _context35.n = 7;
               break;
             }
-            _t30 = active;
+            _t31 = active;
           case 7:
-            active = _t30;
-            _context36.n = 9;
+            active = _t31;
+            _context35.n = 9;
             break;
           case 8:
-            _context36.p = 8;
-            _t31 = _context36.v;
+            _context35.p = 8;
+            _t32 = _context35.v;
           case 9:
             if (!ids.length) {
-              _context36.n = 21;
+              _context35.n = 21;
               break;
             }
-            _context36.n = 10;
+            _context35.n = 10;
             return api('getItemSyncState/' + encodeURIComponent(ids.slice(0, 200).join(',')));
           case 10:
-            states = _context36.v;
+            states = _context35.v;
             byId = new Map((states.items || []).map(item => [item.id, item]));
             changed = new Set();
-            _iterator26 = _createForOfIteratorHelper(rows);
-            _context36.p = 11;
-            _iterator26.s();
+            _iterator27 = _createForOfIteratorHelper(rows);
+            _context35.p = 11;
+            _iterator27.s();
           case 12:
-            if ((_step26 = _iterator26.n()).done) {
-              _context36.n = 15;
+            if ((_step27 = _iterator27.n()).done) {
+              _context35.n = 15;
               break;
             }
-            _row = _step26.value;
-            _item = byId.get(_row.id);
-            if (_item) {
-              _context36.n = 13;
+            _row4 = _step27.value;
+            _item = byId.get(_row4.id);
+            if (!(!_item || !_row4.card.isConnected || cardId(_row4.card) !== _row4.id)) {
+              _context35.n = 13;
               break;
             }
-            return _context36.a(3, 14);
+            return _context35.a(3, 14);
           case 13:
-            picture = _row.card.querySelector('.img'), reload = (_row$card$querySelect = _row.card.querySelector('.lni-reload')) === null || _row$card$querySelect === void 0 ? void 0 : _row$card$querySelect.closest('.ic');
+            picture = _row4.card.querySelector('.img'), reload = (_row4$card$querySelec = _row4.card.querySelector('.lni-reload')) === null || _row4$card$querySelec === void 0 ? void 0 : _row4$card$querySelec.closest('.ic');
             if (picture) {
               if (!picture.getAttribute('data-zain-src') && !/\/ItemImage\//i.test(picture.getAttribute('src') || '')) {
-                picture.setAttribute('data-zain-src', new URL('/ItemImage/' + encodeURIComponent(_row.id), location.origin).href);
+                picture.setAttribute('data-zain-src', new URL('/ItemImage/' + encodeURIComponent(_row4.id), location.origin).href);
                 picture.removeAttribute('src');
               }
               becameSaved = _item.hasContent && (picture.dataset.zainMetadata === 'missing' || picture.classList.contains('noData'));
               picture.dataset.zainMetadata = _item.hasContent ? 'saved' : 'missing';
               picture.classList.toggle('noData', !_item.hasContent);
-              if (becameSaved && !fresh.has(_row.id)) changed.add(_row.id);
+              if (becameSaved && !fresh.has(_row4.id)) changed.add(_row4.id);
             }
             if (reload) {
               reload.classList.toggle('no', _item.hasContent);
@@ -3018,57 +3036,32 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               reload.title = 'تحديث البيانات وترجمتها وإعادة إنشاء الأيقونة بالعربية';
             }
           case 14:
-            _context36.n = 12;
+            _context35.n = 12;
             break;
           case 15:
-            _context36.n = 17;
+            _context35.n = 17;
             break;
           case 16:
-            _context36.p = 16;
-            _t32 = _context36.v;
-            _iterator26.e(_t32);
+            _context35.p = 16;
+            _t33 = _context35.v;
+            _iterator27.e(_t33);
           case 17:
-            _context36.p = 17;
-            _iterator26.f();
-            return _context36.f(17);
+            _context35.p = 17;
+            _iterator27.f();
+            return _context35.f(17);
           case 18:
-            _iterator27 = _createForOfIteratorHelper(jobs);
+            _iterator28 = _createForOfIteratorHelper(jobs);
             try {
-              for (_iterator27.s(); !(_step27 = _iterator27.n()).done;) {
-                job = _step27.value;
-                _iterator32 = _createForOfIteratorHelper(job.completedIds || []);
+              for (_iterator28.s(); !(_step28 = _iterator28.n()).done;) {
+                job = _step28.value;
+                _iterator33 = _createForOfIteratorHelper(job.completedIds || []);
                 try {
-                  for (_iterator32.s(); !(_step32 = _iterator32.n()).done;) {
-                    id = _step32.value;
+                  for (_iterator33.s(); !(_step33 = _iterator33.n()).done;) {
+                    id = _step33.value;
                     _key = job.id + ':' + id;
                     if (byId.has(id) && !seenCompletions.has(_key)) {
                       changed.add(id);
                       seenCompletions.add(_key);
-                    }
-                  }
-                } catch (err) {
-                  _iterator32.e(err);
-                } finally {
-                  _iterator32.f();
-                }
-              }
-            } catch (err) {
-              _iterator27.e(err);
-            } finally {
-              _iterator27.f();
-            }
-            _iterator28 = _createForOfIteratorHelper(jobs);
-            try {
-              for (_iterator28.s(); !(_step28 = _iterator28.n()).done;) {
-                _job = _step28.value;
-                _iterator33 = _createForOfIteratorHelper(_job.posterReadyIds || []);
-                try {
-                  for (_iterator33.s(); !(_step33 = _iterator33.n()).done;) {
-                    _id = _step33.value;
-                    _key2 = _job.id + ':poster:' + _id;
-                    if (byId.has(_id) && !seenCompletions.has(_key2)) {
-                      changed.add(_id);
-                      seenCompletions.add(_key2);
                     }
                   }
                 } catch (err) {
@@ -3082,30 +3075,55 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             } finally {
               _iterator28.f();
             }
-            if (!changed.size) {
-              _context36.n = 20;
-              break;
-            }
-            _context36.n = 19;
-            return api('getItemSyncState/' + encodeURIComponent(Array.from(changed).join(',')) + '/content');
-          case 19:
-            updated = _context36.v;
-            _iterator29 = _createForOfIteratorHelper(updated.items || []);
+            _iterator29 = _createForOfIteratorHelper(jobs);
             try {
               for (_iterator29.s(); !(_step29 = _iterator29.n()).done;) {
-                item = _step29.value;
-                fresh.set(item.id, item);
+                _job = _step29.value;
+                _iterator34 = _createForOfIteratorHelper(_job.posterReadyIds || []);
+                try {
+                  for (_iterator34.s(); !(_step34 = _iterator34.n()).done;) {
+                    _id = _step34.value;
+                    _key2 = _job.id + ':poster:' + _id;
+                    if (byId.has(_id) && !seenCompletions.has(_key2)) {
+                      changed.add(_id);
+                      seenCompletions.add(_key2);
+                    }
+                  }
+                } catch (err) {
+                  _iterator34.e(err);
+                } finally {
+                  _iterator34.f();
+                }
               }
             } catch (err) {
               _iterator29.e(err);
             } finally {
               _iterator29.f();
             }
-            _iterator30 = _createForOfIteratorHelper(rows);
+            if (!changed.size) {
+              _context35.n = 20;
+              break;
+            }
+            _context35.n = 19;
+            return api('getItemSyncState/' + encodeURIComponent(Array.from(changed).join(',')) + '/content');
+          case 19:
+            updated = _context35.v;
+            _iterator30 = _createForOfIteratorHelper(updated.items || []);
             try {
               for (_iterator30.s(); !(_step30 = _iterator30.n()).done;) {
-                row = _step30.value;
-                if (changed.has(row.id)) {
+                item = _step30.value;
+                fresh.set(item.id, item);
+              }
+            } catch (err) {
+              _iterator30.e(err);
+            } finally {
+              _iterator30.f();
+            }
+            _iterator31 = _createForOfIteratorHelper(rows);
+            try {
+              for (_iterator31.s(); !(_step31 = _iterator31.n()).done;) {
+                row = _step31.value;
+                if (changed.has(row.id) && row.card.isConnected && cardId(row.card) === row.id) {
                   img = row.card.querySelector('img');
                   if (img) {
                     url = new URL('/ItemImage/' + encodeURIComponent(row.id), location.origin);
@@ -3115,39 +3133,39 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                 }
               }
             } catch (err) {
-              _iterator30.e(err);
-            } finally {
-              _iterator30.f();
-            }
-          case 20:
-            _iterator31 = _createForOfIteratorHelper(fresh.keys());
-            try {
-              for (_iterator31.s(); !(_step31 = _iterator31.n()).done;) {
-                _id2 = _step31.value;
-                if (!byId.has(_id2)) fresh.delete(_id2);
-              }
-            } catch (err) {
               _iterator31.e(err);
             } finally {
               _iterator31.f();
             }
+          case 20:
+            _iterator32 = _createForOfIteratorHelper(fresh.keys());
+            try {
+              for (_iterator32.s(); !(_step32 = _iterator32.n()).done;) {
+                _id2 = _step32.value;
+                if (!byId.has(_id2)) fresh.delete(_id2);
+              }
+            } catch (err) {
+              _iterator32.e(err);
+            } finally {
+              _iterator32.f();
+            }
           case 21:
-            _context36.n = 23;
+            _context35.n = 23;
             break;
           case 22:
-            _context36.p = 22;
-            _t33 = _context36.v;
-            notice = _t33.message;
+            _context35.p = 22;
+            _t34 = _context35.v;
+            notice = _t34.message;
             render([]);
           case 23:
-            _context36.p = 23;
+            _context35.p = 23;
             polling = false;
             nextPoll = Date.now() + (document.hidden ? 10000 : active ? 1000 : 5000);
-            return _context36.f(23);
+            return _context35.f(23);
           case 24:
-            return _context36.a(2);
+            return _context35.a(2);
         }
-      }, _callee30, null, [[11, 16, 17, 18], [5, 8], [3, 22, 23, 24]]);
+      }, _callee31, null, [[11, 16, 17, 18], [5, 8], [3, 22, 23, 24]]);
     }));
     return _poll.apply(this, arguments);
   }
@@ -3338,6 +3356,92 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
       setTimeout(poll, 250);
     }
   });
+  var deletingItems = new Set();
+  function refreshItemStructure() {
+    if (location.pathname !== '/admin/items') return;
+    enhanceSectionFilter();
+    var _iterator17 = _createForOfIteratorHelper(cards()),
+      _step17;
+    try {
+      for (_iterator17.s(); !(_step17 = _iterator17.n()).done;) {
+        var row = _step17.value;
+        if (deletingItems.has(row.id)) row.card.setAttribute('data-zain-deleting', 'true');
+      }
+    } catch (err) {
+      _iterator17.e(err);
+    } finally {
+      _iterator17.f();
+    }
+  }
+  var deleteStyle = el('style');
+  deleteStyle.textContent = '.items-cont .item[data-zain-deleting="true"]{display:none!important}';
+  document.head.append(deleteStyle);
+  window.zainDeleteItem = function () {
+    var _ref15 = _asyncToGenerator(_regenerator().m(function _callee24(id, request) {
+      var response, value, _iterator18, _step18, row, _t26;
+      return _regenerator().w(function (_context27) {
+        while (1) switch (_context27.p = _context27.n) {
+          case 0:
+            deletingItems.add(String(id));
+            refreshItemStructure();
+            _context27.p = 1;
+            _context27.n = 2;
+            return request();
+          case 2:
+            response = _context27.v;
+            _context27.n = 3;
+            return response.clone().json();
+          case 3:
+            value = _context27.v;
+            if (!(!response.ok || value.msg === 'error')) {
+              _context27.n = 4;
+              break;
+            }
+            throw Error(value.error || 'تعذر حذف العنصر');
+          case 4:
+            return _context27.a(2, response);
+          case 5:
+            _context27.p = 5;
+            _t26 = _context27.v;
+            deletingItems.delete(String(id));
+            _iterator18 = _createForOfIteratorHelper(cards());
+            try {
+              for (_iterator18.s(); !(_step18 = _iterator18.n()).done;) {
+                row = _step18.value;
+                if (row.id === String(id)) row.card.removeAttribute('data-zain-deleting');
+              }
+            } catch (err) {
+              _iterator18.e(err);
+            } finally {
+              _iterator18.f();
+            }
+            notice = 'لم يكتمل الحذف: ' + _t26.message;
+            render([]);
+            return _context27.a(2, new Response(JSON.stringify({
+              msg: 'error'
+            }), {
+              status: 500,
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            }));
+        }
+      }, _callee24, null, [[1, 5]]);
+    }));
+    return function (_x24, _x25) {
+      return _ref15.apply(this, arguments);
+    };
+  }();
+  var structureTimer;
+  new MutationObserver(records => {
+    if (!records.some(record => Array.from(record.addedNodes).concat(Array.from(record.removedNodes)).some(node => node.nodeType === 1 && !(node.closest && node.closest('.zain-section-picker'))))) return;
+    clearTimeout(structureTimer);
+    structureTimer = setTimeout(refreshItemStructure, 50);
+  }).observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+  setInterval(refreshItemStructure, 1000);
   window.addEventListener('focus', () => {
     nextPoll = 0;
     poll();

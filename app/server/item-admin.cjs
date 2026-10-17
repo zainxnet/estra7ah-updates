@@ -1,6 +1,6 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-module.exports=function({dir,items,sharedCatalog,topRows,safeItem,updateItems,removeItem,resolveId=id=>id,prepareExclusive=async()=>({imageKind:'poster'}),catalogStore,onCatalogChange=()=>{}}){
+module.exports=function({dir,items,sharedCatalog,topRows,safeItem,updateItems,removeItem,getSections=()=>[],getChildren,resolveId=id=>id,prepareExclusive=async()=>({imageKind:'poster'}),catalogStore,onCatalogChange=()=>{}}){
  const scanReconcileVersion=1;let batching=false,batchDirty=false;
  const file=path.join(dir,'item-edits.json'),legacy=fs.existsSync(file)?JSON.parse(fs.readFileSync(file,'utf8')):{edits:{},deleted:[],pinned:[]};let state=catalogStore?.readState('item-edits')||legacy;if(catalogStore&&!catalogStore.readState('item-edits'))catalogStore.writeState('item-edits',state);
  if(!state.edits||!Array.isArray(state.deleted)||!Array.isArray(state.pinned))throw Error('Invalid item edits store');
@@ -55,11 +55,13 @@ module.exports=function({dir,items,sharedCatalog,topRows,safeItem,updateItems,re
   }
   if(action==='getItems'){
    const [section,filter,type,offset,...queryParts]=args,q=queryParts.join('/').toLowerCase();
-   if(items.queryTop&&!sharedCatalog&&filter!=='pined'&&filter!=='no-content'){const normalized=q.replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/[ؤئ]/g,'ء').replace(/ى/g,'ي'),filters={section:section&&section!=='all'?section:undefined,types:type&&type!=='all'?[type]:undefined,keys:q&&!['null','undefined'].includes(q)?[normalized]:undefined,missing:filter==='no-content'};return result({total:[{count:items.countTop(filters)}],items:items.queryTop({...filters,offset:Math.max(0,parseInt(offset)||0),limit:100,newest:true}).map(safeItem)});}
+   const scope=section&&section!=='all'?new Set([String(section)]):null;
+   if(scope){const children=new Map();for(const row of getSections()){const parent=String(row.in_section);if(!children.has(parent))children.set(parent,[]);children.get(parent).push(String(row.id));}const pending=[String(section)];while(pending.length){for(const id of children.get(pending.pop())||[])if(!scope.has(id)){scope.add(id);pending.push(id);}}}
+   if(items.queryTop&&!sharedCatalog&&filter!=='pined'&&filter!=='no-content'){const normalized=q.replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/[ؤئ]/g,'ء').replace(/ى/g,'ي'),filters={sections:scope?[...scope]:undefined,types:type&&type!=='all'?[type]:undefined,keys:q&&!['null','undefined'].includes(q)?[normalized]:undefined,missing:filter==='no-content'};return result({total:[{count:items.countTop(filters)}],items:items.queryTop({...filters,offset:Math.max(0,parseInt(offset)||0),limit:100,newest:true}).map(safeItem)});}
    let rows=filter==='pined'
     ? [...new Set(state.pinned.flatMap(id=>sharedCatalog?.related(id)||[id]))].map(id=>items.get(id)).filter(item=>item&&(!item.inItem||item.inItem==='null')&&require('./catalog-items.cjs').visible(item))
     : (topRows?topRows():[...items.values()].filter(item=>(!item.inItem||item.inItem==='null')&&require('./catalog-items.cjs').visible(item)));
-   if(section&&section!=='all')rows=rows.filter(item=>item.sectionId===section);
+   if(scope)rows=rows.filter(item=>scope.has(String(item.sectionId)));
    if(type&&type!=='all')rows=rows.filter(item=>item.type===type);
    if(filter==='pined')rows=rows.filter(item=>(sharedCatalog?.related(item.id)||[item.id]).some(id=>state.pinned.includes(id)));
    if(filter==='no-content')rows=require('./metadata.cjs').newestFirst(rows.filter(item=>require('./metadata.cjs').supportsMetadata(item)&&!(sharedCatalog?sharedCatalog.hasContent(item):require('./metadata.cjs').hasContent(item))));
@@ -101,8 +103,9 @@ module.exports=function({dir,items,sharedCatalog,topRows,safeItem,updateItems,re
   if(action==='removeExclusiveItem')next.exclusive=next.exclusive.filter(x=>x!==id);
   if(action==='pinItem'){const related=sharedCatalog?.related(id)||[id];if(!related.some(value=>next.pinned.includes(value)))next.pinned.push(id);}
   if(action==='delPinedItem'){const related=new Set(sharedCatalog?.related(id)||[id]);next.pinned=next.pinned.filter(value=>!related.has(value));}
+  let deleteScope;
   if(action==='deleteItem'){
-   const ids=new Set(sharedCatalog?.related(id)||[id]);let changed=true;while(changed){changed=false;for(const row of items.values())if(ids.has(row.inItem)&&!ids.has(row.id)){ids.add(row.id);changed=true;}}
+   const ids=new Set(sharedCatalog?.related(id)||[id]);if(getChildren){const pending=[...ids];while(pending.length)for(const child of getChildren(pending.pop())||[])if(!ids.has(child)){ids.add(child);pending.push(child);}}else{let changed=true;while(changed){changed=false;for(const row of items.values())if(ids.has(row.inItem)&&!ids.has(row.id)){ids.add(row.id);changed=true;}}}deleteScope=[...ids];
    next.deleted=[...new Set([...next.deleted,...ids])];next.pinned=next.pinned.filter(value=>!ids.has(value));
   }
   if(action==='updateContent'){
@@ -115,6 +118,6 @@ module.exports=function({dir,items,sharedCatalog,topRows,safeItem,updateItems,re
    const content={...editing.content,contentJSON:JSON.stringify(data)};if(body.imdbRating!==undefined)content.imdb_ratings=Number(body.imdbRating);if(body.ReleaseDate!==undefined)content.year=parseInt(body.ReleaseDate)||0;
    next.edits[id]={...next.edits[id],...(body.name?{name:body.name.trim()}:{}),...(!sharedCatalog?{content}:{})};if(sharedCatalog){delete next.edits[id].content;next.sharedContent={...next.sharedContent,[sharedCatalog.key(id)]:content};}
   }
-  save(next);return result({msg:'ok',...exclusiveResult});
+  save(next,deleteScope?{ids:deleteScope}:undefined);return result({msg:'ok',...exclusiveResult});
  },apply,observe,reconcileScan,batchChanges,scanApplied:scope=>{const key=require('./movie-scan-state.cjs').key(scope);return state.scanApplied?.[key]===scope.stamp&&state.scanAppliedVersion?.[key]===scanReconcileVersion;}};
 };

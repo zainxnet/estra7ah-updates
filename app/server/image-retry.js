@@ -15,11 +15,14 @@
   // Home section covers use native loading; wake even the covers below the fold.
   if(/^\/(?:index\.html)?$/i.test(location.pathname)&&raw){try{const cover=new URL(raw,location.href);if(cover.origin===location.origin&&/^\/(?:api\/+)?sectionimage\/[\w.-]+\/?$/i.test(cover.pathname)){img.loading='eager';img.decoding='async';}}catch{}}
   if(s&&raw===s.rendered&&(!desired||desired===s.url))return s;
-  let url=desired||source(raw);
+  const incoming=source(raw);
+  // React may reuse this image for another item; a new native source owns the card.
+  let url=incoming&&(!s||raw!==s.rendered)?incoming:desired||incoming;
   // Some legacy cards insert their temporary image before the actual poster URL.
   if(!url&&(!raw||/^data:image\//i.test(raw))){const a=img.closest('a[href*="/itemView/"]'),m=a?.getAttribute('href')?.match(/\/itemView\/[^/]+\/([\w.-]+)/);if(m)url=new URL('/ItemImage/'+m[1],location.href).href;}
   if(s)release(img,s);
   if(!url)return null;
+  if(img.getAttribute('data-zain-src')!==url)img.setAttribute('data-zain-src',url);
   s={url,rendered:raw,next:0,tries:0,ready:false,busy:false,verified:false,nativeStarted:Date.now(),awaitingNative:false,queued:!!desired||!source(raw),slot:false,pendingStarted:0};states.set(img,s);tracked.add(img);
   mark(img,s.queued?'queued':'loading');
   return s;

@@ -46,6 +46,16 @@ module.exports=function createUiCompat({interfaceDir}){
  }
  // Refresh the original edit dialog from metadata just received by the existing card.
  for(const name of ['16.2990da08.chunk.js','16.ccc25959.chunk.js','16.cfd464c3.chunk.js']){const route='/static/js/'+name,file=path.join(interfaceDir,route.slice(1));if(!fs.existsSync(file))continue;const source=(transformed.get(route)||fs.readFileSync(file)).toString();if(source.includes('Q(t),et(!0)'))transformed.set(route,Buffer.from(source.replaceAll('Q(t),et(!0)','Q(window.zainAdminFreshItem?window.zainAdminFreshItem(t):t),et(!0)')));}
+
+ // Stable React identity prevents an image component retaining another item's state.
+ for(const name of ['16.2990da08.chunk.js','16.cfd464c3.chunk.js','main.2357f398.chunk.js']){
+  const route='/static/js/'+name,file=path.join(interfaceDir,route.slice(1));if(!fs.existsSync(file))continue;
+  let text=(transformed.get(route)||fs.readFileSync(file)).toString();const main=name.startsWith('main.'),item=main?'e':'t',local=main?'a':'i',client=main?'v':'f';
+  const cardAt=text.lastIndexOf('className:"item",onClick',text.indexOf('"deleteItem/"'));if(cardAt<0)throw Error('Item card adapter mismatch');text=text.slice(0,cardAt)+'key:'+item+'.id,"data-zain-item-id":'+item+'.id,'+text.slice(cardAt);
+  const request=client+'.a.fetch('+client+'.a.admin+"deleteItem/"+'+local+',{method:"GET"})';
+  text=text.replaceAll(request,'(window.zainDeleteItem?window.zainDeleteItem('+local+',function(){return '+request+'}):'+request+')');
+  transformed.set(route,Buffer.from(text));
+ }
  // Restore each search's query, results and scroll when returning from a detail.
  for(const name of ['12.41b0cf3e.chunk.js','12.fe8e7055.chunk.js']){const route='/static/js/'+name,file=path.join(interfaceDir,route.slice(1));if(!fs.existsSync(file))continue;const text=(transformed.get(route)||fs.readFileSync(file)).toString();transformed.set(route,Buffer.from(require('./search-history.cjs').adapt(text)));}
  // The backup form uses Axios, so its success/failure notifications must be
