@@ -2316,6 +2316,306 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     }
     return card.dataset.zainItemId || '';
   }
+  var zainSectionRows = [],
+    zainSectionRowsAt = 0,
+    zainSectionFetch = null,
+    zainSectionTreeSignature = '';
+  function sectionRows() {
+    return _sectionRows.apply(this, arguments);
+  }
+  function _sectionRows() {
+    _sectionRows = _asyncToGenerator(_regenerator().m(function _callee28() {
+      return _regenerator().w(function (_context32) {
+        while (1) switch (_context32.n) {
+          case 0:
+            if (!(zainSectionRows.length && Date.now() - zainSectionRowsAt < 60000)) {
+              _context32.n = 1;
+              break;
+            }
+            return _context32.a(2, zainSectionRows);
+          case 1:
+            if (!zainSectionFetch) {
+              _context32.n = 2;
+              break;
+            }
+            return _context32.a(2, zainSectionFetch);
+          case 2:
+            zainSectionFetch = _asyncToGenerator(_regenerator().m(function _callee27() {
+              var response, rows;
+              return _regenerator().w(function (_context31) {
+                while (1) switch (_context31.n) {
+                  case 0:
+                    _context31.n = 1;
+                    return fetch('/admin/api/getAllSections', {
+                      credentials: 'same-origin',
+                      cache: 'no-store'
+                    });
+                  case 1:
+                    response = _context31.v;
+                    if (response.ok) {
+                      _context31.n = 2;
+                      break;
+                    }
+                    throw Error('تعذر تحميل ترتيب الأقسام');
+                  case 2:
+                    _context31.n = 3;
+                    return response.json();
+                  case 3:
+                    rows = _context31.v;
+                    if (Array.isArray(rows)) {
+                      _context31.n = 4;
+                      break;
+                    }
+                    throw Error('قائمة الأقسام غير صالحة');
+                  case 4:
+                    zainSectionRows = rows.filter(row => row && row.id !== undefined && row.id !== null);
+                    zainSectionRowsAt = Date.now();
+                    return _context31.a(2, zainSectionRows);
+                }
+              }, _callee27);
+            }))().finally(() => {
+              zainSectionFetch = null;
+            });
+            return _context32.a(2, zainSectionFetch);
+        }
+      }, _callee28);
+    }));
+    return _sectionRows.apply(this, arguments);
+  }
+  function enhanceSectionFilter() {
+    return _enhanceSectionFilter.apply(this, arguments);
+  }
+  function _enhanceSectionFilter() {
+    _enhanceSectionFilter = _asyncToGenerator(_regenerator().m(function _callee29() {
+      var select, rows, byId, children, _iterator18, _step18, row, parent, cmp, _iterator19, _step19, list, roots, ordered, visit, _iterator21, _step21, root, _iterator22, _step22, _loop11, signature, selected, special, fragment, _iterator23, _step23, option, groups, _loop10, _i6, _ordered, _iterator24, _step24, _byId$get, _step24$value, rootId, entries, group, _iterator25, _step25, entry, _option, _t28, _t29;
+      return _regenerator().w(function (_context35) {
+        while (1) switch (_context35.p = _context35.n) {
+          case 0:
+            if (!(location.pathname !== '/admin/items')) {
+              _context35.n = 1;
+              break;
+            }
+            return _context35.a(2);
+          case 1:
+            select = document.querySelector('.items-cont select');
+            if (select) {
+              _context35.n = 2;
+              break;
+            }
+            return _context35.a(2);
+          case 2:
+            _context35.p = 2;
+            _context35.n = 3;
+            return sectionRows();
+          case 3:
+            rows = _context35.v;
+            if (select.isConnected) {
+              _context35.n = 4;
+              break;
+            }
+            return _context35.a(2);
+          case 4:
+            byId = new Map(rows.map(row => [String(row.id), row])), children = new Map();
+            _iterator18 = _createForOfIteratorHelper(rows);
+            try {
+              for (_iterator18.s(); !(_step18 = _iterator18.n()).done;) {
+                row = _step18.value;
+                parent = String(row.in_section || 'null');
+                if (parent !== 'null' && byId.has(parent)) {
+                  if (!children.has(parent)) children.set(parent, []);
+                  children.get(parent).push(row);
+                }
+              }
+            } catch (err) {
+              _iterator18.e(err);
+            } finally {
+              _iterator18.f();
+            }
+            cmp = (a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || String(a.name || '').localeCompare(String(b.name || ''), 'ar');
+            _iterator19 = _createForOfIteratorHelper(children.values());
+            try {
+              for (_iterator19.s(); !(_step19 = _iterator19.n()).done;) {
+                list = _step19.value;
+                list.sort(cmp);
+              }
+            } catch (err) {
+              _iterator19.e(err);
+            } finally {
+              _iterator19.f();
+            }
+            roots = rows.filter(row => !row.in_section || row.in_section === 'null' || !byId.has(String(row.in_section))).sort(cmp);
+            ordered = [];
+            visit = (row, trail, seen) => {
+              var id = String(row.id);
+              if (seen.has(id)) return;
+              var chain = [...trail, String(row.name || '')];
+              ordered.push({
+                row,
+                trail: chain
+              });
+              var next = new Set(seen);
+              next.add(id);
+              var _iterator20 = _createForOfIteratorHelper(children.get(id) || []),
+                _step20;
+              try {
+                for (_iterator20.s(); !(_step20 = _iterator20.n()).done;) {
+                  var child = _step20.value;
+                  visit(child, chain, next);
+                }
+              } catch (err) {
+                _iterator20.e(err);
+              } finally {
+                _iterator20.f();
+              }
+            };
+            _iterator21 = _createForOfIteratorHelper(roots);
+            try {
+              for (_iterator21.s(); !(_step21 = _iterator21.n()).done;) {
+                root = _step21.value;
+                visit(root, [], new Set());
+              }
+            } catch (err) {
+              _iterator21.e(err);
+            } finally {
+              _iterator21.f();
+            }
+            _iterator22 = _createForOfIteratorHelper(rows);
+            _context35.p = 5;
+            _loop11 = _regenerator().m(function _loop11() {
+              var row;
+              return _regenerator().w(function (_context34) {
+                while (1) switch (_context34.n) {
+                  case 0:
+                    row = _step22.value;
+                    if (!ordered.some(entry => String(entry.row.id) === String(row.id))) visit(row, [], new Set());
+                  case 1:
+                    return _context34.a(2);
+                }
+              }, _loop11);
+            });
+            _iterator22.s();
+          case 6:
+            if ((_step22 = _iterator22.n()).done) {
+              _context35.n = 8;
+              break;
+            }
+            return _context35.d(_regeneratorValues(_loop11()), 7);
+          case 7:
+            _context35.n = 6;
+            break;
+          case 8:
+            _context35.n = 10;
+            break;
+          case 9:
+            _context35.p = 9;
+            _t28 = _context35.v;
+            _iterator22.e(_t28);
+          case 10:
+            _context35.p = 10;
+            _iterator22.f();
+            return _context35.f(10);
+          case 11:
+            signature = ordered.map(entry => String(entry.row.id) + '=' + entry.trail.join(' › ')).join('|');
+            if (!(select.dataset.zainSectionTree === signature && select.options.length)) {
+              _context35.n = 12;
+              break;
+            }
+            return _context35.a(2);
+          case 12:
+            selected = select.value;
+            special = Array.from(select.options).filter(option => !byId.has(String(option.value)));
+            fragment = document.createDocumentFragment();
+            _iterator23 = _createForOfIteratorHelper(special);
+            try {
+              for (_iterator23.s(); !(_step23 = _iterator23.n()).done;) {
+                option = _step23.value;
+                fragment.append(option.cloneNode(true));
+              }
+            } catch (err) {
+              _iterator23.e(err);
+            } finally {
+              _iterator23.f();
+            }
+            groups = new Map();
+            _loop10 = _regenerator().m(function _loop10() {
+              var entry, rootId;
+              return _regenerator().w(function (_context33) {
+                while (1) switch (_context33.n) {
+                  case 0:
+                    entry = _ordered[_i6];
+                    rootId = String((() => {
+                      var row = entry.row,
+                        guard = new Set();
+                      while (row.in_section && byId.has(String(row.in_section)) && !guard.has(String(row.id))) {
+                        guard.add(String(row.id));
+                        row = byId.get(String(row.in_section));
+                      }
+                      return row.id;
+                    })());
+                    if (!groups.has(rootId)) groups.set(rootId, []);
+                    groups.get(rootId).push(entry);
+                  case 1:
+                    return _context33.a(2);
+                }
+              }, _loop10);
+            });
+            _i6 = 0, _ordered = ordered;
+          case 13:
+            if (!(_i6 < _ordered.length)) {
+              _context35.n = 15;
+              break;
+            }
+            return _context35.d(_regeneratorValues(_loop10()), 14);
+          case 14:
+            _i6++;
+            _context35.n = 13;
+            break;
+          case 15:
+            _iterator24 = _createForOfIteratorHelper(groups);
+            try {
+              for (_iterator24.s(); !(_step24 = _iterator24.n()).done;) {
+                _step24$value = _slicedToArray(_step24.value, 2), rootId = _step24$value[0], entries = _step24$value[1];
+                group = document.createElement('optgroup');
+                group.label = ((_byId$get = byId.get(rootId)) === null || _byId$get === void 0 ? void 0 : _byId$get.name) || 'أقسام أخرى';
+                _iterator25 = _createForOfIteratorHelper(entries);
+                try {
+                  for (_iterator25.s(); !(_step25 = _iterator25.n()).done;) {
+                    entry = _step25.value;
+                    _option = document.createElement('option');
+                    _option.value = String(entry.row.id);
+                    _option.textContent = entry.trail.join(' › ');
+                    _option.title = _option.textContent;
+                    group.append(_option);
+                  }
+                } catch (err) {
+                  _iterator25.e(err);
+                } finally {
+                  _iterator25.f();
+                }
+                fragment.append(group);
+              }
+            } catch (err) {
+              _iterator24.e(err);
+            } finally {
+              _iterator24.f();
+            }
+            select.replaceChildren(fragment);
+            if (Array.from(select.options).some(option => option.value === selected)) select.value = selected;else select.value = 'all';
+            select.dataset.zainSectionTree = signature;
+            select.setAttribute('aria-label', 'تصفح الأقسام حسب التسلسل الهرمي');
+            select.title = 'الأقسام مرتبة هرميًا: القسم الرئيسي › الفرعي › الفرعي الأعمق';
+            _context35.n = 17;
+            break;
+          case 16:
+            _context35.p = 16;
+            _t29 = _context35.v;
+          case 17:
+            return _context35.a(2);
+        }
+      }, _callee29, null, [[5, 9, 10, 11], [2, 16]]);
+    }));
+    return _enhanceSectionFilter.apply(this, arguments);
+  }
   function cards() {
     return Array.from(document.querySelectorAll('.items-cont .items>.item')).map(card => {
       var id = cardId(card);
@@ -2612,13 +2912,13 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     return _poll.apply(this, arguments);
   }
   function _poll() {
-    _poll = _asyncToGenerator(_regenerator().m(function _callee27() {
-      var active, option, rows, ids, _status, jobs, states, byId, changed, _iterator18, _step18, _row$card$querySelect, _row, _item, picture, reload, becameSaved, _iterator19, _step19, job, _iterator24, _step24, id, _key, _iterator20, _step20, _job, _iterator25, _step25, _id, _key2, updated, _iterator21, _step21, item, _iterator22, _step22, row, img, url, _iterator23, _step23, _id2, _t28, _t29, _t30, _t31;
-      return _regenerator().w(function (_context31) {
-        while (1) switch (_context31.p = _context31.n) {
+    _poll = _asyncToGenerator(_regenerator().m(function _callee30() {
+      var active, option, rows, ids, _status, jobs, states, byId, changed, _iterator26, _step26, _row$card$querySelect, _row, _item, picture, reload, becameSaved, _iterator27, _step27, job, _iterator32, _step32, id, _key, _iterator28, _step28, _job, _iterator33, _step33, _id, _key2, updated, _iterator29, _step29, item, _iterator30, _step30, row, img, url, _iterator31, _step31, _id2, _t30, _t31, _t32, _t33;
+      return _regenerator().w(function (_context36) {
+        while (1) switch (_context36.p = _context36.n) {
           case 0:
             if (!(location.pathname !== '/admin/items')) {
-              _context31.n = 1;
+              _context36.n = 1;
               break;
             }
             if (wasItems) {
@@ -2630,75 +2930,76 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               nextPoll = 0;
               wasItems = false;
             }
-            return _context31.a(2);
+            return _context36.a(2);
           case 1:
             wasItems = true;
             if (!(polling || Date.now() < nextPoll)) {
-              _context31.n = 2;
+              _context36.n = 2;
               break;
             }
-            return _context31.a(2);
+            return _context36.a(2);
           case 2:
             polling = true;
             active = false;
-            _context31.p = 3;
+            _context36.p = 3;
             ensurePinnedButton();
             enhanceItemTools();
+            enhanceSectionFilter();
             option = document.querySelector('.items-cont option[value="no-content"]');
             if (option) option.textContent = 'العناصر غير المزامنة — الأحدث أولاً';
             rows = cards();
             ids = rows.map(row => row.id);
-            _context31.n = 4;
+            _context36.n = 4;
             return api('metadataStatus');
           case 4:
-            _status = _context31.v;
+            _status = _context36.v;
             jobs = Array.isArray(_status.jobs) ? _status.jobs : [];
             automaticEnabled = _status.automaticEnabled !== false;
             active = jobs.some(job => job.status === 'queued' || job.status === 'running');
             render(jobs);
-            _context31.p = 5;
-            _context31.n = 6;
+            _context36.p = 5;
+            _context36.n = 6;
             return pollTrailers();
           case 6:
-            _t28 = _context31.v;
-            if (_t28) {
-              _context31.n = 7;
+            _t30 = _context36.v;
+            if (_t30) {
+              _context36.n = 7;
               break;
             }
-            _t28 = active;
+            _t30 = active;
           case 7:
-            active = _t28;
-            _context31.n = 9;
+            active = _t30;
+            _context36.n = 9;
             break;
           case 8:
-            _context31.p = 8;
-            _t29 = _context31.v;
+            _context36.p = 8;
+            _t31 = _context36.v;
           case 9:
             if (!ids.length) {
-              _context31.n = 21;
+              _context36.n = 21;
               break;
             }
-            _context31.n = 10;
+            _context36.n = 10;
             return api('getItemSyncState/' + encodeURIComponent(ids.slice(0, 200).join(',')));
           case 10:
-            states = _context31.v;
+            states = _context36.v;
             byId = new Map((states.items || []).map(item => [item.id, item]));
             changed = new Set();
-            _iterator18 = _createForOfIteratorHelper(rows);
-            _context31.p = 11;
-            _iterator18.s();
+            _iterator26 = _createForOfIteratorHelper(rows);
+            _context36.p = 11;
+            _iterator26.s();
           case 12:
-            if ((_step18 = _iterator18.n()).done) {
-              _context31.n = 15;
+            if ((_step26 = _iterator26.n()).done) {
+              _context36.n = 15;
               break;
             }
-            _row = _step18.value;
+            _row = _step26.value;
             _item = byId.get(_row.id);
             if (_item) {
-              _context31.n = 13;
+              _context36.n = 13;
               break;
             }
-            return _context31.a(3, 14);
+            return _context36.a(3, 14);
           case 13:
             picture = _row.card.querySelector('.img'), reload = (_row$card$querySelect = _row.card.querySelector('.lni-reload')) === null || _row$card$querySelect === void 0 ? void 0 : _row$card$querySelect.closest('.ic');
             if (picture) {
@@ -2717,28 +3018,28 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               reload.title = 'تحديث البيانات وترجمتها وإعادة إنشاء الأيقونة بالعربية';
             }
           case 14:
-            _context31.n = 12;
+            _context36.n = 12;
             break;
           case 15:
-            _context31.n = 17;
+            _context36.n = 17;
             break;
           case 16:
-            _context31.p = 16;
-            _t30 = _context31.v;
-            _iterator18.e(_t30);
+            _context36.p = 16;
+            _t32 = _context36.v;
+            _iterator26.e(_t32);
           case 17:
-            _context31.p = 17;
-            _iterator18.f();
-            return _context31.f(17);
+            _context36.p = 17;
+            _iterator26.f();
+            return _context36.f(17);
           case 18:
-            _iterator19 = _createForOfIteratorHelper(jobs);
+            _iterator27 = _createForOfIteratorHelper(jobs);
             try {
-              for (_iterator19.s(); !(_step19 = _iterator19.n()).done;) {
-                job = _step19.value;
-                _iterator24 = _createForOfIteratorHelper(job.completedIds || []);
+              for (_iterator27.s(); !(_step27 = _iterator27.n()).done;) {
+                job = _step27.value;
+                _iterator32 = _createForOfIteratorHelper(job.completedIds || []);
                 try {
-                  for (_iterator24.s(); !(_step24 = _iterator24.n()).done;) {
-                    id = _step24.value;
+                  for (_iterator32.s(); !(_step32 = _iterator32.n()).done;) {
+                    id = _step32.value;
                     _key = job.id + ':' + id;
                     if (byId.has(id) && !seenCompletions.has(_key)) {
                       changed.add(id);
@@ -2746,24 +3047,24 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                     }
                   }
                 } catch (err) {
-                  _iterator24.e(err);
+                  _iterator32.e(err);
                 } finally {
-                  _iterator24.f();
+                  _iterator32.f();
                 }
               }
             } catch (err) {
-              _iterator19.e(err);
+              _iterator27.e(err);
             } finally {
-              _iterator19.f();
+              _iterator27.f();
             }
-            _iterator20 = _createForOfIteratorHelper(jobs);
+            _iterator28 = _createForOfIteratorHelper(jobs);
             try {
-              for (_iterator20.s(); !(_step20 = _iterator20.n()).done;) {
-                _job = _step20.value;
-                _iterator25 = _createForOfIteratorHelper(_job.posterReadyIds || []);
+              for (_iterator28.s(); !(_step28 = _iterator28.n()).done;) {
+                _job = _step28.value;
+                _iterator33 = _createForOfIteratorHelper(_job.posterReadyIds || []);
                 try {
-                  for (_iterator25.s(); !(_step25 = _iterator25.n()).done;) {
-                    _id = _step25.value;
+                  for (_iterator33.s(); !(_step33 = _iterator33.n()).done;) {
+                    _id = _step33.value;
                     _key2 = _job.id + ':poster:' + _id;
                     if (byId.has(_id) && !seenCompletions.has(_key2)) {
                       changed.add(_id);
@@ -2771,39 +3072,39 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                     }
                   }
                 } catch (err) {
-                  _iterator25.e(err);
+                  _iterator33.e(err);
                 } finally {
-                  _iterator25.f();
+                  _iterator33.f();
                 }
               }
             } catch (err) {
-              _iterator20.e(err);
+              _iterator28.e(err);
             } finally {
-              _iterator20.f();
+              _iterator28.f();
             }
             if (!changed.size) {
-              _context31.n = 20;
+              _context36.n = 20;
               break;
             }
-            _context31.n = 19;
+            _context36.n = 19;
             return api('getItemSyncState/' + encodeURIComponent(Array.from(changed).join(',')) + '/content');
           case 19:
-            updated = _context31.v;
-            _iterator21 = _createForOfIteratorHelper(updated.items || []);
+            updated = _context36.v;
+            _iterator29 = _createForOfIteratorHelper(updated.items || []);
             try {
-              for (_iterator21.s(); !(_step21 = _iterator21.n()).done;) {
-                item = _step21.value;
+              for (_iterator29.s(); !(_step29 = _iterator29.n()).done;) {
+                item = _step29.value;
                 fresh.set(item.id, item);
               }
             } catch (err) {
-              _iterator21.e(err);
+              _iterator29.e(err);
             } finally {
-              _iterator21.f();
+              _iterator29.f();
             }
-            _iterator22 = _createForOfIteratorHelper(rows);
+            _iterator30 = _createForOfIteratorHelper(rows);
             try {
-              for (_iterator22.s(); !(_step22 = _iterator22.n()).done;) {
-                row = _step22.value;
+              for (_iterator30.s(); !(_step30 = _iterator30.n()).done;) {
+                row = _step30.value;
                 if (changed.has(row.id)) {
                   img = row.card.querySelector('img');
                   if (img) {
@@ -2814,39 +3115,39 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                 }
               }
             } catch (err) {
-              _iterator22.e(err);
+              _iterator30.e(err);
             } finally {
-              _iterator22.f();
+              _iterator30.f();
             }
           case 20:
-            _iterator23 = _createForOfIteratorHelper(fresh.keys());
+            _iterator31 = _createForOfIteratorHelper(fresh.keys());
             try {
-              for (_iterator23.s(); !(_step23 = _iterator23.n()).done;) {
-                _id2 = _step23.value;
+              for (_iterator31.s(); !(_step31 = _iterator31.n()).done;) {
+                _id2 = _step31.value;
                 if (!byId.has(_id2)) fresh.delete(_id2);
               }
             } catch (err) {
-              _iterator23.e(err);
+              _iterator31.e(err);
             } finally {
-              _iterator23.f();
+              _iterator31.f();
             }
           case 21:
-            _context31.n = 23;
+            _context36.n = 23;
             break;
           case 22:
-            _context31.p = 22;
-            _t31 = _context31.v;
-            notice = _t31.message;
+            _context36.p = 22;
+            _t33 = _context36.v;
+            notice = _t33.message;
             render([]);
           case 23:
-            _context31.p = 23;
+            _context36.p = 23;
             polling = false;
             nextPoll = Date.now() + (document.hidden ? 10000 : active ? 1000 : 5000);
-            return _context31.f(23);
+            return _context36.f(23);
           case 24:
-            return _context31.a(2);
+            return _context36.a(2);
         }
-      }, _callee27, null, [[11, 16, 17, 18], [5, 8], [3, 22, 23, 24]]);
+      }, _callee30, null, [[11, 16, 17, 18], [5, 8], [3, 22, 23, 24]]);
     }));
     return _poll.apply(this, arguments);
   }
