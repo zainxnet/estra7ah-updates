@@ -1988,7 +1988,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
       full.dataset.zainSync = 'full';
       var label = full.querySelector('.text .text') || full.querySelector('.text') || full;
       label.textContent = 'مزامنة شاملة للعناصر المعروضة';
-      full.title = 'تحديث البيانات والترجمة وإعادة إنشاء الأيقونات للعناصر المعروضة';
+      full.title = 'تحديث البيانات مع الاحتفاظ بالقصة والأيقونة العربية وبيانات الممثلين الموجودة';
       if (!document.getElementById('zain-newest-100')) {
         var button = full.cloneNode(true);
         button.id = 'zain-newest-100';
@@ -3326,7 +3326,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             _t22 = _t23;
           case 21:
             result = _t22;
-            notice = incomplete ? 'بدأ اختيار أحدث 100 عنصر ينقصه البيانات أو الأيقونة؛ يكتمل الجزء الناقص فقط.' : rebuildIcon ? 'بدأ تحديث البيانات وترجمتها؛ بعدها يعاد إنشاء الأيقونة بالاسم العربي. يظهر التقدم والنتيجة في سجل المزامنة.' : 'بدأت مزامنة ' + (result.total || ((_ids = ids) === null || _ids === void 0 ? void 0 : _ids.length) || 0) + ' عنصر، من الأحدث إلى الأقدم؛ تتحدث حالة البطاقات أثناء العمل.';
+            notice = incomplete ? 'بدأ اختيار أحدث 100 عنصر ينقصه البيانات أو الأيقونة؛ يكتمل الجزء الناقص فقط.' : full ? 'بدأ تحديث بيانات العناصر مع الاحتفاظ بالأجزاء العربية وبيانات الممثلين الموجودة.' : rebuildIcon ? 'بدأ تحديث البيانات وترجمتها؛ بعدها يعاد إنشاء الأيقونة بالاسم العربي. يظهر التقدم والنتيجة في سجل المزامنة.' : 'بدأت مزامنة ' + (result.total || ((_ids = ids) === null || _ids === void 0 ? void 0 : _ids.length) || 0) + ' عنصر، من الأحدث إلى الأقدم؛ تتحدث حالة البطاقات أثناء العمل.';
             render([]);
             _context26.n = 23;
             break;
