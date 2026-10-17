@@ -2318,6 +2318,26 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     }
     return card.dataset.zainItemId || '';
   }
+  function sectionDisplayName(row) {
+    var custom = String(row.name || '').trim();
+    if (custom) return custom;
+    var legacy = {
+      'ID-8812641051662403900': 'أفلام',
+      'ID-2439320021662468968': 'مسلسلات',
+      'ID-7898200331662469079': 'تلفزيون',
+      'ID-17694494695913731697474894275': 'بيت المسلسلات',
+      'ID-1551480641662469131': 'منوعات'
+    };
+    var types = {
+      movies: 'أفلام',
+      serieses: 'مسلسلات',
+      'serieses.tv': 'برامج تلفزيونية',
+      'serieses.sports': 'رياضة',
+      'serieses.learn': 'تعليم',
+      'serieses.deen': 'إسلاميات'
+    };
+    return legacy[String(row.id)] || types[row.type] || 'قسم بدون اسم';
+  }
   var zainSectionRows = [],
     zainSectionRowsAt = 0,
     zainSectionFetch = null,
@@ -2330,7 +2350,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
       return _regenerator().w(function (_context33) {
         while (1) switch (_context33.n) {
           case 0:
-            if (!(zainSectionRows.length && Date.now() - zainSectionRowsAt < 60000)) {
+            if (!(zainSectionRows.length && Date.now() - zainSectionRowsAt < 10000)) {
               _context33.n = 1;
               break;
             }
@@ -2370,7 +2390,9 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                     }
                     throw Error('قائمة الأقسام غير صالحة');
                   case 4:
-                    zainSectionRows = rows.filter(row => row && row.id !== undefined && row.id !== null);
+                    zainSectionRows = rows.filter(row => row && row.id !== undefined && row.id !== null).map(row => _objectSpread(_objectSpread({}, row), {}, {
+                      name: sectionDisplayName(row)
+                    }));
                     zainSectionRowsAt = Date.now();
                     return _context32.a(2, zainSectionRows);
                 }
@@ -2389,7 +2411,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   }
   function _enhanceSectionFilter() {
     _enhanceSectionFilter = _asyncToGenerator(_regenerator().m(function _callee30() {
-      var select, rows, signature, widget, _style, byId, children, compare, _iterator20, _step20, row, parent, _iterator21, _step21, list, roots, selected, known, _iterator22, _step22, _row, option, host, summary, _panel, labels, buttons, visited, sync, choose, nameButton, appendRow, _iterator25, _step25, _row2, _iterator26, _step26, _row3, _t29, _t30;
+      var select, rows, signature, widget, _style, byId, children, compare, _iterator20, _step20, row, parent, _iterator21, _step21, list, roots, previous, selected, options, allOption, _iterator22, _step22, _row, option, host, summary, _panel, labels, buttons, visited, sync, choose, nameButton, appendRow, _iterator25, _step25, _row2, _iterator26, _step26, _row3, _t29, _t30;
       return _regenerator().w(function (_context34) {
         while (1) switch (_context34.p = _context34.n) {
           case 0:
@@ -2469,7 +2491,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             _t29 = _context34.v;
           case 5:
             rows = _t29;
-            if (Date.now() - zainSectionRowsAt >= 60000) sectionRows().catch(() => {});
+            if (Date.now() - zainSectionRowsAt >= 10000) sectionRows().then(() => refreshItemStructure()).catch(() => {});
             if (!(!select.isConnected || location.pathname !== '/admin/items')) {
               _context34.n = 6;
               break;
@@ -2522,22 +2544,24 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               _iterator21.f();
             }
             roots = rows.filter(row => !byId.has(String(row.in_section)) || String(row.in_section) === String(row.id)).sort(compare);
-            selected = select.value, known = new Set(Array.from(select.options).map(option => option.value));
+            previous = select.value, selected = byId.has(previous) ? previous : 'all';
+            options = document.createDocumentFragment(), allOption = el('option', 'الكل');
+            allOption.value = 'all';
+            options.append(allOption);
             _iterator22 = _createForOfIteratorHelper(rows);
             try {
               for (_iterator22.s(); !(_step22 = _iterator22.n()).done;) {
                 _row = _step22.value;
-                if (!known.has(String(_row.id))) {
-                  option = el('option', String(_row.name || ''));
-                  option.value = String(_row.id);
-                  select.append(option);
-                }
+                option = el('option', String(_row.name || ''));
+                option.value = String(_row.id);
+                options.append(option);
               }
             } catch (err) {
               _iterator22.e(err);
             } finally {
               _iterator22.f();
             }
+            select.replaceChildren(options);
             select.value = selected;
             select.style.setProperty('display', 'none', 'important');
             select.setAttribute('aria-hidden', 'true');
@@ -2623,6 +2647,9 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               sync
             };
             sync();
+            if (previous !== selected) select.dispatchEvent(new Event('change', {
+              bubbles: true
+            }));
             _context34.n = 9;
             break;
           case 8:
@@ -3443,6 +3470,8 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   });
   setInterval(refreshItemStructure, 1000);
   window.addEventListener('focus', () => {
+    zainSectionRowsAt = 0;
+    refreshItemStructure();
     nextPoll = 0;
     poll();
   });

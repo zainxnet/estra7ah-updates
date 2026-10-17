@@ -504,15 +504,16 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   var artworkPanel = artworkSection();
   artworkPanel.root.hidden = true;
   body.append(artworkPanel.root);
-  var eventsArtwork = null;
+  var eventsArtwork = null,
+    itemsArtwork = null;
   function paintArtwork(view) {
     var s = artworkData.stats || {},
       events = artworkData.events || [],
       key = JSON.stringify(artworkData);
-    view.root.hidden = !s.total && !events.length;
+    view.root.hidden = !view.always && !s.total && !events.length;
     if (view.key === key) return;
     view.key = key;
-    view.state.textContent = s.total ? statusNames[s.status] || s.status === 'stopped' && 'أُوقفت' || 'في الانتظار' : 'نتائج سابقة';
+    view.state.textContent = s.total ? statusNames[s.status] || s.status === 'stopped' && 'أُوقفت' || 'في الانتظار' : events.length ? 'نتائج سابقة' : 'لا توجد مهام صور وأيقونات مسجلة بعد';
     view.state.dataset.status = s.status || '';
     view.progress.hidden = !s.total;
     view.progress.max = Math.max(1, Number(s.total) || 0);
@@ -554,7 +555,25 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
       }));
     }
     paintArtwork(artworkPanel);
-    var target = location.pathname === '/admin/events' && document.querySelector('.localevents-cont .cont-ev');
+    var itemsTarget = location.pathname === '/admin/items' && document.querySelector('.items-cont');
+    if (itemsTarget) {
+      if (!itemsArtwork) {
+        itemsArtwork = artworkSection();
+        itemsArtwork.always = true;
+        itemsArtwork.root.id = 'zain-artwork-items';
+        itemsArtwork.root.style.cssText = 'clear:both;direction:rtl;background:#182134;border:1px solid #53627f;border-radius:8px;padding:14px;margin:20px 0';
+        itemsArtwork.log.style.cssText = 'max-height:260px;overflow:auto';
+        itemsArtwork.stats.style.whiteSpace = 'pre-line';
+        itemsArtwork.progress.style.width = '100%';
+      }
+      if (!itemsTarget.contains(itemsArtwork.root)) itemsTarget.append(itemsArtwork.root);
+      paintArtwork(itemsArtwork);
+    } else {
+      var _itemsArtwork;
+      (_itemsArtwork = itemsArtwork) === null || _itemsArtwork === void 0 || _itemsArtwork.root.remove();
+      itemsArtwork = null;
+    }
+    var target = location.pathname === '/admin/events' && document.querySelector('#zain-log-artwork');
     if (!target) {
       var _eventsArtwork;
       (_eventsArtwork = eventsArtwork) === null || _eventsArtwork === void 0 || _eventsArtwork.root.remove();
@@ -1127,12 +1146,12 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   }
   function _poll2() {
     _poll2 = _asyncToGenerator(_regenerator().m(function _callee0() {
-      var eventsList, response, data, summary, stop, _iterator6, _step6, _loop2, _t10, _t11;
+      var eventsList, response, data, summary, empty, stop, _iterator6, _step6, _loop2, _t10, _t11;
       return _regenerator().w(function (_context1) {
         while (1) switch (_context1.p = _context1.n) {
           case 0:
             _context1.p = 0;
-            if (!(location.pathname !== '/admin/events')) {
+            if (['/admin/events', '/admin/items'].includes(location.pathname)) {
               _context1.n = 1;
               break;
             }
@@ -1140,7 +1159,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             panel = null;
             return _context1.a(2);
           case 1:
-            eventsList = document.querySelector('.localevents-cont .cont-ev');
+            eventsList = document.querySelector('#zain-log-metadata');
             if (eventsList) {
               _context1.n = 2;
               break;
@@ -1164,7 +1183,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             return response.json();
           case 5:
             data = _context1.v;
-            if (data.jobs.length) {
+            if (!(!Array.isArray(data.jobs) || !eventsList.isConnected)) {
               _context1.n = 6;
               break;
             }
@@ -1182,6 +1201,11 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             summary = document.createElement('h3');
             summary.textContent = 'مزامنة بيانات العناصر';
             panel.appendChild(summary);
+            if (!data.jobs.length) {
+              empty = document.createElement('p');
+              empty.textContent = 'لا توجد مهام مزامنة بيانات حالية';
+              panel.appendChild(empty);
+            }
             if (data.jobs.some(job => ['queued', 'running'].includes(job.status))) {
               stop = document.createElement('button');
               stop.textContent = 'إلغاء جميع مهام مزامنة البيانات';
@@ -1457,4 +1481,216 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     }
   });
   poll();
+})();
+(function () {
+  'use strict';
+
+  var categories = [['system', 'سجل الاستراحة والنظام'], ['users', 'سجل المستخدمين'], ['content', 'سجل مزامنة المحتوى والأقسام'], ['metadata', 'سجل بيانات المحتوى والترجمة'], ['artwork', 'سجل الصور والأيقونات'], ['backup', 'سجل النسخ الاحتياطي والاستعادة'], ['trailer', 'سجل تحميل الإعلانات'], ['broadcast', 'سجل البث المباشر']];
+  var host = null,
+    busy = false;
+  function category(event) {
+    var kind = String(event.utype || 'system'),
+      message = String(event.msg || '');
+    if (kind === 'users' || kind === 'user') return 'users';
+    if (categories.some(pair => pair[0] === kind) && kind !== 'system') return kind;
+    if (kind === 'scan' || kind === 'sync') return 'content';
+    if (/نسخ|نسخة|استرجاع|استعادة|صيانة القاعدة/.test(message)) return 'backup';
+    if (/أيقون|ايقون|بوستر|صورة|صور/.test(message)) return 'artwork';
+    if (/بيانات|ترجم|TMDB|Gemini/.test(message)) return 'metadata';
+    if (/إعلان|اعلان|Trailer|trailer/.test(message)) return 'trailer';
+    if (/البث/.test(message)) return 'broadcast';
+    if (/مزامنة|مزامنه|فحص المسار|فحص المجلد|مسح القسم/.test(message)) return 'content';
+    return 'system';
+  }
+  function refresh() {
+    return _refresh.apply(this, arguments);
+  }
+  function _refresh() {
+    _refresh = _asyncToGenerator(_regenerator().m(function _callee10() {
+      var itemsPage, _host, target, visibleCategories, response, events, _iterator8, _step8, _step8$value, id, title, section, heading, rows, _iterator9, _step9, legacy, grouped, _iterator0, _step0, event, _iterator1, _step1, _step1$value, _id, _rows, view, ordered, key, scroll, empty, _iterator10, _step10, _event, row, date, _t13, _t14;
+      return _regenerator().w(function (_context11) {
+        while (1) switch (_context11.p = _context11.n) {
+          case 0:
+            itemsPage = location.pathname === '/admin/items';
+            if (!(!itemsPage && location.pathname !== '/admin/events')) {
+              _context11.n = 1;
+              break;
+            }
+            (_host = host) === null || _host === void 0 || _host.remove();
+            host = null;
+            return _context11.a(2);
+          case 1:
+            target = document.querySelector(itemsPage ? '.items-cont' : '.localevents-cont');
+            if (!(!target || busy)) {
+              _context11.n = 2;
+              break;
+            }
+            return _context11.a(2);
+          case 2:
+            if (host && host.parentElement !== target) {
+              host.remove();
+              host = null;
+            }
+            visibleCategories = itemsPage ? categories.filter(([id]) => id === 'metadata' || id === 'trailer') : categories;
+            busy = true;
+            _context11.p = 3;
+            _context11.n = 4;
+            return fetch('/admin/api/getAllEvents', {
+              credentials: 'same-origin',
+              cache: 'no-store'
+            });
+          case 4:
+            response = _context11.v;
+            if (response.ok) {
+              _context11.n = 5;
+              break;
+            }
+            throw Error('تعذر قراءة السجلات');
+          case 5:
+            _context11.n = 6;
+            return response.json();
+          case 6:
+            events = _context11.v;
+            if (Array.isArray(events)) {
+              _context11.n = 7;
+              break;
+            }
+            throw Error('تعذر قراءة السجلات');
+          case 7:
+            if (target.isConnected) {
+              _context11.n = 8;
+              break;
+            }
+            return _context11.a(2);
+          case 8:
+            if (!host || !host.isConnected) {
+              host = document.createElement('div');
+              host.id = itemsPage ? 'zain-item-event-logs' : 'zain-separated-events';
+              host.dir = 'rtl';
+              host.style.cssText = 'clear:both;padding:12px 0';
+              _iterator8 = _createForOfIteratorHelper(visibleCategories);
+              try {
+                for (_iterator8.s(); !(_step8 = _iterator8.n()).done;) {
+                  _step8$value = _slicedToArray(_step8.value, 2), id = _step8$value[0], title = _step8$value[1];
+                  section = document.createElement('section'), heading = document.createElement('h2'), rows = document.createElement('div');
+                  section.id = 'zain-log-' + id;
+                  section.style.cssText = 'background:#182134;border:1px solid #44526a;border-radius:9px;padding:14px;margin:14px 0';
+                  heading.textContent = title;
+                  heading.style.cssText = 'font-size:19px;margin:0 0 12px';
+                  rows.dataset.zainLogRows = id;
+                  rows.style.cssText = 'max-height:320px;overflow:auto;line-height:1.8;overflow-wrap:anywhere';
+                  section.append(heading, rows);
+                  host.append(section);
+                }
+              } catch (err) {
+                _iterator8.e(err);
+              } finally {
+                _iterator8.f();
+              }
+              target.append(host);
+            }
+            _iterator9 = _createForOfIteratorHelper(itemsPage ? [] : target.querySelectorAll('.cont-ev'));
+            try {
+              for (_iterator9.s(); !(_step9 = _iterator9.n()).done;) {
+                legacy = _step9.value;
+                legacy.parentElement.style.display = 'none';
+              }
+            } catch (err) {
+              _iterator9.e(err);
+            } finally {
+              _iterator9.f();
+            }
+            grouped = new Map(categories.map(([id]) => [id, []]));
+            _iterator0 = _createForOfIteratorHelper(events);
+            try {
+              for (_iterator0.s(); !(_step0 = _iterator0.n()).done;) {
+                event = _step0.value;
+                grouped.get(category(event)).push(event);
+              }
+            } catch (err) {
+              _iterator0.e(err);
+            } finally {
+              _iterator0.f();
+            }
+            _iterator1 = _createForOfIteratorHelper(grouped);
+            _context11.p = 9;
+            _iterator1.s();
+          case 10:
+            if ((_step1 = _iterator1.n()).done) {
+              _context11.n = 14;
+              break;
+            }
+            _step1$value = _slicedToArray(_step1.value, 2), _id = _step1$value[0], _rows = _step1$value[1];
+            view = host.querySelector('[data-zain-log-rows="' + _id + '"]');
+            if (view) {
+              _context11.n = 11;
+              break;
+            }
+            return _context11.a(3, 13);
+          case 11:
+            ordered = _rows.slice().sort((a, b) => Number(b.createdAt) - Number(a.createdAt)), key = JSON.stringify(ordered);
+            if (!(view._key === key)) {
+              _context11.n = 12;
+              break;
+            }
+            return _context11.a(3, 13);
+          case 12:
+            view._key = key;
+            scroll = view.scrollTop;
+            view.replaceChildren();
+            if (!ordered.length) {
+              empty = document.createElement('p');
+              empty.textContent = 'لا توجد أحداث مسجلة لهذا العمل';
+              view.append(empty);
+            }
+            _iterator10 = _createForOfIteratorHelper(ordered);
+            try {
+              for (_iterator10.s(); !(_step10 = _iterator10.n()).done;) {
+                _event = _step10.value;
+                row = document.createElement('p'), date = new Date(Number(_event.createdAt) * 1000);
+                row.style.cssText = 'margin:7px 0;padding:5px 0;border-bottom:1px solid #303d54';
+                if (['error', 'danger', 'warning'].includes(_event.type)) row.style.color = '#ffcca0';
+                row.textContent = (Number.isFinite(date.getTime()) ? date.toLocaleString('ar') + ' — ' : '') + String(_event.msg || '');
+                view.append(row);
+              }
+            } catch (err) {
+              _iterator10.e(err);
+            } finally {
+              _iterator10.f();
+            }
+            view.scrollTop = scroll;
+          case 13:
+            _context11.n = 10;
+            break;
+          case 14:
+            _context11.n = 16;
+            break;
+          case 15:
+            _context11.p = 15;
+            _t13 = _context11.v;
+            _iterator1.e(_t13);
+          case 16:
+            _context11.p = 16;
+            _iterator1.f();
+            return _context11.f(16);
+          case 17:
+            _context11.n = 19;
+            break;
+          case 18:
+            _context11.p = 18;
+            _t14 = _context11.v;
+          case 19:
+            _context11.p = 19;
+            busy = false;
+            return _context11.f(19);
+          case 20:
+            return _context11.a(2);
+        }
+      }, _callee10, null, [[9, 15, 16, 17], [3, 18, 19, 20]]);
+    }));
+    return _refresh.apply(this, arguments);
+  }
+  window.addEventListener('focus', refresh);
+  setInterval(refresh, 5000);
+  refresh();
 })();

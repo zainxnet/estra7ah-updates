@@ -216,13 +216,14 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
  async function api(action,body){const response=await fetch('/admin/api/'+action,{credentials:'same-origin',cache:'no-store',method:body?'POST':'GET',...(body?{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});const data=await response.json();if(!response.ok||data.msg==='error')throw Error(data.error||'تعذر الاتصال بخدمة المزامنة');return data}
  function cardId(card){if(card.dataset.zainItemId)return card.dataset.zainItemId;const img=card.querySelector('img');if(!img)return '';const current=img.getAttribute('src')||'';const raw=/\/ItemImage\//i.test(current)?current:img.getAttribute('data-zain-src')||current;const match=raw.match(/\/ItemImage\/([^/?]+)/i);if(match){try{return decodeURIComponent(match[1])}catch{return ''}}return card.dataset.zainItemId||''}
 
+ function sectionDisplayName(row){const custom=String(row.name||'').trim();if(custom)return custom;const legacy={'ID-8812641051662403900':'أفلام','ID-2439320021662468968':'مسلسلات','ID-7898200331662469079':'تلفزيون','ID-17694494695913731697474894275':'بيت المسلسلات','ID-1551480641662469131':'منوعات'};const types={movies:'أفلام',serieses:'مسلسلات','serieses.tv':'برامج تلفزيونية','serieses.sports':'رياضة','serieses.learn':'تعليم','serieses.deen':'إسلاميات'};return legacy[String(row.id)]||types[row.type]||'قسم بدون اسم';}
  let zainSectionRows=[],zainSectionRowsAt=0,zainSectionFetch=null,zainSectionTreeSignature='';
- async function sectionRows(){if(zainSectionRows.length&&Date.now()-zainSectionRowsAt<60000)return zainSectionRows;if(zainSectionFetch)return zainSectionFetch;zainSectionFetch=(async()=>{const response=await fetch('/admin/api/getAllSections',{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error('تعذر تحميل ترتيب الأقسام');const rows=await response.json();if(!Array.isArray(rows))throw Error('قائمة الأقسام غير صالحة');zainSectionRows=rows.filter(row=>row&&row.id!==undefined&&row.id!==null);zainSectionRowsAt=Date.now();return zainSectionRows})().finally(()=>{zainSectionFetch=null});return zainSectionFetch;}
+ async function sectionRows(){if(zainSectionRows.length&&Date.now()-zainSectionRowsAt<10000)return zainSectionRows;if(zainSectionFetch)return zainSectionFetch;zainSectionFetch=(async()=>{const response=await fetch('/admin/api/getAllSections',{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error('تعذر تحميل ترتيب الأقسام');const rows=await response.json();if(!Array.isArray(rows))throw Error('قائمة الأقسام غير صالحة');zainSectionRows=rows.filter(row=>row&&row.id!==undefined&&row.id!==null).map(row=>({...row,name:sectionDisplayName(row)}));zainSectionRowsAt=Date.now();return zainSectionRows})().finally(()=>{zainSectionFetch=null});return zainSectionFetch;}
  async function enhanceSectionFilter(){
   if(location.pathname!=='/admin/items')return;
   const select=document.querySelector('.items-cont select');if(!select)return;
   try{
-   const rows=zainSectionRows.length?zainSectionRows:await sectionRows();if(Date.now()-zainSectionRowsAt>=60000)sectionRows().catch(()=>{});if(!select.isConnected||location.pathname!=='/admin/items')return;
+   const rows=zainSectionRows.length?zainSectionRows:await sectionRows();if(Date.now()-zainSectionRowsAt>=10000)sectionRows().then(()=>refreshItemStructure()).catch(()=>{});if(!select.isConnected||location.pathname!=='/admin/items')return;
    const signature=JSON.stringify(rows.map(row=>[String(row.id),row.name,row.in_section,row.order]));
    let widget=select._zainSectionWidget;
    if(widget&&widget.host.isConnected&&widget.signature===signature){select.style.setProperty('display','none','important');widget.sync();return;}
@@ -235,9 +236,10 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
    for(const row of rows){const parent=String(row.in_section);if(byId.has(parent)&&parent!==String(row.id)){if(!children.has(parent))children.set(parent,[]);children.get(parent).push(row);}}
    for(const list of children.values())list.sort(compare);
    const roots=rows.filter(row=>!byId.has(String(row.in_section))||String(row.in_section)===String(row.id)).sort(compare);
-   const selected=select.value,known=new Set(Array.from(select.options).map(option=>option.value));
-   for(const row of rows)if(!known.has(String(row.id))){const option=el('option',String(row.name||''));option.value=String(row.id);select.append(option);}
-   select.value=selected;select.style.setProperty('display','none','important');select.setAttribute('aria-hidden','true');
+   const previous=select.value,selected=byId.has(previous)?previous:'all';
+   const options=document.createDocumentFragment(),allOption=el('option','الكل');allOption.value='all';options.append(allOption);
+   for(const row of rows){const option=el('option',String(row.name||''));option.value=String(row.id);options.append(option);}
+   select.replaceChildren(options);select.value=selected;select.style.setProperty('display','none','important');select.setAttribute('aria-hidden','true');
    const host=el('details');host.className='zain-section-picker';const summary=el('summary'),panel=el('div');panel.className='zain-section-panel';panel.setAttribute('aria-label','الأقسام الرئيسية والفرعية');host.append(summary,panel);
    const labels=new Map([['all','الكل']]),buttons=new Map(),visited=new Set();
    const sync=()=>{summary.textContent='اختر القسم: '+(labels.get(select.value)||select.options[select.selectedIndex]?.textContent||'الكل');for(const [id,button]of buttons)button.setAttribute('aria-pressed',String(id===select.value));};
@@ -254,7 +256,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
    }
    for(const row of roots)appendRow(row,panel,[]);for(const row of rows)if(!visited.has(String(row.id)))appendRow(row,panel,[]);
    host.addEventListener('keydown',event=>{if(event.key==='Escape'){host.open=false;summary.focus();event.stopPropagation();}});
-   select.insertAdjacentElement('afterend',host);select._zainSectionWidget={host,signature,sync};sync();
+   select.insertAdjacentElement('afterend',host);select._zainSectionWidget={host,signature,sync};sync();if(previous!==selected)select.dispatchEvent(new Event('change',{bubbles:true}));
   }catch{}
  }
  function cards(){return Array.from(document.querySelectorAll('.items-cont .items>.item')).map(card=>{const id=cardId(card);return {card,id}}).filter(row=>row.id)}
@@ -299,5 +301,5 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
  let structureTimer;
  new MutationObserver(records=>{if(!records.some(record=>Array.from(record.addedNodes).concat(Array.from(record.removedNodes)).some(node=>node.nodeType===1&&!(node.closest&&node.closest('.zain-section-picker')))))return;clearTimeout(structureTimer);structureTimer=setTimeout(refreshItemStructure,50);}).observe(document.body,{childList:true,subtree:true});
  setInterval(refreshItemStructure,1000);
- window.addEventListener('focus',()=>{nextPoll=0;poll()});setInterval(()=>{ensurePinnedButton();enhanceItemTools();poll()},1000);poll();
+ window.addEventListener('focus',()=>{zainSectionRowsAt=0;refreshItemStructure();nextPoll=0;poll()});setInterval(()=>{ensurePinnedButton();enhanceItemTools();poll()},1000);poll();
 })();
