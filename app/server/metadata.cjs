@@ -4,7 +4,7 @@ function hasContent(item){try{const c=JSON.parse(item.content?.contentJSON||'{}'
 function addedAt(item){for(const value of [item.addedAt,item.createdAt]){if(value===undefined||value===null||value==='')continue;const number=Number(value);if(Number.isFinite(number)&&number>0)return number<1e12?number*1000:number;const date=Date.parse(value);if(Number.isFinite(date))return date;}return 0;}
 function newestFirst(rows){return rows.map((item,index)=>({item,index})).sort((a,b)=>addedAt(b.item)-addedAt(a.item)||b.index-a.index).map(entry=>entry.item);}
 function supportsMetadata(item){return !!item&&!/\.(?:mp3|wav|ogg|aac|m4a|flac|wma|opus)$/i.test(item.path||'')&&require('./catalog-items.cjs').visible(item)&&(['movie','series'].includes(require('./public-catalog.cjs').publicType(item.type))||/^series\./.test(require('./public-catalog.cjs').publicType(item.type)))&&(!item.inItem||item.inItem==='null')}
-module.exports=function({settingsDir,items,getKey,saveContent,savePoster,saveActors,hasArtwork,getLookupName,getCanonicalId=id=>id,getRelatedIds=id=>[id],getCandidateIds=()=>items.keys(),getAllCandidateIds=()=>items.keys(),hasFolderIcon=async()=>false,ensureIcon,hasArabicIcon=async()=>false,request,translateTitle,rebuildIcon,translateDescription,canTranslateDescription,onEvent=()=>{},onArtworkEvent=onEvent,concurrency=3,requestIntervalMs=100,retryDelayMs=1000}){
+module.exports=function({settingsDir,items,getKey,saveContent,savePoster,saveActors,hasArtwork,getLookupName,getCanonicalId=id=>id,getRelatedIds=id=>[id],getCandidateIds=()=>items.keys(),getAllCandidateIds=()=>items.keys(),hasFolderIcon=async()=>false,ensureIcon,hasArabicIcon=async()=>false,request,lookupFallback,translateTitle,rebuildIcon,translateDescription,canTranslateDescription,onEvent=()=>{},onArtworkEvent=onEvent,concurrency=3,requestIntervalMs=100,retryDelayMs=1000}){
  const fs=require('node:fs'),path=require('node:path'),settingsFile=settingsDir&&path.join(settingsDir,'metadata-settings.json');
  let automaticEnabled=true;
  if(settingsFile&&fs.existsSync(settingsFile))automaticEnabled=JSON.parse(fs.readFileSync(settingsFile,'utf8')).automaticEnabled!==false;
@@ -51,6 +51,18 @@ module.exports=function({settingsDir,items,getKey,saveContent,savePoster,saveAct
  function notifyRelated(job,key,item){job[key]=[...new Set([...job[key],...relatedIds(item.id)])].slice(-200);}
  function posterReady(job,item){notifyRelated(job,'posterReadyIds',item);}
  function saved(job,item){job.completed++;notifyRelated(job,'completedIds',item);onEvent('تم حفظ بيانات: '+item.name,'success');}
+ async function saveFallback(item,job,existing,record){
+  check(job);
+  const sourceName=require('./metadata-fallback.cjs').labels[record.provider];
+  const data={...existing,content_id:record.provider+':'+record.providerId,titleArabic:record.title,descArabic:record.description||'',descEnglish:'',ReleaseDate:record.releaseDate||record.year,Runtime:record.runtime||'',castEnglish:record.cast||[],directedByEnglish:record.directors||[],tagsArabic:record.genres||[],metadataSource:{provider:record.provider,id:record.providerId,url:record.sourceURL,checkedAt:new Date().toISOString()}};
+  delete data.tmdbType;delete data.titleTranslation;delete data.descriptionTranslation;
+  if(job.preserveExisting){for(const field of ['titleArabic','descArabic'])if(isArabic(existing[field]))data[field]=existing[field];for(const field of ['castEnglish','directedByEnglish'])if(Array.isArray(existing[field])&&existing[field].length)data[field]=existing[field];}
+  await saveContent(item.id,{...item.content,contentJSON:JSON.stringify(data),year:Number(record.year)});saved(job,item);
+  onEvent('مصدر بيانات '+item.name+': '+sourceName+' — '+record.sourceURL,'success');
+  // Public-page fallback imports descriptive data only; existing artwork remains reusable.
+  onArtworkEvent('حُفظت بيانات '+item.name+' من '+sourceName+'؛ استيراد صور البوستر والممثلين من هذا المصدر غير مدعوم حاليًا','info');
+  if(job.rebuildIcon&&rebuildIcon&&hasArtwork&&await hasArtwork(item)){check(job);const arabicIcon=job.preserveExisting?await hasArabicIcon(item):false;check(job);if(arabicIcon===false){await rebuildIcon(item.id);onArtworkEvent('طُلب تحديث الأيقونة من الصورة الموجودة بعد حفظ البيانات: '+item.name,'success');}}
+ }
  async function sync(item,job){
   check(job);
   // A local poster is not evidence that the film or series metadata was synchronized.
@@ -67,14 +79,15 @@ module.exports=function({settingsDir,items,getKey,saveContent,savePoster,saveAct
   else if(known)id=Number(existing.content_id);
   else if(verified)id=verified.id;
   else{
-   const match=await require('./metadata-match.cjs')({query,year,kind,api:(route,params)=>api(route,params,job)});id=match.id;kind=match.kind;
+   try{const match=await require('./metadata-match.cjs')({query,year,kind,api:(route,params)=>api(route,params,job)});id=match.id;kind=match.kind;}
+   catch(error){if(error.status!==404||typeof lookupFallback!=='function')throw error;check(job);onEvent('لم تتأكد مطابقة TMDB؛ جار فحص المصادر الاحتياطية: '+item.name,'info');const record=await lookupFallback({query,year,kind,signal:controllers.get(job.id)?.signal});check(job);if(!record)throw error;if(!require('./metadata-fallback.cjs').labels[record.provider]||!require('./metadata-fallback.cjs').identity(record,{query,year,kind}))throw fail('لم تتأكد هوية بيانات المصدر الاحتياطي',409);require('./metadata-fallback.cjs').safeURL(record.sourceURL);await saveFallback(item,job,existing,record);return;}
   }
   const keepCast=job.preserveExisting&&Array.isArray(existing.castEnglish)&&existing.castEnglish.some(name=>typeof name==='string'&&name.trim());
   const keepDirector=job.preserveExisting&&Array.isArray(existing.directedByEnglish)&&existing.directedByEnglish.length>0;
   const [en,ar]=await Promise.all([api(kind+'/'+id,{language:'en-US',...(!keepCast||!keepDirector?{append_to_response:'credits'}:{})},job),api(kind+'/'+id,{language:'ar-SA'},job)]);
-  if(verified&&!job.selection&&(normal(en.original_name)!==normal(verified.original)||!(en.origin_country||[]).includes('TR')||!String(en.first_air_date||'').startsWith(verified.year)))throw fail('تعذر التحقق من هوية المسلسل التركي؛ لم تحفظ بيانات غير مؤكدة',409);
+  if(verified&&!job.selection&&(normal(en.original_name)!==normal(verified.original)||!(en.origin_country||[]).includes(verified.country||'TR')||!String(en.first_air_date||'').startsWith(verified.year)))throw fail('تعذر التحقق من هوية المسلسل وسنة عرضه؛ لم تحفظ بيانات غير مؤكدة',409);
 
-  const data={...existing,descArabic:'',descEnglish:en.overview||existing.descEnglish||'',content_id:String(id),Runtime:String(en.runtime||en.episode_run_time?.[0]||''),ReleaseDate:en.release_date||en.first_air_date||'',castEnglish:(en.credits?.cast||[]).slice(0,20).map(actor=>actor.name),directedByEnglish:(en.credits?.crew||[]).filter(actor=>actor.job==='Director').map(actor=>actor.name),tagsArabic:(ar.genres||[]).map(genre=>genre.name),imdbRating:String(en.vote_average||0),imdbVotes:String(en.vote_count||0),tmdbType:kind};
+  const data={...existing,metadataSource:{provider:'tmdb',id:String(id),url:'https://www.themoviedb.org/'+kind+'/'+id},descArabic:'',descEnglish:en.overview||existing.descEnglish||'',content_id:String(id),Runtime:String(en.runtime||en.episode_run_time?.[0]||''),ReleaseDate:en.release_date||en.first_air_date||'',castEnglish:(en.credits?.cast||[]).slice(0,20).map(actor=>actor.name),directedByEnglish:(en.credits?.crew||[]).filter(actor=>actor.job==='Director').map(actor=>actor.name),tagsArabic:(ar.genres||[]).map(genre=>genre.name),imdbRating:String(en.vote_average||0),imdbVotes:String(en.vote_count||0),tmdbType:kind};
   data.titleArabic=isArabic(ar.title||ar.name)?(ar.title||ar.name).trim():'';delete data.titleTranslation;let titleTranslationFailed=false;
   if(keepCast)data.castEnglish=existing.castEnglish;if(keepDirector)data.directedByEnglish=existing.directedByEnglish;
   if(job.preserveExisting&&isArabic(existing.titleArabic)){data.titleArabic=existing.titleArabic;if(existing.titleTranslation)data.titleTranslation=existing.titleTranslation;}

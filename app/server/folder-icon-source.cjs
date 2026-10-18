@@ -96,7 +96,7 @@ module.exports=function({dir,getKey=()=>'',getLookupName,request,download}){
    if(!request&&!getKey())return {reason:'missing-key'};
    const match=await identify(query,year,kind,existing);if(!match.id)return match;
    const detail=await api(kind+'/'+match.id,{language:'en-US'});
-   if(match.verified&&(normalize(detail.original_name)!==normalize(match.verified.original)||!(detail.origin_country||[]).includes('TR')||!String(detail.first_air_date||'').startsWith(match.verified.year)))return {reason:'identity-mismatch'};
+   if(match.verified&&(normalize(detail.original_name)!==normalize(match.verified.original)||!(detail.origin_country||[]).includes(match.verified.country||'TR')||!String(detail.first_air_date||'').startsWith(match.verified.year)))return {reason:'identity-mismatch'};
    let poster=imagePath(detail.poster_path)?detail.poster_path:null;
    if(isSeason&&season!==null)try{const seasonInfo=await api('tv/'+match.id+'/season/'+season,{language:'en-US'});if(seasonInfo.season_number===season&&imagePath(seasonInfo.poster_path))poster=seasonInfo.poster_path;}catch(error){if(error.status!==404)throw error;}
    let images={};try{if(logoNeeded)images=await api(kind+'/'+match.id+'/images');}catch(error){if(error.code==='CANCELLED')throw error;}
