@@ -3565,7 +3565,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   function _mount() {
     _mount = _asyncToGenerator(_regenerator().m(function _callee36() {
       var _host2;
-      var target, _host, data, title, fields, field, note, selected, allLabel, allBox, syncAll, _iterator37, _step37, root, label, box, message, payload, _loop11, _i6, _arr6, live, missing, log, _t38;
+      var target, _host, data, title, dash, fields, field, note, selected, allLabel, allBox, syncAll, _iterator38, _step38, root, label, box, message, payload, _loop11, _i6, _arr6, live, missing, log, _t38;
       return _regenerator().w(function (_context41) {
         while (1) switch (_context41.p = _context41.n) {
           case 0:
@@ -3631,6 +3631,10 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             title = document.createElement('h3');
             title.textContent = 'المزامنة التلقائية';
             host.append(title);
+            dash = document.createElement('section');
+            dash.id = 'zain-everything-dashboard';
+            dash.style.cssText = 'padding:15px;background:#101523;border-radius:8px';
+            host.append(dash);
             fields = {};
             field('enabled', 'تفعيل متابعة الأفلام والحلقات الجديدة', 'checkbox', data.enabled);
             field('address', 'عنوان Everything والمنفذ', 'text', data.address);
@@ -3655,10 +3659,10 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               selected.forEach(r => r.box.checked = allBox.checked);
               syncAll();
             };
-            _iterator37 = _createForOfIteratorHelper(data.available);
+            _iterator38 = _createForOfIteratorHelper(data.available);
             try {
-              for (_iterator37.s(); !(_step37 = _iterator37.n()).done;) {
-                root = _step37.value;
+              for (_iterator38.s(); !(_step38 = _iterator38.n()).done;) {
+                root = _step38.value;
                 label = document.createElement('label'), box = document.createElement('input');
                 box.type = 'checkbox';
                 box.checked = data.roots.includes(root.id);
@@ -3672,9 +3676,9 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                 box.onchange = syncAll;
               }
             } catch (err) {
-              _iterator37.e(err);
+              _iterator38.e(err);
             } finally {
-              _iterator37.f();
+              _iterator38.f();
             }
             syncAll();
             message = document.createElement('p');
@@ -3752,6 +3756,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             log.style.cssText = 'margin-top:20px;border-top:1px solid #495a75;padding-top:12px';
             host.append(log);
             target.append(host);
+            renderDashboard(host, data);
             renderEvents(host, data);
             renderMissing(host, data);
             refreshStatus();
@@ -3771,6 +3776,55 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     }));
     return _mount.apply(this, arguments);
   }
+  function renderDashboard(current, data) {
+    var _box$querySelector;
+    var box = current.querySelector('#zain-everything-dashboard');
+    if (!box || !data.dashboard) return;
+    var d = data.dashboard,
+      c = d.counts,
+      stamp = v => v ? new Date(v).toLocaleString() : 'لم يسجل بعد',
+      open = (_box$querySelector = box.querySelector('details')) === null || _box$querySelector === void 0 ? void 0 : _box$querySelector.open;
+    box.textContent = '';
+    var add = text => {
+      var p = document.createElement('p');
+      p.textContent = text;
+      box.append(p);
+    };
+    add('الحالة: ' + (!d.enabled ? 'المتابعة متوقفة' : d.paused ? 'بانتظار العمل الجاري بالخادم' : d.busy ? data.status.phase : d.allReady ? 'اكتملت التهيئة — انتظار دورة المتابعة التالية' : 'المتابعة تعمل — لم تكتمل تهيئة جميع المسارات'));
+    add('المرجع جاهز: ' + c.ready + ' من ' + c.total + ' — قيد التهيئة: ' + c.initializing + ' — لم تبدأ: ' + c.notStarted + ' — بلا نتائج: ' + c.waiting + ' — أخطاء: ' + c.error);
+    add('الجاهز يشمل المسارات التي اكتمل مرجعها حتى إن حدث خطأ اتصال لاحقًا.');
+    if (d.activePath) add('المسار الجاري: ' + d.activePath);
+    add('آخر فحص ناجح: ' + stamp(d.lastSuccess) + ' — آخر إضافة ناجحة: ' + stamp(d.lastAddition));
+    add('الفحص التالي: ' + (!d.enabled ? 'متوقف' : d.nextCheck <= Date.now() ? 'بانتظار دوره وتوفر الخادم' : stamp(d.nextCheck)));
+    var details = document.createElement('details');
+    details.open = !!open;
+    var summary = document.createElement('summary');
+    summary.textContent = 'حالة كل مسار (' + c.total + ')';
+    details.append(summary);
+    var names = {
+      ready: 'جاهز',
+      initializing: 'قيد التهيئة',
+      notStarted: 'لم يبدأ',
+      waiting: 'بانتظار النتائج',
+      error: 'تعذر الفحص'
+    };
+    var _iterator35 = _createForOfIteratorHelper(d.rows),
+      _step35;
+    try {
+      for (_iterator35.s(); !(_step35 = _iterator35.n()).done;) {
+        var r = _step35.value;
+        var line = document.createElement('p');
+        line.style.cssText = 'padding:8px;border-bottom:1px solid #34415a;overflow-wrap:anywhere';
+        line.textContent = r.name + ' — ' + r.path + ' — ' + (r.active ? 'يعمل الآن — ' : '') + names[r.state] + ' — المرجع ' + (r.ready ? 'مكتمل' : 'غير مكتمل') + (r.total != null ? ' — تقدم الدورة: ' + r.offset + '/' + r.total : '') + ' — آخر فحص ناجح: ' + stamp(r.lastSuccess) + (r.error ? ' — ' + r.error : '');
+        details.append(line);
+      }
+    } catch (err) {
+      _iterator35.e(err);
+    } finally {
+      _iterator35.f();
+    }
+    box.append(details);
+  }
   function renderEvents(current, data) {
     var box = current.querySelector('#zain-everything-events');
     if (!box) return;
@@ -3787,11 +3841,11 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
       line.textContent = 'لا توجد أحداث متابعة مسجلة بعد.';
       box.append(line);
     }
-    var _iterator35 = _createForOfIteratorHelper(rows),
-      _step35;
+    var _iterator36 = _createForOfIteratorHelper(rows),
+      _step36;
     try {
-      for (_iterator35.s(); !(_step35 = _iterator35.n()).done;) {
-        var event = _step35.value;
+      for (_iterator36.s(); !(_step36 = _iterator36.n()).done;) {
+        var event = _step36.value;
         var _line = document.createElement('p');
         _line.style.cssText = 'padding:8px;border-bottom:1px solid #34415a;white-space:pre-wrap;overflow-wrap:anywhere';
         _line.textContent = (event.createdAt ? new Date(event.createdAt * 1000).toLocaleString() + ' — ' : '') + event.msg;
@@ -3799,9 +3853,9 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
         box.append(_line);
       }
     } catch (err) {
-      _iterator35.e(err);
+      _iterator36.e(err);
     } finally {
-      _iterator35.f();
+      _iterator36.f();
     }
   }
   function renderMissing(current, data) {
@@ -3874,11 +3928,11 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
       text.textContent = waiting || failed ? 'لم يكتمل التحقق من جميع المسارات بعد.' : 'لا توجد مسارات بلا نتائج ضمن آخر الفحوصات المتاحة.';
       box.append(text);
     }
-    var _iterator36 = _createForOfIteratorHelper(empty),
-      _step36;
+    var _iterator37 = _createForOfIteratorHelper(empty),
+      _step37;
     try {
       var _loop10 = function _loop10() {
-        var row = _step36.value;
+        var row = _step37.value;
         var line = document.createElement('div');
         line.style.cssText = 'margin:12px 0;padding:10px;background:#101523;border-radius:6px';
         var label = document.createElement('div');
@@ -3933,13 +3987,13 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
         line.append(label, input, copy);
         box.append(line);
       };
-      for (_iterator36.s(); !(_step36 = _iterator36.n()).done;) {
+      for (_iterator37.s(); !(_step37 = _iterator37.n()).done;) {
         _loop10();
       }
     } catch (err) {
-      _iterator36.e(err);
+      _iterator37.e(err);
     } finally {
-      _iterator36.f();
+      _iterator37.f();
     }
   }
   function refreshStatus() {
@@ -3972,6 +4026,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             }
             return _context42.a(2);
           case 4:
+            renderDashboard(current, _data);
             renderMissing(current, _data);
             renderEvents(current, _data);
             s = _data.status || {};
