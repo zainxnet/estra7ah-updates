@@ -3525,12 +3525,12 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     return _api2.apply(this, arguments);
   }
   function _api2() {
-    _api2 = _asyncToGenerator(_regenerator().m(function _callee33(action, body) {
+    _api2 = _asyncToGenerator(_regenerator().m(function _callee34(action, body) {
       var r, value;
-      return _regenerator().w(function (_context37) {
-        while (1) switch (_context37.n) {
+      return _regenerator().w(function (_context38) {
+        while (1) switch (_context38.n) {
           case 0:
-            _context37.n = 1;
+            _context38.n = 1;
             return fetch('/admin/api/' + action, _objectSpread({
               credentials: 'same-origin',
               cache: 'no-store'
@@ -3542,20 +3542,20 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               body: JSON.stringify(body)
             } : {}));
           case 1:
-            r = _context37.v;
-            _context37.n = 2;
+            r = _context38.v;
+            _context38.n = 2;
             return r.json();
           case 2:
-            value = _context37.v;
+            value = _context38.v;
             if (r.ok) {
-              _context37.n = 3;
+              _context38.n = 3;
               break;
             }
             throw Error(value.error || 'تعذر الطلب');
           case 3:
-            return _context37.a(2, value);
+            return _context38.a(2, value);
         }
-      }, _callee33);
+      }, _callee34);
     }));
     return _api2.apply(this, arguments);
   }
@@ -3563,30 +3563,30 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     return _mount.apply(this, arguments);
   }
   function _mount() {
-    _mount = _asyncToGenerator(_regenerator().m(function _callee35() {
+    _mount = _asyncToGenerator(_regenerator().m(function _callee36() {
       var _host2;
-      var target, _host, data, title, fields, field, note, selected, allLabel, allBox, syncAll, _iterator37, _step37, root, label, box, message, payload, _loop11, _i6, _arr6, live, missing, log, _t37;
-      return _regenerator().w(function (_context40) {
-        while (1) switch (_context40.p = _context40.n) {
+      var target, _host, data, title, fields, field, note, selected, allLabel, allBox, syncAll, _iterator37, _step37, root, label, box, message, payload, _loop11, _i6, _arr6, live, missing, log, _t38;
+      return _regenerator().w(function (_context41) {
+        while (1) switch (_context41.p = _context41.n) {
           case 0:
             navigation();
             target = isPage() ? document.querySelector('.sections-cont') : null;
             if (target) {
-              _context40.n = 1;
+              _context41.n = 1;
               break;
             }
             (_host = host) === null || _host === void 0 || _host.remove();
             host = null;
-            return _context40.a(2);
+            return _context41.a(2);
           case 1:
             if (!((_host2 = host) !== null && _host2 !== void 0 && _host2.isConnected || busy)) {
-              _context40.n = 2;
+              _context41.n = 2;
               break;
             }
-            return _context40.a(2);
+            return _context41.a(2);
           case 2:
             busy = true;
-            _context40.p = 3;
+            _context41.p = 3;
             payload = function _payload() {
               return {
                 enabled: fields.enabled.checked,
@@ -3614,15 +3614,15 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               host.append(line);
               fields[key] = input;
             };
-            _context40.n = 4;
+            _context41.n = 4;
             return api('everythingStatus');
           case 4:
-            data = _context40.v;
+            data = _context41.v;
             if (target.isConnected) {
-              _context40.n = 5;
+              _context41.n = 5;
               break;
             }
-            return _context40.a(2);
+            return _context41.a(2);
           case 5:
             host = document.createElement('section');
             host.id = 'zain-everything';
@@ -3638,7 +3638,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             field('password', 'كلمة المرور', 'password', '');
             field('intervalSeconds', 'الفاصل بين دورات فحص الفهرس بالثواني (30–3600)', 'number', data.intervalSeconds);
             note = document.createElement('p');
-            note.textContent = 'استخدم عنوان الشبكة مثل http://192.168.1.153:99. لا يلزم مسار Everything.exe. أول فحص يسجل الموجود فقط، ثم تضاف الأفلام والحلقات الجديدة. يجب أن تطابق مسارات الفهرس مسارات الأقسام. HTTP غير مشفر؛ استخدمه داخل الشبكة.';
+            note.textContent = 'استخدم عنوان الشبكة مثل http://192.168.1.153:99. لا يلزم مسار Everything.exe. أول فحص يسجل الموجود فقط، ثم نبحث عن الفيديوهات الحديثة منذ آخر متابعة ناجحة مع تداخل يوم احتياطي. مراجعة يومية تستدرك الملفات ذات التواريخ القديمة. يجب أن تطابق مسارات الفهرس مسارات الأقسام. HTTP غير مشفر؛ استخدمه داخل الشبكة.';
             host.append(note);
             selected = [];
             allLabel = document.createElement('label'), allBox = document.createElement('input');
@@ -3682,60 +3682,60 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             message.textContent = data.status.error || data.status.phase;
             _loop11 = _regenerator().m(function _loop11() {
               var _arr6$_i, action, text, button;
-              return _regenerator().w(function (_context39) {
-                while (1) switch (_context39.n) {
+              return _regenerator().w(function (_context40) {
+                while (1) switch (_context40.n) {
                   case 0:
                     _arr6$_i = _slicedToArray(_arr6[_i6], 2), action = _arr6$_i[0], text = _arr6$_i[1];
                     button = document.createElement('button');
                     button.textContent = text;
                     button.style.cssText = 'padding:10px 18px;border:0;border-radius:18px;background:#218a64;color:white;margin:6px;cursor:pointer';
-                    button.onclick = _asyncToGenerator(_regenerator().m(function _callee34() {
-                      var result, _t36;
-                      return _regenerator().w(function (_context38) {
-                        while (1) switch (_context38.p = _context38.n) {
+                    button.onclick = _asyncToGenerator(_regenerator().m(function _callee35() {
+                      var result, _t37;
+                      return _regenerator().w(function (_context39) {
+                        while (1) switch (_context39.p = _context39.n) {
                           case 0:
                             button.disabled = true;
-                            _context38.p = 1;
-                            _context38.n = 2;
+                            _context39.p = 1;
+                            _context39.n = 2;
                             return api(action, payload());
                           case 2:
-                            result = _context38.v;
+                            result = _context39.v;
                             message.textContent = result.msg;
                             if (action === 'saveEverything') {
                               fields.password.value = '';
                               fields.password.placeholder = 'محفوظة؛ اتركها فارغة للاحتفاظ بها';
                             }
-                            _context38.n = 4;
+                            _context39.n = 4;
                             break;
                           case 3:
-                            _context38.p = 3;
-                            _t36 = _context38.v;
-                            message.textContent = _t36.message;
+                            _context39.p = 3;
+                            _t37 = _context39.v;
+                            message.textContent = _t37.message;
                           case 4:
-                            _context38.p = 4;
+                            _context39.p = 4;
                             button.disabled = false;
-                            return _context38.f(4);
+                            return _context39.f(4);
                           case 5:
-                            return _context38.a(2);
+                            return _context39.a(2);
                         }
-                      }, _callee34, null, [[1, 3, 4, 5]]);
+                      }, _callee35, null, [[1, 3, 4, 5]]);
                     }));
                     host.append(button);
                   case 1:
-                    return _context39.a(2);
+                    return _context40.a(2);
                 }
               }, _loop11);
             });
             _i6 = 0, _arr6 = [['testEverything', 'اختبار الاتصال'], ['saveEverything', 'حفظ إعدادات المزامنة']];
           case 6:
             if (!(_i6 < _arr6.length)) {
-              _context40.n = 8;
+              _context41.n = 8;
               break;
             }
-            return _context40.d(_regeneratorValues(_loop11()), 7);
+            return _context41.d(_regeneratorValues(_loop11()), 7);
           case 7:
             _i6++;
-            _context40.n = 6;
+            _context41.n = 6;
             break;
           case 8:
             host.append(message);
@@ -3755,19 +3755,19 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             renderEvents(host, data);
             renderMissing(host, data);
             refreshStatus();
-            _context40.n = 10;
+            _context41.n = 10;
             break;
           case 9:
-            _context40.p = 9;
-            _t37 = _context40.v;
+            _context41.p = 9;
+            _t38 = _context41.v;
           case 10:
-            _context40.p = 10;
+            _context41.p = 10;
             busy = false;
-            return _context40.f(10);
+            return _context41.f(10);
           case 11:
-            return _context40.a(2);
+            return _context41.a(2);
         }
-      }, _callee35, null, [[3, 9, 10, 11]]);
+      }, _callee36, null, [[3, 9, 10, 11]]);
     }));
     return _mount.apply(this, arguments);
   }
@@ -3821,6 +3821,51 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     var note = document.createElement('p');
     note.textContent = 'انسخ المسار وأضفه يدويًا إلى فهرسة المجلدات في Everything. قد يكون المسار غير مفهرس، أو فارغًا، أو يظهر بصيغة مختلفة. للمسلسلات نفحص ملفات الفيديو. تختفي المسارات من هذه القائمة عند ظهور نتائج لها في دورة المتابعة التالية.';
     box.append(note);
+    if (empty.length) {
+      var download = document.createElement('button');
+      download.textContent = 'تنزيل ملف إضافة المسارات إلى Everything';
+      download.style.cssText = 'padding:10px 16px;background:#218a64;color:white;border:0;border-radius:8px;cursor:pointer';
+      download.onclick = _asyncToGenerator(_regenerator().m(function _callee32() {
+        var result, url, link, _t35;
+        return _regenerator().w(function (_context36) {
+          while (1) switch (_context36.p = _context36.n) {
+            case 0:
+              download.disabled = true;
+              _context36.p = 1;
+              _context36.n = 2;
+              return api('exportEverythingFolders', {
+                ids: empty.map(r => r.id)
+              });
+            case 2:
+              result = _context36.v;
+              url = URL.createObjectURL(new Blob([result.script], {
+                type: 'text/plain;charset=utf-8'
+              }));
+              link = document.createElement('a');
+              link.href = url;
+              link.download = result.filename;
+              document.body.append(link);
+              link.click();
+              link.remove();
+              setTimeout(() => URL.revokeObjectURL(url), 30000);
+              download.textContent = 'تم تجهيز الملف؛ شغّله على جهاز Everything';
+              _context36.n = 4;
+              break;
+            case 3:
+              _context36.p = 3;
+              _t35 = _context36.v;
+              download.textContent = _t35.message;
+            case 4:
+              _context36.p = 4;
+              download.disabled = false;
+              return _context36.f(4);
+            case 5:
+              return _context36.a(2);
+          }
+        }, _callee32, null, [[1, 3, 4, 5]]);
+      }));
+      box.append(download);
+    }
     var summary = document.createElement('p');
     summary.textContent = (!data.enabled ? 'المتابعة متوقفة؛ فعّلها وحدد المسارات واحفظ الإعدادات. ' : '') + 'مسارات محددة: ' + rows.length + ' — لم تفحص بعد: ' + waiting + ' — تعذر فحصها: ' + failed;
     box.append(summary);
@@ -3847,43 +3892,43 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
         input.onclick = () => input.select();
         var copy = document.createElement('button');
         copy.textContent = 'نسخ المسار';
-        copy.onclick = _asyncToGenerator(_regenerator().m(function _callee32() {
-          var _t35;
-          return _regenerator().w(function (_context36) {
-            while (1) switch (_context36.p = _context36.n) {
+        copy.onclick = _asyncToGenerator(_regenerator().m(function _callee33() {
+          var _t36;
+          return _regenerator().w(function (_context37) {
+            while (1) switch (_context37.p = _context37.n) {
               case 0:
-                _context36.p = 0;
+                _context37.p = 0;
                 if (!(navigator.clipboard && window.isSecureContext)) {
-                  _context36.n = 2;
+                  _context37.n = 2;
                   break;
                 }
-                _context36.n = 1;
+                _context37.n = 1;
                 return navigator.clipboard.writeText(row.path);
               case 1:
-                _context36.n = 3;
+                _context37.n = 3;
                 break;
               case 2:
                 input.focus();
                 input.select();
                 if (document.execCommand('copy')) {
-                  _context36.n = 3;
+                  _context37.n = 3;
                   break;
                 }
                 throw Error('copy');
               case 3:
                 copy.textContent = 'تم النسخ';
-                _context36.n = 5;
+                _context37.n = 5;
                 break;
               case 4:
-                _context36.p = 4;
-                _t35 = _context36.v;
+                _context37.p = 4;
+                _t36 = _context37.v;
                 input.focus();
                 input.select();
                 copy.textContent = 'المسار محدد؛ اضغط Ctrl+C';
               case 5:
-                return _context36.a(2);
+                return _context37.a(2);
             }
-          }, _callee32, null, [[0, 4]]);
+          }, _callee33, null, [[0, 4]]);
         }));
         line.append(label, input, copy);
         box.append(line);
@@ -3901,50 +3946,50 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     return _refreshStatus.apply(this, arguments);
   }
   function _refreshStatus() {
-    _refreshStatus = _asyncToGenerator(_regenerator().m(function _callee36() {
+    _refreshStatus = _asyncToGenerator(_regenerator().m(function _callee37() {
       var _host3;
-      var current, _data, s, _t38;
-      return _regenerator().w(function (_context41) {
-        while (1) switch (_context41.p = _context41.n) {
+      var current, _data, s, _t39;
+      return _regenerator().w(function (_context42) {
+        while (1) switch (_context42.p = _context42.n) {
           case 0:
             if (!(!((_host3 = host) !== null && _host3 !== void 0 && _host3.isConnected) || statusBusy || Date.now() - lastStatus < 5000)) {
-              _context41.n = 1;
+              _context42.n = 1;
               break;
             }
-            return _context41.a(2);
+            return _context42.a(2);
           case 1:
             statusBusy = true;
             lastStatus = Date.now();
             current = host;
-            _context41.p = 2;
-            _context41.n = 3;
+            _context42.p = 2;
+            _context42.n = 3;
             return api('everythingStatus');
           case 3:
-            _data = _context41.v;
+            _data = _context42.v;
             if (!(current !== host || !current.isConnected)) {
-              _context41.n = 4;
+              _context42.n = 4;
               break;
             }
-            return _context41.a(2);
+            return _context42.a(2);
           case 4:
             renderMissing(current, _data);
             renderEvents(current, _data);
             s = _data.status || {};
             current.querySelector('#zain-everything-live').textContent = 'الحالة: ' + (_data.enabled ? s.error || s.phase : 'المتابعة متوقفة') + (s.path ? ' — ' + s.path : '') + (s.total != null ? ' — تقدم الفهرس: ' + (s.offset || 0) + ' / ' + s.total : '') + ' — إضافات مكتملة: ' + (s.added || 0) + ' — بانتظار الإضافة: ' + (s.pending || 0);
-            _context41.n = 6;
+            _context42.n = 6;
             break;
           case 5:
-            _context41.p = 5;
-            _t38 = _context41.v;
+            _context42.p = 5;
+            _t39 = _context42.v;
             if (current === host && current.isConnected) current.querySelector('#zain-everything-live').textContent = 'تعذر تحديث حالة المتابعة؛ ستعاد المحاولة';
           case 6:
-            _context41.p = 6;
+            _context42.p = 6;
             statusBusy = false;
-            return _context41.f(6);
+            return _context42.f(6);
           case 7:
-            return _context41.a(2);
+            return _context42.a(2);
         }
-      }, _callee36, null, [[2, 5, 6, 7]]);
+      }, _callee37, null, [[2, 5, 6, 7]]);
     }));
     return _refreshStatus.apply(this, arguments);
   }
