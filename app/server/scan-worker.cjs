@@ -166,7 +166,9 @@ process.once('message', async configuration => {
       }
     }
 
-    const directories = [root];
+    const scanStart=configuration.scanRelative?require('./episode-path.cjs').target(root,configuration.scanRelative):root;
+    if(configuration.scanRelative){if(!quick||!isSeries&&section.type!=='movies'||section.type==='movies'&&configuration.scanRelative.split(/[\\/]/).length!==1)throw Error('INVALID_TARGET_SCAN');let current=root;for(const segment of require('./episode-path.cjs').relative(configuration.scanRelative).split('/')){current=path.join(current,segment);const info=await fs.lstat(current);if(info.isSymbolicLink()||!info.isDirectory())throw Error('UNSAFE_SCAN_PATH');await addFolder(current);}}
+    const directories = [scanStart];
     const seen = new Set();
     let successfulRoot = false;
     while (directories.length) {

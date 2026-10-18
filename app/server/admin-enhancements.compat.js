@@ -3482,3 +3482,245 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   }, 1000);
   poll();
 })();
+(function () {
+  'use strict';
+
+  var host,
+    busy = false;
+  function api(_x26, _x27) {
+    return _api2.apply(this, arguments);
+  }
+  function _api2() {
+    _api2 = _asyncToGenerator(_regenerator().m(function _callee32(action, body) {
+      var r, value;
+      return _regenerator().w(function (_context36) {
+        while (1) switch (_context36.n) {
+          case 0:
+            _context36.n = 1;
+            return fetch('/admin/api/' + action, _objectSpread({
+              credentials: 'same-origin',
+              cache: 'no-store'
+            }, body ? {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(body)
+            } : {}));
+          case 1:
+            r = _context36.v;
+            _context36.n = 2;
+            return r.json();
+          case 2:
+            value = _context36.v;
+            if (r.ok) {
+              _context36.n = 3;
+              break;
+            }
+            throw Error(value.error || 'تعذر الطلب');
+          case 3:
+            return _context36.a(2, value);
+        }
+      }, _callee32);
+    }));
+    return _api2.apply(this, arguments);
+  }
+  function mount() {
+    return _mount.apply(this, arguments);
+  }
+  function _mount() {
+    _mount = _asyncToGenerator(_regenerator().m(function _callee34() {
+      var _host2;
+      var target, _host, data, title, fields, field, note, selected, allLabel, allBox, syncAll, _iterator35, _step35, root, label, box, message, payload, _loop10, _i6, _arr6, _t36;
+      return _regenerator().w(function (_context39) {
+        while (1) switch (_context39.p = _context39.n) {
+          case 0:
+            target = document.querySelector('.sections-cont');
+            if (target) {
+              _context39.n = 1;
+              break;
+            }
+            (_host = host) === null || _host === void 0 || _host.remove();
+            host = null;
+            return _context39.a(2);
+          case 1:
+            if (!((_host2 = host) !== null && _host2 !== void 0 && _host2.isConnected || busy)) {
+              _context39.n = 2;
+              break;
+            }
+            return _context39.a(2);
+          case 2:
+            busy = true;
+            _context39.p = 3;
+            payload = function _payload() {
+              return {
+                enabled: fields.enabled.checked,
+                address: fields.address.value,
+                username: fields.username.value,
+                password: fields.password.value,
+                intervalSeconds: Number(fields.intervalSeconds.value),
+                roots: selected.filter(r => r.box.checked).map(r => r.id)
+              };
+            };
+            field = function _field(key, label, type, value) {
+              var line = document.createElement('label'),
+                input = document.createElement('input');
+              line.style.cssText = 'display:block;margin:12px 0';
+              line.append(document.createTextNode(label + ' '));
+              input.type = type;
+              input.name = key;
+              if (type === 'checkbox') input.checked = !!value;else input.value = value || '';
+              input.style.cssText = type === 'checkbox' ? 'margin:8px' : 'display:block;width:100%;max-width:520px;box-sizing:border-box;padding:9px;margin-top:5px;background:#101523;color:white;border:1px solid #52617a;border-radius:5px';
+              if (type === 'password') {
+                input.autocomplete = 'new-password';
+                input.placeholder = data.passwordSaved ? 'محفوظة؛ اتركها فارغة للاحتفاظ بها' : 'كلمة مرور Everything';
+              }
+              line.append(input);
+              host.append(line);
+              fields[key] = input;
+            };
+            _context39.n = 4;
+            return api('everythingStatus');
+          case 4:
+            data = _context39.v;
+            if (target.isConnected) {
+              _context39.n = 5;
+              break;
+            }
+            return _context39.a(2);
+          case 5:
+            host = document.createElement('section');
+            host.id = 'zain-everything';
+            host.dir = 'rtl';
+            host.style.cssText = 'clear:both;background:#182134;border:1px solid #495a75;border-radius:10px;padding:18px;margin-top:20px;color:white';
+            title = document.createElement('h3');
+            title.textContent = 'المزامنة التلقائية — Everything';
+            host.append(title);
+            fields = {};
+            field('enabled', 'تفعيل متابعة الأفلام والحلقات الجديدة', 'checkbox', data.enabled);
+            field('address', 'عنوان Everything والمنفذ', 'text', data.address);
+            field('username', 'اسم المستخدم', 'text', data.username);
+            field('password', 'كلمة المرور', 'password', '');
+            field('intervalSeconds', 'الفاصل بين دورات فحص الفهرس بالثواني (30–3600)', 'number', data.intervalSeconds);
+            note = document.createElement('p');
+            note.textContent = 'استخدم عنوان الشبكة مثل http://192.168.1.153:99. لا يلزم مسار Everything.exe. أول فحص يسجل الموجود فقط، ثم تضاف الأفلام والحلقات الجديدة. يجب أن تطابق مسارات الفهرس مسارات الأقسام. HTTP غير مشفر؛ استخدمه داخل الشبكة.';
+            host.append(note);
+            selected = [];
+            allLabel = document.createElement('label'), allBox = document.createElement('input');
+            allBox.type = 'checkbox';
+            allLabel.style.cssText = 'display:block;margin:12px 0;font-weight:bold';
+            allLabel.append(allBox, document.createTextNode(' تحديد الكل'));
+            host.append(allLabel);
+            syncAll = () => {
+              var count = selected.filter(r => r.box.checked).length;
+              allBox.checked = selected.length > 0 && count === selected.length;
+              allBox.indeterminate = count > 0 && count < selected.length;
+            };
+            allBox.onchange = () => {
+              selected.forEach(r => r.box.checked = allBox.checked);
+              syncAll();
+            };
+            _iterator35 = _createForOfIteratorHelper(data.available);
+            try {
+              for (_iterator35.s(); !(_step35 = _iterator35.n()).done;) {
+                root = _step35.value;
+                label = document.createElement('label'), box = document.createElement('input');
+                box.type = 'checkbox';
+                box.checked = data.roots.includes(root.id);
+                label.style.cssText = 'display:block;margin:8px 0;overflow-wrap:anywhere';
+                label.append(box, document.createTextNode(' ' + root.name + ' — ' + root.path));
+                host.append(label);
+                selected.push({
+                  id: root.id,
+                  box
+                });
+                box.onchange = syncAll;
+              }
+            } catch (err) {
+              _iterator35.e(err);
+            } finally {
+              _iterator35.f();
+            }
+            syncAll();
+            message = document.createElement('p');
+            message.setAttribute('role', 'status');
+            message.textContent = data.status.error || data.status.phase;
+            _loop10 = _regenerator().m(function _loop10() {
+              var _arr6$_i, action, text, button;
+              return _regenerator().w(function (_context38) {
+                while (1) switch (_context38.n) {
+                  case 0:
+                    _arr6$_i = _slicedToArray(_arr6[_i6], 2), action = _arr6$_i[0], text = _arr6$_i[1];
+                    button = document.createElement('button');
+                    button.textContent = text;
+                    button.style.cssText = 'padding:10px 18px;border:0;border-radius:18px;background:#218a64;color:white;margin:6px;cursor:pointer';
+                    button.onclick = _asyncToGenerator(_regenerator().m(function _callee33() {
+                      var result, _t35;
+                      return _regenerator().w(function (_context37) {
+                        while (1) switch (_context37.p = _context37.n) {
+                          case 0:
+                            button.disabled = true;
+                            _context37.p = 1;
+                            _context37.n = 2;
+                            return api(action, payload());
+                          case 2:
+                            result = _context37.v;
+                            message.textContent = result.msg;
+                            if (action === 'saveEverything') {
+                              fields.password.value = '';
+                              fields.password.placeholder = 'محفوظة؛ اتركها فارغة للاحتفاظ بها';
+                            }
+                            _context37.n = 4;
+                            break;
+                          case 3:
+                            _context37.p = 3;
+                            _t35 = _context37.v;
+                            message.textContent = _t35.message;
+                          case 4:
+                            _context37.p = 4;
+                            button.disabled = false;
+                            return _context37.f(4);
+                          case 5:
+                            return _context37.a(2);
+                        }
+                      }, _callee33, null, [[1, 3, 4, 5]]);
+                    }));
+                    host.append(button);
+                  case 1:
+                    return _context38.a(2);
+                }
+              }, _loop10);
+            });
+            _i6 = 0, _arr6 = [['testEverything', 'اختبار الاتصال'], ['saveEverything', 'حفظ إعدادات المزامنة']];
+          case 6:
+            if (!(_i6 < _arr6.length)) {
+              _context39.n = 8;
+              break;
+            }
+            return _context39.d(_regeneratorValues(_loop10()), 7);
+          case 7:
+            _i6++;
+            _context39.n = 6;
+            break;
+          case 8:
+            host.append(message);
+            target.append(host);
+            _context39.n = 10;
+            break;
+          case 9:
+            _context39.p = 9;
+            _t36 = _context39.v;
+          case 10:
+            _context39.p = 10;
+            busy = false;
+            return _context39.f(10);
+          case 11:
+            return _context39.a(2);
+        }
+      }, _callee34, null, [[3, 9, 10, 11]]);
+    }));
+    return _mount.apply(this, arguments);
+  }
+  setInterval(mount, 2000);
+  mount();
+})();

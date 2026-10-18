@@ -15,7 +15,7 @@ const configFile = path.join(data, 'server-config.json');
 const config = fs.existsSync(configFile) ? JSON.parse(fs.readFileSync(configFile, 'utf8')) : { port: 80, bind: '0.0.0.0' };
 const port = config.port;
 let gemini;
-let ready = false, startupError = '', startupMessage='جار فتح قاعدة الاستراحة',startupInfo={}, sections = [], settings = {}, admin, services, content, operations, artwork, scanArtwork, uiCompat, speed, itemAdmin, backups, broadcast, metadata, trailers, folderIcons, posters, actorImages, exclusiveArtwork;
+let ready = false, startupError = '', startupMessage='جار فتح قاعدة الاستراحة',startupInfo={}, sections = [], settings = {}, admin, services, content, operations, artwork, scanArtwork, uiCompat, speed, itemAdmin, backups, broadcast, metadata, trailers, folderIcons, posters, actorImages, exclusiveArtwork, everythingSync;
 const responseCache=require('./browse-cache.cjs')();let catalogRevision=0,topCacheRevision=-1,topCache=[],monitorCache=null,monitorCacheAt=0;const normalizedNames=new WeakMap();
 let items = new Map(), children = new Map(), sectionItems = new Map(), files = new Map();
 let byMediaPath = new Map(), scannedAliases = new Map();
@@ -28,7 +28,7 @@ const types = { ".webp": "image/webp", '.html': 'text/html; charset=utf-8', '.js
 const pick = (o, keys) => Object.fromEntries(keys.filter(k => o[k] !== undefined).map(k => [k, o[k]]));
 const safeFile = f => pick(f, ['id', 'filename', 'itemId', 'type']);
 const publicCatalog=require('./public-catalog.cjs'),catalogItems=require('./catalog-items.cjs');
-const safeItem = item => {const x=sharedCatalog?.view(item)||item;return x ? { ...pick(x, ['id', 'name', 'type', 'inItem', 'views', 'downloads', 'sectionId', 'createdAt', 'content', 'pathSize']),type:publicCatalog.publicType(x.type), files: (x.files || []).map(safeFile) } : null;};
+const safeItem = item => {const x=sharedCatalog?.view(item)||item;return x ? { ...pick(x, ['id', 'name', 'type', 'inItem', 'views', 'downloads', 'sectionId', 'createdAt', 'latestEpisodeAt', 'content', 'pathSize']),createdAt:x.latestEpisodeAt?Math.max(Number(x.createdAt)||0,Number(x.latestEpisodeAt)-86400):x.createdAt,type:publicCatalog.publicType(x.type), files: (x.files || []).map(safeFile) } : null;};
 const detailItem = x => x ? {...safeItem(x),content:publicCatalog.detailContent((sharedCatalog?.view(x)||x).content), ...(settings.estra7ah_type === 'caffe' ? {path:'/zain/folder/'+encodeURIComponent(x.id)} : {})} : null;
 const safeSection = x => x ? pick(x, ['id', 'name', 'views', 'in_section', 'type', 'downloadActive', 'order', 'linkedId', 'is_hidden', 'NumOfEps', 'createdAt', 'updatedAt', 'isVIP', 'star']) : null;
 function monitorSnapshot() {
@@ -177,14 +177,14 @@ function searchRows(query,start,count){
  for(const item of searchCatalog){if(!keys.some(key=>normalizedName(item).includes(key)))continue;if(skipped++<at)continue;found.push(item);if(found.length>=limit)break;}return found;
 }
 function uniqueNewest(types,count){
- if(!items.queryTop)return (sharedCatalog?sharedCatalog.unique(topRows().filter(x=>!types||types.includes(x.type)).sort((a,b)=>(+b.createdAt||0)-(+a.createdAt||0))):topRows()).slice(0,count);
+ if(!items.queryTop)return (sharedCatalog?sharedCatalog.unique(topRows().filter(x=>!types||types.includes(x.type)).sort((a,b)=>require('./episode-activity.cjs').time(b)-require('./episode-activity.cjs').time(a))):topRows()).slice(0,count);
  let offset=0,rows=[];for(;;){const batch=items.queryTop({types,newest:true,limit:Math.max(100,count),offset});rows.push(...batch);const unique=sharedCatalog?sharedCatalog.unique(rows):rows;if(unique.length>=count||batch.length<Math.max(100,count))return unique.slice(0,count);offset+=batch.length;}
 }
 function newest(count) {
   const result = { movies: [], series: [], pindItemsNew: [], singers: [] };
   for (const t of ['deen', 'sports', 'tv', 'learn', 'ramadan', 'kids', 'anime']) result['series.' + t] = [];
   const newestRows=items.queryTop?['movie','film','series','series.tv','tv','series.anime','anime','series.kids','kids','series.deen','deen','series.sports','sports','series.learn','learn','series.ramadan','ramadan','singers'].flatMap(type=>uniqueNewest([type],count)):topRows();
-  for (const x of (sharedCatalog?sharedCatalog.unique(newestRows.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))):newestRows.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)))) { const type=publicCatalog.publicType(x.type),key = type === 'movie' ? 'movies' : type; if (result[key] && result[key].length < count) result[key].push(safeItem(x)); }
+  for (const x of (sharedCatalog?sharedCatalog.unique(newestRows.sort((a,b)=>require('./episode-activity.cjs').time(b)-require('./episode-activity.cjs').time(a))):newestRows.sort((a,b)=>require('./episode-activity.cjs').time(b)-require('./episode-activity.cjs').time(a)))) { const type=publicCatalog.publicType(x.type),key = type === 'movie' ? 'movies' : type; if (result[key] && result[key].length < count) result[key].push(safeItem(x)); }
   result.pindItemsNew = itemAdmin?.pinnedItems() || [];
   return result;
 }
@@ -312,7 +312,7 @@ async function api(req, res, parts) {
       const query = normalize(a.slice(6).join('/')); if (query && !['undefined', 'null'].includes(query)) rows = rows.filter(x => normalizedName(x).includes(query));
       if (a[4] && !['all', 'undefined'].includes(a[4])) rows = rows.filter(x => String(x.content?.year) === a[4]);
       if (a[3] && !['all', 'undefined'].includes(a[3])) rows = rows.filter(x => require('./genre-filter.cjs').matches(x,a[3]));
-      const order = a[5] || 'createdAt'; rows.sort((x, y) => order.includes('name') || order === 'alpha' ? x.name.localeCompare(y.name, 'ar') : order.includes('year') ? (+y.content?.year || 0) - (+x.content?.year || 0) : order.includes('rating') ? (+y.content?.imdb_ratings || 0) - (+x.content?.imdb_ratings || 0) : (+y.createdAt || 0) - (+x.createdAt || 0));
+      const order = a[5] || 'createdAt'; rows.sort((x, y) => order.includes('name') || order === 'alpha' ? x.name.localeCompare(y.name, 'ar') : order.includes('year') ? (+y.content?.year || 0) - (+x.content?.year || 0) : order.includes('rating') ? (+y.content?.imdb_ratings || 0) - (+x.content?.imdb_ratings || 0) : require('./episode-activity.cjs').time(y)-require('./episode-activity.cjs').time(x));
       return reply(list(rows, a[0], a[1]).map(safeItem));
     }
     case 'getItemsSearch': return reply(list(searchRows(a.slice(2).join('/'),a[0],a[1]), 0, a[1]).map(x => ({ ...safeItem(x), section: safeSection(sectionRow(x.sectionId)) || { name: 'قسم غير موجود' } })));
@@ -439,7 +439,7 @@ const server = http.createServer(async (req, res) => {
 });
 let stopping = false;
 const closeServer=require('./shutdown.cjs')({
- cleanup:[()=>admin?.recordEvent('إيقاف خادم الاستراحة','warning'),()=>backups?.close(),()=>metadata?.close(),()=>trailers?.close(),()=>folderIcons?.close(),()=>broadcast?.close(),()=>artwork?.close(),()=>scanArtwork?.close(),()=>services?.close(),()=>operations?.close(),()=>catalogStore.close?.()],
+ cleanup:[()=>everythingSync?.close(),()=>admin?.recordEvent('إيقاف خادم الاستراحة','warning'),()=>backups?.close(),()=>metadata?.close(),()=>trailers?.close(),()=>folderIcons?.close(),()=>broadcast?.close(),()=>artwork?.close(),()=>scanArtwork?.close(),()=>services?.close(),()=>operations?.close(),()=>catalogStore.close?.()],
  close:()=>new Promise(resolve=>{server.close(resolve);server.closeIdleConnections?.();}),
  forceClose:()=>server.closeAllConnections(),exit:code=>process.exit(code),report:message=>console.error(message)
 });
@@ -494,6 +494,13 @@ server.listen(port, config.bind, async () => {
     extensions.push(trailers);
     operations = require('./operations.cjs')({ dir: data, items, sections, services, readEvents: admin.readEvents, clearEvents: admin.clearEvents, metadata,recordEvent:admin.recordEvent });
     extensions.push(operations);
+    everythingSync=require('./everything-sync.cjs')({dir:data,getSections:()=>sections,canRun:()=>ready&&!stopping&&!updateClosing&&!backups?.isBusy()&&!services.syncJobs().some(j=>['queued','running'].includes(j.status)),onEvent:(msg,type)=>admin.recordEvent(msg,type,'content'),onAddition:async(root,events)=>{
+      const relative=path.posix.dirname(events[0].relative);if(relative==='.')return;
+      const probe=await new Promise((resolve,reject)=>{const child=require('node:child_process').fork(path.join(__dirname,'episode-probe.cjs'),[],{windowsHide:true,stdio:['ignore','ignore','ignore','ipc']});let finished=false;const done=(error,value)=>{if(finished)return;finished=true;clearTimeout(timer);child.kill();error?reject(error):resolve(value);};const timer=setTimeout(()=>done(Error('انتهت مهلة فحص الموسم')),8000);child.on('error',done);child.on('exit',()=>done(Error('توقف فحص الموسم')));child.on('message',m=>m.error?done(Error('المسار غير متاح')):done(null,m.entries));child.send({root:root.path,relative});});
+      if(events.some(e=>{const f=probe.find(f=>f.name===path.posix.basename(e.relative));return !f||f.size!==e.size||Date.now()-f.mtime<30000;}))throw Error('الملف غير جاهز');
+      const job=services.startSync(root.sectionIds[0],'quick',{root:root.path,relative});for(;;){if(stopping)throw Error('الخادم يتوقف');const state=services.syncJobs().find(j=>j.id===job.jobId);if(state&&!['queued','running'].includes(state.status)){if(state.status!=='completed'||state.warnings)throw Error('تعذر فحص الموسم');break;}await new Promise(r=>setTimeout(r,250));}
+      require('./episode-activity.cjs').apply({root,events,items,byMediaPath,updateItems});await catalogStore.write(catalogSnapshot());admin.recordEvent(root.kind==='movies'?'أضيف مجلد فيلم جديد: '+relative:'اكتُشفت '+events.length+' حلقة جديدة في '+relative+'؛ حُدّث ترتيب المسلسل','success','content');
+    }});extensions.push(everythingSync);
     uiCompat = require('./ui-compat.cjs')({ interfaceDir: web });
     settings.mubasher_port=String(config.broadcastPort||Number(settings.mubasher_port)||3333);
     if(Number(settings.mubasher_port)===port)throw Error('منفذ البث يجب أن يختلف عن منفذ الاستراحة');

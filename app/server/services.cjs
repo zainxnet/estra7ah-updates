@@ -239,7 +239,7 @@ module.exports = function createServices(options) {
       setImmediate(pump);
     });
     const describe=row=>({id:String(row.id),name:String(row.name||''),type:String(row.type||'')});
-    child.send({ source: task.path, section: describe(section), sections:memberships.map(describe), storePath, folderOnly:options.folderOnly===true, mode:task.mode });
+    child.send({ source: task.path, section: describe(section), sections:memberships.map(describe), storePath, folderOnly:options.folderOnly===true, mode:task.mode, scanRelative:task.scanRelative });
   }
 
   function selectedSections(sectionId) {
@@ -249,12 +249,14 @@ module.exports = function createServices(options) {
     return sections.filter(s=>ids.has(String(s.id)));
   }
 
-  function startSync(sectionId = null, mode = 'full') {
+  function startSync(sectionId = null, mode = 'full', scope = null) {
     ensureOpen();
     if(!['quick','full'].includes(mode))throw failure('نوع المزامنة غير صالح');
     const selected = selectedSections(sectionId)
       .filter(section => !['linked','main'].includes(section.type))
-      .flatMap(section => sectionPaths(section).map(source => ({ section, source })));
+      .flatMap(section => sectionPaths(section).map(source => ({ section, source }))).filter(row=>!scope||sourceKey(row.section,row.source)===sourceKey(row.section,scope.root));
+    if(scope&&(mode!=='quick'||!scope.relative||!selected.length||selected.some(row=>row.section.type!=='movies'&&!row.section.type.startsWith('serieses'))))throw failure('نطاق مراقبة غير صالح');
+    const scanRelative=scope?require('./episode-path.cjs').relative(scope.relative):null;
     // Each physical root is walked once. Sections still keep their legacy IDs,
     // hierarchy and permissions; a shared scan refreshes every linked section.
     // An ancestor/child root intentionally stays separate: folder depth defines
@@ -290,10 +292,10 @@ module.exports = function createServices(options) {
       // Snapshot the membership set: an edit made during a scan belongs to a
       // later scan, whose completion scopes must not reuse the old snapshot.
       const snapshot = memberships.map(row => ({ id: String(row.id), name: String(row.name || ''), type: String(row.type || '') }));
-      const key = sourceKey(section, source) + '\0' + mode + '\0' + JSON.stringify(snapshot.slice().sort((a, b) => a.id.localeCompare(b.id)));
+      const key = sourceKey(section, source) + '\0' + mode + '\0' + (scanRelative||'') + '\0' + JSON.stringify(snapshot.slice().sort((a, b) => a.id.localeCompare(b.id)));
       let task = inFlight.get(key);
       if (!task) {
-        task = { key, mode, path: source, section: snapshot.find(row => row.id === String(section.id)), memberships: snapshot,
+        task = { key, mode, scanRelative, path: source, section: snapshot.find(row => row.id === String(section.id)), memberships: snapshot,
           subscribers: new Map(), state: { status: 'queued', files: 0, discoveredBytes: 0, indexedItems: 0, scannedDirectories: 0, warnings: 0 } };
         inFlight.set(key, task);
         queue.push(task);
