@@ -76,6 +76,8 @@ process.once('message', async configuration => {
     const seriesType = seriesTypes[section.type.split('.')[1]] || 'series';
     // Read saved identities once, without touching media or artwork. Legacy imports
     // have different IDs, so path/type (not just scanner IDs) determines existence.
+    const refreshMovie=quick&&!folderOnly&&section.type==='movies'&&!!configuration.scanRelative;
+    const knownRecords=new Map();
     const known=new Map(),membershipIds=new Set(memberships.map(row=>String(row.id)));
     const identityKey=(sectionId,source,type)=>String(sectionId)+'\0'+canonical(source)+'\0'+type;
     if(quick){
@@ -85,6 +87,7 @@ process.once('message', async configuration => {
         if(!ref.path||!require('./movie-scan-state.cjs').contains(root,ref.path))continue;
         const record=hydrate(ref);
         known.set(identityKey(record.sectionId,record.path,record.type),record.id);
+        if(refreshMovie&&canonical(record.path)===canonical(path.join(root,configuration.scanRelative)))knownRecords.set(identityKey(record.sectionId,record.path,record.type),record);
       }
     }
     const knownByAll=(source,type)=>quick&&memberships.every(row=>known.has(identityKey(row.id,source,type)));
@@ -116,9 +119,16 @@ process.once('message', async configuration => {
       for(const membership of memberships){
         const sectionId=String(membership.id);
         const remap=id=>{if(id===null||id===undefined)return id;const identity=identities.get(id);if(!identity)throw Error('Missing scanner identity');const type=identity.kind==='series'?seriesType:identity.kind==='movie-folder'?'movie':identity.kind;return known.get(identityKey(sectionId,identity.source,type))||idFor(sectionId,identity.source,identity.kind,false);};
-        if(quick&&known.has(identityKey(sectionId,record.path,record.type)))continue;
+        const previous=knownRecords.get(identityKey(sectionId,record.path,record.type));
+        if(quick&&known.has(identityKey(sectionId,record.path,record.type))&&!(refreshMovie&&previous&&record.type==='movie'&&record.scanRoot))continue;
         const shared={...record,id:remap(record.id),sectionId,inItem:remap(record.inItem),
           files:record.files.map(file=>({...file,id:remap(file.id),itemId:remap(file.itemId)}))};
+        if(previous&&refreshMovie){
+          // A targeted movie refresh only adds files; retain metadata, membership and file IDs.
+          const files=new Map((previous.files||[]).map(file=>[canonical(file.path),file]));
+          for(const file of shared.files){const old=files.get(canonical(file.path));files.set(canonical(file.path),{...file,id:old?.id||file.id,itemId:previous.id});}
+          Object.assign(shared,previous,{files:[...files.values()],pathSize:Math.max(Number(previous.pathSize)||0,record.pathSize),scanRoot:root});
+        }
         discoveredIds.get(sectionId).add(shared.id);
         batch.push(shared);
         if(quick)known.set(identityKey(sectionId,record.path,record.type),shared.id);
@@ -153,7 +163,7 @@ process.once('message', async configuration => {
     async function addFolder(directory){
       const segments=path.relative(root,directory).split(path.sep);
       if(!(section.type==='movies'&&segments.length===1||isSeries&&segments.length<=2))return;
-      if(knownByAll(directory,section.type==='movies'?'movie':segments.length===1?seriesType:'season'))return;
+      if(!refreshMovie&&knownByAll(directory,section.type==='movies'?'movie':segments.length===1?seriesType:'season'))return;
       let stat;try{stat=await fs.stat(directory);}catch{progress.warnings++;return;}
       const createdAt=Math.floor((stat.birthtimeMs>0?stat.birthtimeMs:stat.mtimeMs)/1000);
       if(section.type==='movies'){
@@ -206,7 +216,7 @@ process.once('message', async configuration => {
           const mime = types[extension];
           if (!mime || !allowed(section.type, mime, extension)) { await emitProgress(); continue; }
           if((section.type==='movies'||isSeries)&&directory===root)continue;
-          if(knownByAll(fullPath,isSeries?'episod':section.type==='movies'?'movie':section.type||'file'))continue;
+          if(!refreshMovie&&knownByAll(fullPath,isSeries?'episod':section.type==='movies'?'movie':section.type||'file'))continue;
           progress.currentPath = fullPath;
           let stat;
           try { stat = await fs.stat(fullPath); }

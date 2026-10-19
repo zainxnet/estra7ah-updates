@@ -106,7 +106,7 @@ function mergeScanned(rows, automatic=true) {
       ? savedAlias : old?.id || (record.scanRoot?savedAlias:null) || record.id;
     observed.push(record.id,id);
     scannedAliases.set(record.id, id);
-    if(quick&&old)continue;
+    if(quick&&old&&!(automatic.refreshMovies&&record.type==='movie'&&record.scanRoot))continue;
     const x = { ...old, ...record, ...(old&&record.type==='movie'?{path:old.path}:{}), id, inItem: scannedAliases.get(record.inItem) || record.inItem };
     if (old) { x.name = old.name || record.name; x.content = old.content || record.content; x.views = old.views; x.downloads = old.downloads; x.createdAt = old.createdAt; }
     const additions = (record.files || []).map(f => ({ ...f, id: old?.files?.find(v => v.path?.toLowerCase() === f.path?.toLowerCase())?.id || f.id, itemId: id }));
@@ -494,13 +494,7 @@ server.listen(port, config.bind, async () => {
     extensions.push(trailers);
     operations = require('./operations.cjs')({ dir: data, items, sections, services, readEvents: admin.readEvents, clearEvents: admin.clearEvents, metadata,recordEvent:admin.recordEvent });
     extensions.push(operations);
-    everythingSync=require('./everything-sync.cjs')({dir:data,getSections:()=>sections,readEvents:()=>admin.readEvents(),clearEverythingEvents:()=>admin.clearEventsMatching(event=>String(event.msg||'').startsWith('مراقبة Everything:')),canRun:()=>ready&&!stopping&&!updateClosing&&!backups?.isBusy()&&!services.syncJobs().some(j=>['queued','running'].includes(j.status)),onEvent:(msg,type)=>admin.recordEvent(msg,type,'content'),onAddition:async(root,events)=>{
-      const relative=path.posix.dirname(events[0].relative);if(relative==='.')return;
-      const probe=await new Promise((resolve,reject)=>{const child=require('node:child_process').fork(path.join(__dirname,'episode-probe.cjs'),[],{windowsHide:true,stdio:['ignore','ignore','ignore','ipc']});let finished=false;const done=(error,value)=>{if(finished)return;finished=true;clearTimeout(timer);child.kill();error?reject(error):resolve(value);};const timer=setTimeout(()=>done(Error('انتهت مهلة فحص الموسم')),8000);child.on('error',done);child.on('exit',()=>done(Error('توقف فحص الموسم')));child.on('message',m=>m.error?done(Error('المسار غير متاح')):done(null,m.entries));child.send({root:root.path,relative});});
-      if(events.some(e=>{const f=probe.find(f=>f.name===path.posix.basename(e.relative));return !f||f.size!==e.size||Date.now()-f.mtime<30000;}))throw Error('الملف غير جاهز');
-      const job=services.startSync(root.sectionIds[0],'quick',{root:root.path,relative});for(;;){if(stopping)throw Error('الخادم يتوقف');const state=services.syncJobs().find(j=>j.id===job.jobId);if(state&&!['queued','running'].includes(state.status)){if(state.status!=='completed'||state.warnings)throw Error('تعذر فحص الموسم');break;}await new Promise(r=>setTimeout(r,250));}
-      require('./episode-activity.cjs').apply({root,events,items,byMediaPath,updateItems});await catalogStore.write(catalogSnapshot());admin.recordEvent('مراقبة Everything: '+(root.kind==='movies'?'أضيف مجلد فيلم جديد: '+relative:'اكتُشفت '+events.length+' حلقة جديدة في '+relative+'؛ حُدّث ترتيب المسلسل'),'success','content');
-    }});extensions.push(everythingSync);
+    everythingSync=require('./everything-sync.cjs')({dir:data,getSections:()=>sections,readEvents:()=>admin.readEvents(),clearEverythingEvents:()=>admin.clearEventsMatching(event=>String(event.msg||'').startsWith('مراقبة Everything:')),canRun:()=>ready&&!stopping&&!updateClosing&&!backups?.isBusy()&&!services.syncJobs().some(j=>['queued','running'].includes(j.status)),onEvent:(msg,type)=>admin.recordEvent(msg,type,'content'),onAddition:(root,events)=>require('./everything-addition.cjs')({root,events,services,items,byMediaPath,updateItems,commit:()=>catalogStore.write(catalogSnapshot()),stopping:()=>stopping,onEvent:msg=>admin.recordEvent(msg,'success','content')})});extensions.push(everythingSync);
     uiCompat = require('./ui-compat.cjs')({ interfaceDir: web });
     settings.mubasher_port=String(config.broadcastPort||Number(settings.mubasher_port)||3333);
     if(Number(settings.mubasher_port)===port)throw Error('منفذ البث يجب أن يختلف عن منفذ الاستراحة');

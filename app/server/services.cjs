@@ -208,7 +208,7 @@ module.exports = function createServices(options) {
         published = published.then(async () => {
           if (finished) return;
           if (!Array.isArray(message.records) || message.records.length > 50) throw failure('دفعة مزامنة غير صالحة', 'BAD_BATCH');
-          await onItems(message.records, { mode: task.mode });
+          await onItems(message.records, { mode: task.mode, refreshMovies: task.mode==='quick'&&!!task.scanRelative&&section.type==='movies' });
           if (!finished && child.connected) {
             lastActivity = Date.now();
             child.send({ type: 'ack', sequence: message.sequence });
