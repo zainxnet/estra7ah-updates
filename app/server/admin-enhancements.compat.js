@@ -3904,14 +3904,14 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     box.dataset.signature = signature;
     box.textContent = '';
     var title = document.createElement('h4');
-    title.textContent = 'مسارات الاستراحة التي لا تظهر لها نتائج في Everything (' + empty.length + ')';
+    title.textContent = 'مسارات بلا نتائج مطابقة للمزامنة في Everything (' + empty.length + ')';
     box.append(title);
     var note = document.createElement('p');
-    note.textContent = 'انسخ المسار وأضفه يدويًا إلى فهرسة المجلدات في Everything. قد يكون المسار غير مفهرس، أو فارغًا، أو يظهر بصيغة مختلفة. للمسلسلات نفحص ملفات الفيديو. تختفي المسارات من هذه القائمة عند ظهور نتائج لها في دورة المتابعة التالية.';
+    note.textContent = 'هذه القائمة لا تعني أن المسارات غير مضافة إلى Everything. قد يكون المسار مفهرسًا، لكنه فارغ أو لا يحتوي فيديوهات مطابقة للبحث؛ الألعاب والصوتيات وحدها لا تُعتبر حلقات جديدة. راجع نتائج المسار وصيغته والاستثناءات قبل إضافته مجددًا. الفحص هنا يقرأ فهرس Everything، وتُحفظ آخر نتيجة تحقق بعد إعادة التشغيل.';
     box.append(note);
     if (empty.length) {
       var download = document.createElement('button');
-      download.textContent = 'تنزيل ملف إضافة المسارات إلى Everything';
+      download.textContent = 'ملف مساعد لإضافة المسارات غير المفهرسة فقط';
       download.style.cssText = 'padding:10px 16px;background:#218a64;color:white;border:0;border-radius:8px;cursor:pointer';
       download.onclick = _asyncToGenerator(_regenerator().m(function _callee33() {
         var result, url, link, _t36;
@@ -3955,7 +3955,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
       box.append(download);
     }
     var summary = document.createElement('p');
-    summary.textContent = (!data.enabled ? 'المتابعة متوقفة؛ فعّلها وحدد المسارات واحفظ الإعدادات. ' : '') + 'مسارات محددة: ' + rows.length + ' — لم تفحص بعد: ' + waiting + ' — تعذر فحصها: ' + failed;
+    summary.textContent = (!data.enabled ? 'المتابعة متوقفة؛ فعّلها وحدد المسارات واحفظ الإعدادات. ' : '') + 'مسارات محددة: ' + rows.length + ' — بلا نتيجة تحقق محفوظة: ' + waiting + ' — تعذر فحصها: ' + failed;
     box.append(summary);
     if (!empty.length) {
       var text = document.createElement('p');
@@ -4018,7 +4018,9 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             }
           }, _callee34, null, [[0, 4]]);
         }));
-        line.append(label, input, copy);
+        var checked = document.createElement('div');
+        checked.textContent = (row.kind === 'series' ? 'لم يُرجع بحث الفيديوهات نتائج مطابقة. ' : 'لم يُرجع بحث هذا المسار نتائج مطابقة. ') + (row.checkedAt ? 'آخر تحقق: ' + new Date(row.checkedAt).toLocaleString() : '');
+        line.append(label, input, checked, copy);
         box.append(line);
       };
       for (_iterator37.s(); !(_step37 = _iterator37.n()).done;) {
@@ -4064,7 +4066,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             renderMissing(current, _data);
             renderEvents(current, _data);
             s = _data.status || {};
-            current.querySelector('#zain-everything-live').textContent = 'الحالة: ' + (_data.enabled ? s.error || s.phase : 'المتابعة متوقفة') + (s.path ? ' — ' + s.path : '') + (s.total != null ? ' — تقدم الفهرس: ' + (s.offset || 0) + ' / ' + s.total : '') + ' — إضافات مكتملة: ' + (s.added || 0) + ' — بانتظار الإضافة: ' + (s.pending || 0);
+            current.querySelector('#zain-everything-live').textContent = 'الحالة: ' + (_data.enabled ? s.error || s.phase : 'المتابعة متوقفة') + (s.path ? ' — ' + s.path : '') + (s.total != null ? ' — نتائج الفهرس المقروءة: ' + (s.offset || 0) + ' من ' + s.total : '') + ' — إضافات مكتملة: ' + (s.added || 0) + ' — بانتظار الإضافة: ' + (s.pending || 0);
             _context43.n = 6;
             break;
           case 5:

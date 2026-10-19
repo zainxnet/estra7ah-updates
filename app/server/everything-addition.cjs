@@ -2,9 +2,16 @@
 const path=require('node:path'),{fork}=require('node:child_process'),safe=require('./episode-path.cjs');
 
 // Called only for stable files discovered by the automatic Everything monitor.
-module.exports=async function({root,events,services,items,byMediaPath,updateItems,commit,movieState,stopping=()=>false,onEvent=()=>{}}){
+module.exports=async function({root,events,services,items,byMediaPath,byFilePath,folderOnly=false,updateItems,commit,movieState,stopping=()=>false,onEvent=()=>{}}){
+ const discardKnownEpisodes=()=>{
+  if(root.kind==='movies')return;
+  const known=events.filter(event=>require('./everything-known-video.cjs')({root,event,items,byMediaPath,byFilePath})),skip=new Set(known);
+  events=events.filter(event=>!skip.has(event));
+  if(known.length)onEvent('مراقبة Everything: تجاهل '+known.length+' ملف فيديو مسجل مسبقًا في المكتبة: '+root.path+' / '+known.slice(0,5).map(event=>event.relative).join('، ')+'؛ لم يتغير ترتيب البرنامج أو المسلسل');
+ };
  const eligible=()=>events.filter(event=>!event.recovery||movieState?.(root,event.relative)==='missing');
  events=eligible();if(!events.length)return {added:0};
+ discardKnownEpisodes();if(!events.length)return {added:0};
  const relative=path.posix.dirname(safe.relative(events[0].relative));if(relative==='.')return;
  const probe=await new Promise((resolve,reject)=>{
   const child=fork(path.join(__dirname,'episode-probe.cjs'),[],{windowsHide:true,stdio:['ignore','ignore','ignore','ipc']});
@@ -19,8 +26,25 @@ module.exports=async function({root,events,services,items,byMediaPath,updateItem
   const f=probe.find(f=>f.name===path.posix.basename(e.relative));
   return !f||f.size!==e.size||Date.now()-f.mtime<30000;
  }))throw Error('الملف غير جاهز');
+ // Compact catalogues intentionally omit video records. For an existing show,
+ // reject a delayed index entry when both on-disk dates predate monitoring.
+ // Birth time still admits newly copied episodes with an old modification date.
+ // Allow five minutes for host clock skew; never apply this rule to movies.
+ if(folderOnly&&root.kind!=='movies'&&root.referenceStartedAt>0){
+  const cutoff=root.referenceStartedAt-5*60000,old=[];
+  events=events.filter(event=>{
+   const file=probe.find(file=>file.name===path.posix.basename(event.relative));
+   const stale=file.birth>0&&file.mtime>0&&Math.max(file.birth,file.mtime)<cutoff&&require('./everything-known-video.cjs').hasContainer({root,event,items,byMediaPath});
+   if(stale)old.push(event);return !stale;
+  });
+  if(old.length)onEvent('مراقبة Everything: ظهر '+old.length+' ملف فيديو قديم قبل بدء المتابعة داخل برنامج موجود: '+root.path+' / '+old.slice(0,5).map(event=>event.relative).join('، ')+'؛ لم يتغير ترتيب البرنامج أو المسلسل');
+  if(!events.length)return {added:0};
+ }
  // A manual sync may have filled the catalogue while the probe was running.
  events=eligible();if(!events.length)return {added:0};
+ discardKnownEpisodes();if(!events.length)return {added:0};
+ const previousMovie=root.kind==='movies'?(movieState||require('./everything-movie-state.cjs')({items,byMediaPath,scannedAliases:new Map()}))(root,events[0].relative):null;
+ if(previousMovie==='blocked')return {added:0};
  // Probe the actual file directory; update the containing movie, even for a quality subfolder.
  const scanRelative=root.kind==='movies'?events[0].relative.split('/')[0]:relative;
  const job=services.startSync(root.sectionIds[0],'quick',{root:root.path,relative:scanRelative});
@@ -30,8 +54,14 @@ module.exports=async function({root,events,services,items,byMediaPath,updateItem
   if(state&&!['queued','running'].includes(state.status)){if(state.status!=='completed'||state.warnings)throw Error('تعذر فحص مجلد المحتوى');break;}
   await new Promise(r=>setTimeout(r,250));
  }
- const changed=require('./episode-activity.cjs').apply({root,events,items,byMediaPath,updateItems});await commit();
+ // A new format/quality file refreshes playback files, not the age of a movie
+ // that was already in the catalogue. Series still advance on new episodes.
+ const changed=previousMovie==='present'?0:require('./episode-activity.cjs').apply({root,events,items,byMediaPath,updateItems});await commit();
+ if(previousMovie==='present'){
+  onEvent('مراقبة Everything: حُدّثت ملفات الفيلم الموجود: '+scanRelative+'؛ دون تغيير ترتيبه أو اعتباره فيلمًا جديدًا');
+  return {added:0,updated:events.length};
+ }
  if(!changed)return {added:0};
- onEvent('مراقبة Everything: '+(events.every(event=>event.recovery)?'استُدرك الفيلم الحديث الناقص من المكتبة: '+scanRelative+'؛ أُضيف وحُدّث ترتيبه':root.kind==='movies'?'اكتُشفت '+events.length+' ملفات فيديو جديدة في '+scanRelative+'؛ زُومن الفيلم وحُدّث ترتيبه':'اكتُشفت '+events.length+' حلقة جديدة في '+relative+'؛ حُدّث ترتيب المسلسل'));
+ onEvent('مراقبة Everything: '+(events.every(event=>event.recovery)?'استُدرك الفيلم الحديث الناقص من المكتبة: '+scanRelative+'؛ أُضيف وحُدّث ترتيبه':root.kind==='movies'?'اكتُشفت '+events.length+' ملفات فيديو جديدة في '+scanRelative+'؛ زُومن الفيلم وحُدّث ترتيبه':'اكتُشفت '+events.length+' حلقة جديدة في '+relative+'؛ حُدّث ترتيب البرنامج أو المسلسل؛ الملفات: '+events.slice(0,5).map(event=>path.posix.basename(event.relative)).join('، ')));
  return {added:events.length};
 };
