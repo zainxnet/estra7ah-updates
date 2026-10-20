@@ -3489,6 +3489,9 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     busy = false,
     statusBusy = false,
     lastStatus = 0;
+  var activityStyle = document.createElement('style');
+  activityStyle.textContent = '#zain-everything-activity{display:flex;align-items:center;min-height:84px;box-sizing:border-box}.zain-current-icon{display:flex;align-items:center;justify-content:center;flex:0 0 34px;width:34px;height:34px;margin-left:18px;box-sizing:border-box;font-size:30px;color:#27c4e5}.zain-current-icon.running{border:4px solid #23465a;border-top-color:#27c4e5;border-right-color:#27c4e5;border-radius:50%;animation:zain-current-spin 1s linear infinite}.zain-current-icon.done{color:#40ca91}.zain-current-icon.error{color:#ffd099}.zain-current-icon.stopped,.zain-current-icon.waiting{color:#9aaec4}.zain-current-copy{min-width:0;flex:1}@keyframes zain-current-spin{to{transform:rotate(360deg)}}';
+  document.head.append(activityStyle);
   var pageHref = '/admin/sections?view=automatic-sync';
   var isPage = () => location.pathname === '/admin/sections' && new URLSearchParams(location.search).get('view') === 'automatic-sync';
   var pageStyle = document.createElement('style');
@@ -3565,7 +3568,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   function _mount() {
     _mount = _asyncToGenerator(_regenerator().m(function _callee37() {
       var _host2;
-      var target, _host, data, title, activityBox, dash, fields, field, note, selected, allLabel, allBox, syncAll, _iterator39, _step39, root, label, box, message, payload, _loop11, _i6, _arr6, live, missing, log, _t39;
+      var target, _host, data, title, activityBox, dash, fields, field, note, selected, allLabel, allBox, syncAll, _iterator38, _step38, root, label, box, message, payload, _loop11, _i6, _arr6, live, missing, log, _t39;
       return _regenerator().w(function (_context42) {
         while (1) switch (_context42.p = _context42.n) {
           case 0:
@@ -3664,10 +3667,10 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               selected.forEach(r => r.box.checked = allBox.checked);
               syncAll();
             };
-            _iterator39 = _createForOfIteratorHelper(data.available);
+            _iterator38 = _createForOfIteratorHelper(data.available);
             try {
-              for (_iterator39.s(); !(_step39 = _iterator39.n()).done;) {
-                root = _step39.value;
+              for (_iterator38.s(); !(_step38 = _iterator38.n()).done;) {
+                root = _step38.value;
                 label = document.createElement('label'), box = document.createElement('input');
                 box.type = 'checkbox';
                 box.checked = data.roots.includes(root.id);
@@ -3681,9 +3684,9 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                 box.onchange = syncAll;
               }
             } catch (err) {
-              _iterator39.e(err);
+              _iterator38.e(err);
             } finally {
-              _iterator39.f();
+              _iterator38.f();
             }
             syncAll();
             message = document.createElement('p');
@@ -3783,73 +3786,45 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     return _mount.apply(this, arguments);
   }
   function renderActivity(current, data) {
-    var _data$status, _box$querySelector, _a$current, _a$current2;
+    var _data$status, _a$current, _a$current2, _a$current3, _a$current4;
     var box = current.querySelector('#zain-everything-activity');
     if (!box) return;
     var a = data.activity || {},
-      rows = a.entries || [],
-      pending = ((_data$status = data.status) === null || _data$status === void 0 ? void 0 : _data$status.pending) || 0,
-      signature = JSON.stringify([a, data.enabled, pending]);
+      pending = ((_data$status = data.status) === null || _data$status === void 0 ? void 0 : _data$status.pending) || 0;
+    var message = !data.enabled ? 'المزامنة التلقائية متوقفة' : a.paused ? 'بانتظار انتهاء العمل الجاري بالخادم' : ((_a$current = a.current) === null || _a$current === void 0 ? void 0 : _a$current.message) || (pending ? 'بانتظار التحقق ومزامنة ' + pending + ' ملفًا في قائمة الانتظار' : 'بانتظار أول دورة فحص');
+    var state = !data.enabled ? 'stopped' : a.paused ? 'waiting' : ((_a$current2 = a.current) === null || _a$current2 === void 0 ? void 0 : _a$current2.stage) === 'error' ? 'error' : a.busy ? 'running' : ['result', 'synced'].includes((_a$current3 = a.current) === null || _a$current3 === void 0 ? void 0 : _a$current3.stage) ? 'done' : 'waiting';
+    var signature = JSON.stringify([message, state]);
     if (box.dataset.signature === signature) return;
     box.dataset.signature = signature;
-    var previousScroll = ((_box$querySelector = box.querySelector('.zain-activity-lines')) === null || _box$querySelector === void 0 ? void 0 : _box$querySelector.scrollTop) || 0;
     box.textContent = '';
-    var title = document.createElement('strong');
-    title.textContent = 'ما يحدث الآن';
-    box.append(title);
+    var icon = document.createElement('span');
+    icon.className = 'zain-current-icon ' + state;
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = state === 'running' ? '' : state === 'done' ? '✓' : state === 'error' ? '!' : state === 'stopped' ? 'Ⅱ' : '…';
+    box.append(icon);
+    var copy = document.createElement('div');
+    copy.className = 'zain-current-copy';
+    box.append(copy);
+    var title = document.createElement('div');
+    title.textContent = 'الحالة الآن';
+    title.style.cssText = 'color:#9aaec4;font-size:13px;margin-bottom:6px';
+    copy.append(title);
     var now = document.createElement('p');
     now.id = 'zain-everything-now';
     now.setAttribute('role', 'status');
-    now.style.cssText = 'margin:8px 0;color:#a8e5ff;font-weight:bold;overflow-wrap:anywhere';
-    var last = ((_a$current = a.current) === null || _a$current === void 0 ? void 0 : _a$current.message) || 'بانتظار أول دورة فحص';
-    now.textContent = !data.enabled ? 'المزامنة التلقائية متوقفة' : a.paused ? 'بانتظار انتهاء العمل الجاري بالخادم' : a.busy ? last : ((_a$current2 = a.current) === null || _a$current2 === void 0 ? void 0 : _a$current2.stage) === 'error' ? last : pending ? 'بانتظار التحقق ومزامنة ' + pending + ' ملفًا في قائمة الانتظار' : 'بانتظار دورة الفحص التالية' + (a.nextCheck > Date.now() ? ' عند ' + new Date(a.nextCheck).toLocaleTimeString() : '');
-    box.append(now);
-    var lines = document.createElement('div');
-    lines.className = 'zain-activity-lines';
-    lines.style.cssText = 'max-height:164px;overflow-y:auto;overscroll-behavior:contain;border-top:1px solid #30435d;padding-top:5px;font-size:12px;line-height:1.6';
-    if (!rows.length) {
-      var empty = document.createElement('p');
-      empty.style.margin = '4px 0';
-      empty.textContent = 'ستظهر هنا آخر خطوات هذه الجلسة؛ أحدث خطوة في الأعلى.';
-      lines.append(empty);
-    }
-    var _iterator35 = _createForOfIteratorHelper(rows),
-      _step35;
-    try {
-      for (_iterator35.s(); !(_step35 = _iterator35.n()).done;) {
-        var row = _step35.value;
-        var line = document.createElement('div'),
-          time = document.createElement('time'),
-          message = document.createElement('span');
-        line.style.cssText = 'padding:4px 0;border-bottom:1px solid #25344b;overflow-wrap:anywhere';
-        time.textContent = new Date(row.at).toLocaleTimeString();
-        time.dir = 'ltr';
-        time.style.cssText = 'color:#aebed5;display:inline-block';
-        message.textContent = row.message;
-        if (row.stage === 'error') message.style.color = '#ffd099';
-        line.append(time, document.createTextNode(' — '), message);
-        lines.append(line);
-      }
-    } catch (err) {
-      _iterator35.e(err);
-    } finally {
-      _iterator35.f();
-    }
-    box.append(lines);
-    lines.scrollTop = previousScroll;
-    var hint = document.createElement('small');
-    hint.textContent = 'آخر 24 خطوة في هذه الجلسة — يتجدد العرض تلقائيًا أثناء فتح الصفحة';
-    hint.style.cssText = 'display:block;margin-top:6px;color:#aebed5';
-    box.append(hint);
+    now.style.cssText = 'margin:0;color:#eef5ff;font-size:16px;font-weight:bold;line-height:1.6;overflow-wrap:anywhere';
+    now.textContent = message;
+    if (((_a$current4 = a.current) === null || _a$current4 === void 0 ? void 0 : _a$current4.stage) === 'error' && data.enabled && !a.paused) now.style.color = '#ffd099';
+    copy.append(now);
   }
   function renderDashboard(current, data) {
-    var _box$querySelector2;
+    var _box$querySelector;
     var box = current.querySelector('#zain-everything-dashboard');
     if (!box || !data.dashboard) return;
     var d = data.dashboard,
       c = d.counts,
       stamp = v => v ? new Date(v).toLocaleString() : 'لم يسجل بعد',
-      open = (_box$querySelector2 = box.querySelector('details')) === null || _box$querySelector2 === void 0 ? void 0 : _box$querySelector2.open;
+      open = (_box$querySelector = box.querySelector('details')) === null || _box$querySelector === void 0 ? void 0 : _box$querySelector.open;
     box.textContent = '';
     var add = text => {
       var p = document.createElement('p');
@@ -3874,20 +3849,20 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
       waiting: 'بانتظار النتائج',
       error: 'تعذر الفحص'
     };
-    var _iterator36 = _createForOfIteratorHelper(d.rows),
-      _step36;
+    var _iterator35 = _createForOfIteratorHelper(d.rows),
+      _step35;
     try {
-      for (_iterator36.s(); !(_step36 = _iterator36.n()).done;) {
-        var r = _step36.value;
+      for (_iterator35.s(); !(_step35 = _iterator35.n()).done;) {
+        var r = _step35.value;
         var line = document.createElement('p');
         line.style.cssText = 'padding:8px;border-bottom:1px solid #34415a;overflow-wrap:anywhere';
         line.textContent = r.name + ' — ' + r.path + ' — ' + (r.active ? 'يعمل الآن — ' : '') + names[r.state] + ' — المرجع ' + (r.ready ? 'مكتمل' : 'غير مكتمل') + (r.total != null ? ' — تقدم الدورة: ' + r.offset + '/' + r.total : '') + ' — آخر فحص ناجح: ' + stamp(r.lastSuccess) + (r.error ? ' — ' + r.error : '');
         details.append(line);
       }
     } catch (err) {
-      _iterator36.e(err);
+      _iterator35.e(err);
     } finally {
-      _iterator36.f();
+      _iterator35.f();
     }
     box.append(details);
   }
@@ -3941,11 +3916,11 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
       line.textContent = 'لا توجد أحداث متابعة مسجلة بعد.';
       box.append(line);
     }
-    var _iterator37 = _createForOfIteratorHelper(rows),
-      _step37;
+    var _iterator36 = _createForOfIteratorHelper(rows),
+      _step36;
     try {
-      for (_iterator37.s(); !(_step37 = _iterator37.n()).done;) {
-        var event = _step37.value;
+      for (_iterator36.s(); !(_step36 = _iterator36.n()).done;) {
+        var event = _step36.value;
         var _line = document.createElement('p');
         _line.style.cssText = 'padding:8px;border-bottom:1px solid #34415a;white-space:pre-wrap;overflow-wrap:anywhere';
         _line.textContent = (event.createdAt ? new Date(event.createdAt * 1000).toLocaleString() + ' — ' : '') + event.msg;
@@ -3953,9 +3928,9 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
         box.append(_line);
       }
     } catch (err) {
-      _iterator37.e(err);
+      _iterator36.e(err);
     } finally {
-      _iterator37.f();
+      _iterator36.f();
     }
   }
   function renderMissing(current, data) {
@@ -4028,11 +4003,11 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
       text.textContent = waiting || failed ? 'لم يكتمل التحقق من جميع المسارات بعد.' : 'لا توجد مسارات بلا نتائج ضمن آخر الفحوصات المتاحة.';
       box.append(text);
     }
-    var _iterator38 = _createForOfIteratorHelper(empty),
-      _step38;
+    var _iterator37 = _createForOfIteratorHelper(empty),
+      _step37;
     try {
       var _loop10 = function _loop10() {
-        var row = _step38.value;
+        var row = _step37.value;
         var line = document.createElement('div');
         line.style.cssText = 'margin:12px 0;padding:10px;background:#101523;border-radius:6px';
         var label = document.createElement('div');
@@ -4089,13 +4064,13 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
         line.append(label, input, checked, copy);
         box.append(line);
       };
-      for (_iterator38.s(); !(_step38 = _iterator38.n()).done;) {
+      for (_iterator37.s(); !(_step37 = _iterator37.n()).done;) {
         _loop10();
       }
     } catch (err) {
-      _iterator38.e(err);
+      _iterator37.e(err);
     } finally {
-      _iterator38.f();
+      _iterator37.f();
     }
   }
   function refreshStatus() {
@@ -4104,7 +4079,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   function _refreshStatus() {
     _refreshStatus = _asyncToGenerator(_regenerator().m(function _callee38() {
       var _host3;
-      var current, _data, s, activityBox, now, _t40;
+      var current, _data, s, activityBox, icon, now, _t40;
       return _regenerator().w(function (_context43) {
         while (1) switch (_context43.p = _context43.n) {
           case 0:
@@ -4143,8 +4118,13 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               current.querySelector('#zain-everything-live').textContent = 'تعذر تحديث حالة المتابعة؛ ستعاد المحاولة';
               activityBox = current.querySelector('#zain-everything-activity');
               if (activityBox) delete activityBox.dataset.signature;
+              icon = current.querySelector('.zain-current-icon');
+              if (icon) {
+                icon.className = 'zain-current-icon error';
+                icon.textContent = '!';
+              }
               now = current.querySelector('#zain-everything-now');
-              if (now) now.textContent = 'تعذر تحديث الحالة من الخادم؛ المعروض آخر خطوات مستلمة وستعاد المحاولة';
+              if (now) now.textContent = 'تعذر تحديث الحالة من الخادم؛ ستعاد المحاولة';
             }
           case 6:
             _context43.p = 6;
