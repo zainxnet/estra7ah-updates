@@ -166,21 +166,37 @@ function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length)
     rows.set(node, s);
     node.classList.add('zain-carousel');
     node.appendChild(toggle);
-    toggle.addEventListener('click', () => {
+    toggle.addEventListener('click', event => {
       s.paused = !s.paused;
       toggle.textContent = s.paused ? 'تشغيل الحركة' : 'إيقاف الحركة';
       toggle.setAttribute('aria-label', s.paused ? 'تشغيل حركة هذا الصف' : 'إيقاف حركة هذا الصف');
       toggle.setAttribute('aria-pressed', String(s.paused));
+      if (event.detail > 0) toggle.blur();
       wake();
     });
-    node.addEventListener('mouseenter', () => {
-      s.hover = true;
-      wake();
-    });
-    node.addEventListener('mouseleave', () => {
-      s.hover = false;
-      wake();
-    });
+    if (window.PointerEvent) {
+      node.addEventListener('pointerenter', event => {
+        if (event.pointerType === 'mouse') {
+          s.hover = true;
+          wake();
+        }
+      });
+      node.addEventListener('pointerleave', event => {
+        if (event.pointerType === 'mouse') {
+          s.hover = false;
+          wake();
+        }
+      });
+    } else {
+      node.addEventListener('mouseenter', () => {
+        s.hover = true;
+        wake();
+      });
+      node.addEventListener('mouseleave', () => {
+        s.hover = false;
+        wake();
+      });
+    }
     node.addEventListener('focusin', () => {
       s.focus = true;
       wake();
