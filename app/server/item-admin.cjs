@@ -19,6 +19,7 @@ module.exports=function({dir,items,sharedCatalog,topRows,safeItem,updateItems,re
   const scoped=ids===undefined?null:new Set(ids);
   const editIds=scoped||Object.keys(state.edits),scanIds=scoped||Object.keys(state.scanFiles||{});
   for(const id of editIds){const edit=state.edits[id];if(!edit)continue;const item=items.get(id);if(item)updateItems([{...item,...edit}]);}
+  for(const id of scoped||Object.keys(state.newControls||{})){const control=state.newControls?.[id],item=items.get(id);if(control&&item&&JSON.stringify(control)!==JSON.stringify(item.newControl))updateItems([{...item,newControl:control}]);}
   for(const id of scanIds){const selection=state.scanFiles?.[id];if(!selection)continue;const item=items.get(id);if(!item)continue;const allowed=new Set(selection.ids),files=(item.files||[]).filter(file=>allowed.has(file.id));if(files.length!==(item.files||[]).length||item.pathSize!==selection.pathSize)updateItems([{...item,files,pathSize:selection.pathSize}]);}
   // Scanner aliases can change even when the manual deletion list does not.
   for(const id of manualDeleted){const alias=resolveId(id);if(!scoped||scoped.has(id)||scoped.has(alias)){removeItem(id);if(alias!==id)removeItem(alias);}}
@@ -45,7 +46,7 @@ module.exports=function({dir,items,sharedCatalog,topRows,safeItem,updateItems,re
 
  apply();
  state.exclusive=state.exclusive||[];
- const adminReads=new Set(['getItems','getPinedItems','getExclusiveItems','getItemSyncState']);const adminActions=new Set(['pinItem','delPinedItem','removeAllPinned','deleteItem','updateContent','addExclusiveItem','removeExclusiveItem','updateExclusiveItem']);
+ const adminReads=new Set(['getItems','getPinedItems','getExclusiveItems','getItemSyncState']);const adminActions=new Set(['pinItem','delPinedItem','removeAllPinned','deleteItem','updateContent','addExclusiveItem','removeExclusiveItem','updateExclusiveItem','markItemNew','cancelItemNew']);
  function exclusiveItems(){return state.exclusive.map(id=>{const item=items.get(id);if(!item)return null;const edit=state.exclusiveEdits?.[id]||{};let content={};try{content=JSON.parse(item.content?.contentJSON||'{}')}catch{}return {...safeItem(item),...(edit.name?{name:edit.name}:{}),content:{...item.content,contentJSON:JSON.stringify({...content,...edit.content})},...(edit.image?{exclusiveImage:'/zain/exclusive-custom-image?id='+encodeURIComponent(id)+'&v='+edit.version}:{})};}).filter(Boolean);}
  return {isManuallyDeletedMovie:(sectionId,folder,id)=>deletedMovieFolders.has(deletedMovieKey(sectionId,folder))||manualDeleted.has(id)||manualDeleted.has(resolveId(id)),exclusiveItems,exclusiveFile:id=>{const name=state.exclusiveEdits?.[id]?.image;return state.exclusive.includes(id)&&items.has(id)&&/^[a-f0-9-]+\.(png|jpg|webp|gif)$/.test(name||'')?path.join(dir,'promotional-media',name):null;},readBody:(req,action)=>action==='updateExclusiveItem'?require('./multipart.cjs')(req,{limit:9*1024*1024}):require('./text-body.cjs')(req),saveContent:(id,content)=>{if(!items.has(id))return;const next=sharedCatalog?{...state,sharedContent:{...state.sharedContent,[sharedCatalog.key(id)]:content}}:{...state,edits:{...state.edits,[id]:{...state.edits[id],content}}};save(next,{metadataId:id});},pinnedItems:()=>{const rows=[...state.pinned].reverse().map(id=>items.get(id)).filter(Boolean);return (sharedCatalog?sharedCatalog.unique(rows):rows).map(safeItem)},adminReads,adminActions,async admin(action,args,body,method){
   const result=(body,status=200)=>({body,status}),error=(message,status=400)=>result({msg:'error',error:message},status);
@@ -73,6 +74,14 @@ module.exports=function({dir,items,sharedCatalog,topRows,safeItem,updateItems,re
   }
   if(action==='removeAllPinned'){if(method!=='POST')return error('طريقة الطلب غير صالحة',405);savePins([]);return result({msg:'ok'});}
   if(!adminActions.has(action))return null;const id=args[0],item=items.get(id);if(!item)return error('العنصر غير موجود',404);
+  if(action==='markItemNew'||action==='cancelItemNew'){
+   if(method!=='POST')return error('طريقة الطلب غير صالحة',405);
+   if((item.inItem&&item.inItem!=='null')||!require('./catalog-items.cjs').visible(item))return error('اختر العنصر الرئيسي');
+   const ids=sharedCatalog?.related(id)||[id],newControls={...state.newControls},newness=require('./item-newness.cjs'),now=Date.now()/1000;
+   for(const relatedId of ids){const row=items.get(relatedId);if(row)newControls[relatedId]=action==='markItemNew'?newness.promote(row,now):newness.dismiss(row);}
+   save({...state,newControls},{ids});
+   return result({msg:'ok',isNew:newness.isNew(items.get(id)),message:action==='markItemNew'?'تمت إضافة العنصر إلى الجديد ورفعه إلى البداية.':'ألغيت علامة الجديد وأعيد ترتيب العنصر.'});
+  }
   if(action==='updateExclusiveItem'){
    if(method!=='POST')return error('طريقة الطلب غير صالحة',405);
    if(!state.exclusive.includes(id))return error('العنصر غير مثبت في الحصريات',404);

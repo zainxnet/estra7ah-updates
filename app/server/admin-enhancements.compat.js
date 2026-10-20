@@ -1976,6 +1976,23 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
           trailer.setAttribute('aria-label', 'تحميل إعلان');
           host.appendChild(trailer);
         }
+        for (var _i6 = 0, _arr6 = [['markItemNew', 'إضافة إلى الجديد', '↑', '#22864c'], ['cancelItemNew', 'إلغاء الجديد', '↶', '#a96b29']]; _i6 < _arr6.length; _i6++) {
+          var _arr6$_i = _slicedToArray(_arr6[_i6], 4),
+            action = _arr6$_i[0],
+            _label = _arr6$_i[1],
+            symbol = _arr6$_i[2],
+            color = _arr6$_i[3];
+          if (!host.querySelector('[data-zain-new="' + action + '"]')) {
+            var _button = el('button', symbol);
+            _button.type = 'button';
+            _button.className = 'ic zain-more-action zain-new-action';
+            _button.dataset.zainNew = action;
+            _button.title = _label;
+            _button.setAttribute('aria-label', _label);
+            _button.style.cssText = 'background:' + color + ';color:white;border:0;cursor:pointer';
+            host.appendChild(_button);
+          }
+        }
       }
     } catch (err) {
       _iterator10.e(err);
@@ -2007,7 +2024,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   function _pollTrailers() {
     _pollTrailers = _asyncToGenerator(_regenerator().m(function _callee26() {
       var _trailerPanel2;
-      var result, jobs, host, _trailerPanel, _iterator19, _step19, _loop1, _t28;
+      var result, jobs, host, _trailerPanel, _iterator19, _step19, _loop1, _t29;
       return _regenerator().w(function (_context30) {
         while (1) switch (_context30.p = _context30.n) {
           case 0:
@@ -2051,7 +2068,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                     if (busy) {
                       cancel = el('button', 'إيقاف تحميل الإعلان');
                       cancel.onclick = _asyncToGenerator(_regenerator().m(function _callee25() {
-                        var _t27;
+                        var _t28;
                         return _regenerator().w(function (_context28) {
                           while (1) switch (_context28.p = _context28.n) {
                             case 0:
@@ -2068,8 +2085,8 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                               break;
                             case 3:
                               _context28.p = 3;
-                              _t27 = _context28.v;
-                              notice = _t27.message;
+                              _t28 = _context28.v;
+                              notice = _t28.message;
                               render([]);
                             case 4:
                               return _context28.a(2);
@@ -2098,8 +2115,8 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             break;
           case 8:
             _context30.p = 8;
-            _t28 = _context30.v;
-            _iterator19.e(_t28);
+            _t29 = _context30.v;
+            _iterator19.e(_t29);
           case 9:
             _context30.p = 9;
             _iterator19.f();
@@ -2113,17 +2130,17 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   }
   document.addEventListener('click', function () {
     var _ref0 = _asyncToGenerator(_regenerator().m(function _callee17(event) {
-      var _event$target$closest, _event$target, _event$target$closest2, _event$target2;
-      var plus, trailer, _event$target$closest3, _event$target3, host, open, id, _t16;
+      var _event$target$closest, _event$target, _event$target$closest2, _event$target2, _event$target$closest3, _event$target3;
+      var plus, trailer, newAction, _event$target$closest4, _event$target4, host, open, card, _id, controls, result, id, _t16, _t17;
       return _regenerator().w(function (_context20) {
         while (1) switch (_context20.p = _context20.n) {
           case 0:
-            plus = (_event$target$closest = (_event$target = event.target).closest) === null || _event$target$closest === void 0 ? void 0 : _event$target$closest.call(_event$target, '.zain-plus'), trailer = (_event$target$closest2 = (_event$target2 = event.target).closest) === null || _event$target$closest2 === void 0 ? void 0 : _event$target$closest2.call(_event$target2, '.zain-trailer');
-            if (!(!plus && !trailer)) {
+            plus = (_event$target$closest = (_event$target = event.target).closest) === null || _event$target$closest === void 0 ? void 0 : _event$target$closest.call(_event$target, '.zain-plus'), trailer = (_event$target$closest2 = (_event$target2 = event.target).closest) === null || _event$target$closest2 === void 0 ? void 0 : _event$target$closest2.call(_event$target2, '.zain-trailer'), newAction = (_event$target$closest3 = (_event$target3 = event.target).closest) === null || _event$target$closest3 === void 0 ? void 0 : _event$target$closest3.call(_event$target3, '[data-zain-new]');
+            if (!(!plus && !trailer && !newAction)) {
               _context20.n = 1;
               break;
             }
-            if (!((_event$target$closest3 = (_event$target3 = event.target).closest) !== null && _event$target$closest3 !== void 0 && _event$target$closest3.call(_event$target3, '.zain-item-tools'))) closeItemMenus();
+            if (!((_event$target$closest4 = (_event$target4 = event.target).closest) !== null && _event$target$closest4 !== void 0 && _event$target$closest4.call(_event$target4, '.zain-item-tools'))) closeItemMenus();
             return _context20.a(2);
           case 1:
             event.preventDefault();
@@ -2138,21 +2155,25 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             plus.setAttribute('aria-expanded', String(open));
             return _context20.a(2);
           case 2:
-            id = cardId(trailer.closest('.item'));
-            if (!(!id || trailer.disabled)) {
+            if (!newAction) {
+              _context20.n = 9;
+              break;
+            }
+            card = newAction.closest('.item'), _id = cardId(card);
+            if (!(!_id || newAction.disabled)) {
               _context20.n = 3;
               break;
             }
             return _context20.a(2);
           case 3:
-            trailer.disabled = true;
+            controls = Array.from(card.querySelectorAll('[data-zain-new]'));
+            controls.forEach(button => button.disabled = true);
             _context20.p = 4;
             _context20.n = 5;
-            return api('downloadTrailer', {
-              id
-            });
+            return api(newAction.dataset.zainNew + '/' + encodeURIComponent(_id), {});
           case 5:
-            notice = 'أضيف الإعلان إلى قائمة التنزيل؛ يظهر التقدم والنتيجة هنا وفي سجل الأحداث.';
+            result = _context20.v;
+            notice = result.message;
             closeItemMenus();
             render([]);
             _context20.n = 7;
@@ -2164,14 +2185,47 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             render([]);
           case 7:
             _context20.p = 7;
-            trailer.disabled = false;
+            controls.forEach(button => button.disabled = false);
             nextPoll = 0;
             poll();
             return _context20.f(7);
           case 8:
             return _context20.a(2);
+          case 9:
+            id = cardId(trailer.closest('.item'));
+            if (!(!id || trailer.disabled)) {
+              _context20.n = 10;
+              break;
+            }
+            return _context20.a(2);
+          case 10:
+            trailer.disabled = true;
+            _context20.p = 11;
+            _context20.n = 12;
+            return api('downloadTrailer', {
+              id
+            });
+          case 12:
+            notice = 'أضيف الإعلان إلى قائمة التنزيل؛ يظهر التقدم والنتيجة هنا وفي سجل الأحداث.';
+            closeItemMenus();
+            render([]);
+            _context20.n = 14;
+            break;
+          case 13:
+            _context20.p = 13;
+            _t17 = _context20.v;
+            notice = _t17.message;
+            render([]);
+          case 14:
+            _context20.p = 14;
+            trailer.disabled = false;
+            nextPoll = 0;
+            poll();
+            return _context20.f(14);
+          case 15:
+            return _context20.a(2);
         }
-      }, _callee17, null, [[4, 6, 7, 8]]);
+      }, _callee17, null, [[11, 13, 14, 15], [4, 6, 7, 8]]);
     }));
     return function (_x20) {
       return _ref0.apply(this, arguments);
@@ -2213,7 +2267,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
         button.type = 'button';
         button.style.cssText = 'display:block;position:relative;z-index:3;background:#c8323f;color:#fff;border:0;border-radius:6px;padding:10px 18px;margin:8px 0;font-weight:bold;cursor:pointer';
         button.onclick = _asyncToGenerator(_regenerator().m(function _callee18() {
-          var _t17;
+          var _t18;
           return _regenerator().w(function (_context21) {
             while (1) switch (_context21.p = _context21.n) {
               case 0:
@@ -2235,8 +2289,8 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                 break;
               case 4:
                 _context21.p = 4;
-                _t17 = _context21.v;
-                notice = _t17.message;
+                _t18 = _context21.v;
+                notice = _t18.message;
                 button.disabled = false;
               case 5:
                 return _context21.a(2);
@@ -2411,7 +2465,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   }
   function _enhanceSectionFilter() {
     _enhanceSectionFilter = _asyncToGenerator(_regenerator().m(function _callee30() {
-      var select, rows, signature, widget, _style, byId, children, compare, _iterator20, _step20, row, parent, _iterator21, _step21, list, roots, previous, selected, options, allOption, _iterator22, _step22, _row, option, host, summary, _panel, labels, buttons, visited, sync, choose, nameButton, appendRow, _iterator25, _step25, _row2, _iterator26, _step26, _row3, _t29, _t30;
+      var select, rows, signature, widget, _style, byId, children, compare, _iterator20, _step20, row, parent, _iterator21, _step21, list, roots, previous, selected, options, allOption, _iterator22, _step22, _row, option, host, summary, _panel, labels, buttons, visited, sync, choose, nameButton, appendRow, _iterator25, _step25, _row2, _iterator26, _step26, _row3, _t30, _t31;
       return _regenerator().w(function (_context34) {
         while (1) switch (_context34.p = _context34.n) {
           case 0:
@@ -2481,16 +2535,16 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               _context34.n = 3;
               break;
             }
-            _t29 = zainSectionRows;
+            _t30 = zainSectionRows;
             _context34.n = 5;
             break;
           case 3:
             _context34.n = 4;
             return sectionRows();
           case 4:
-            _t29 = _context34.v;
+            _t30 = _context34.v;
           case 5:
-            rows = _t29;
+            rows = _t30;
             if (Date.now() - zainSectionRowsAt >= 10000) sectionRows().then(() => refreshItemStructure()).catch(() => {});
             if (!(!select.isConnected || location.pathname !== '/admin/items')) {
               _context34.n = 6;
@@ -2654,7 +2708,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             break;
           case 8:
             _context34.p = 8;
-            _t30 = _context34.v;
+            _t31 = _context34.v;
           case 9:
             return _context34.a(2);
         }
@@ -2727,7 +2781,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                 button.style.background = '#218a64';
                 button.disabled = active || requesting;
                 button.onclick = _asyncToGenerator(_regenerator().m(function _callee19() {
-                  var _t18;
+                  var _t19;
                   return _regenerator().w(function (_context22) {
                     while (1) switch (_context22.p = _context22.n) {
                       case 0:
@@ -2753,8 +2807,8 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                         break;
                       case 4:
                         _context22.p = 4;
-                        _t18 = _context22.v;
-                        notice = _t18.message;
+                        _t19 = _context22.v;
+                        notice = _t19.message;
                       case 5:
                         _context22.p = 5;
                         requesting = false;
@@ -2810,7 +2864,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     toggle.disabled = settingBusy;
     toggle.style.cssText = 'width:20px;height:20px;vertical-align:middle;margin-left:8px';
     toggle.onchange = _asyncToGenerator(_regenerator().m(function _callee20() {
-      var result, _t19;
+      var result, _t20;
       return _regenerator().w(function (_context23) {
         while (1) switch (_context23.p = _context23.n) {
           case 0:
@@ -2829,8 +2883,8 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             break;
           case 3:
             _context23.p = 3;
-            _t19 = _context23.v;
-            notice = _t19.message;
+            _t20 = _context23.v;
+            notice = _t20.message;
           case 4:
             _context23.p = 4;
             settingBusy = false;
@@ -2855,7 +2909,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
       var cancelAll = el('button', 'إلغاء جميع مهام مزامنة البيانات');
       cancelAll.style.cssText = 'display:block;background:#cf303d;color:white;padding:10px 18px;font-weight:bold';
       cancelAll.onclick = _asyncToGenerator(_regenerator().m(function _callee21() {
-        var _t20;
+        var _t21;
         return _regenerator().w(function (_context24) {
           while (1) switch (_context24.p = _context24.n) {
             case 0:
@@ -2869,8 +2923,8 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               break;
             case 3:
               _context24.p = 3;
-              _t20 = _context24.v;
-              notice = _t20.message;
+              _t21 = _context24.v;
+              notice = _t21.message;
             case 4:
               nextPoll = 0;
               poll();
@@ -2898,7 +2952,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
           button.type = 'button';
           button.disabled = !!job.cancelled;
           button.onclick = _asyncToGenerator(_regenerator().m(function _callee22() {
-            var _t21;
+            var _t22;
             return _regenerator().w(function (_context25) {
               while (1) switch (_context25.p = _context25.n) {
                 case 0:
@@ -2912,8 +2966,8 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                   break;
                 case 3:
                   _context25.p = 3;
-                  _t21 = _context25.v;
-                  notice = _t21.message;
+                  _t22 = _context25.v;
+                  notice = _t22.message;
                 case 4:
                   nextPoll = 0;
                   poll();
@@ -2958,7 +3012,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   }
   function _poll() {
     _poll = _asyncToGenerator(_regenerator().m(function _callee31() {
-      var active, option, rows, ids, _status, jobs, states, byId, changed, _iterator27, _step27, _row4$card$querySelec, _row4, _item, picture, reload, becameSaved, _iterator28, _step28, job, _iterator33, _step33, id, _key, _iterator29, _step29, _job, _iterator34, _step34, _id, _key2, updated, _iterator30, _step30, item, _iterator31, _step31, row, img, url, _iterator32, _step32, _id2, _t31, _t32, _t33, _t34;
+      var active, option, rows, ids, _status, jobs, states, byId, changed, _iterator27, _step27, _row4$card$querySelec, _row4, _item, picture, reload, becameSaved, _iterator28, _step28, job, _iterator33, _step33, id, _key, _iterator29, _step29, _job, _iterator34, _step34, _id2, _key2, updated, _iterator30, _step30, item, _iterator31, _step31, row, img, url, _iterator32, _step32, _id3, _t32, _t33, _t34, _t35;
       return _regenerator().w(function (_context35) {
         while (1) switch (_context35.p = _context35.n) {
           case 0:
@@ -3006,19 +3060,19 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             _context35.n = 6;
             return pollTrailers();
           case 6:
-            _t31 = _context35.v;
-            if (_t31) {
+            _t32 = _context35.v;
+            if (_t32) {
               _context35.n = 7;
               break;
             }
-            _t31 = active;
+            _t32 = active;
           case 7:
-            active = _t31;
+            active = _t32;
             _context35.n = 9;
             break;
           case 8:
             _context35.p = 8;
-            _t32 = _context35.v;
+            _t33 = _context35.v;
           case 9:
             if (!ids.length) {
               _context35.n = 21;
@@ -3070,8 +3124,8 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             break;
           case 16:
             _context35.p = 16;
-            _t33 = _context35.v;
-            _iterator27.e(_t33);
+            _t34 = _context35.v;
+            _iterator27.e(_t34);
           case 17:
             _context35.p = 17;
             _iterator27.f();
@@ -3109,10 +3163,10 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                 _iterator34 = _createForOfIteratorHelper(_job.posterReadyIds || []);
                 try {
                   for (_iterator34.s(); !(_step34 = _iterator34.n()).done;) {
-                    _id = _step34.value;
-                    _key2 = _job.id + ':poster:' + _id;
-                    if (byId.has(_id) && !seenCompletions.has(_key2)) {
-                      changed.add(_id);
+                    _id2 = _step34.value;
+                    _key2 = _job.id + ':poster:' + _id2;
+                    if (byId.has(_id2) && !seenCompletions.has(_key2)) {
+                      changed.add(_id2);
                       seenCompletions.add(_key2);
                     }
                   }
@@ -3168,8 +3222,8 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             _iterator32 = _createForOfIteratorHelper(fresh.keys());
             try {
               for (_iterator32.s(); !(_step32 = _iterator32.n()).done;) {
-                _id2 = _step32.value;
-                if (!byId.has(_id2)) fresh.delete(_id2);
+                _id3 = _step32.value;
+                if (!byId.has(_id3)) fresh.delete(_id3);
               }
             } catch (err) {
               _iterator32.e(err);
@@ -3181,8 +3235,8 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             break;
           case 22:
             _context35.p = 22;
-            _t34 = _context35.v;
-            notice = _t34.message;
+            _t35 = _context35.v;
+            notice = _t35.message;
             render([]);
           case 23:
             _context35.p = 23;
@@ -3198,7 +3252,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   }
   document.addEventListener('click', function () {
     var _ref14 = _asyncToGenerator(_regenerator().m(function _callee23(event) {
-      var target, ids, all, rebuildIcon, full, incomplete, id, text, _ids, result, _t22, _t23, _t24, _t25;
+      var target, ids, all, rebuildIcon, full, incomplete, id, text, _ids, result, _t23, _t24, _t25, _t26;
       return _regenerator().w(function (_context26) {
         while (1) switch (_context26.p = _context26.n) {
           case 0:
@@ -3285,7 +3339,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             _context26.n = 12;
             return api('prepareNewest100', {});
           case 12:
-            _t22 = _context26.v;
+            _t23 = _context26.v;
             _context26.n = 21;
             break;
           case 13:
@@ -3298,7 +3352,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               ids: ids.join(',')
             });
           case 14:
-            _t23 = _context26.v;
+            _t24 = _context26.v;
             _context26.n = 20;
             break;
           case 15:
@@ -3309,7 +3363,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             _context26.n = 16;
             return api('startDownloadItemsData', {});
           case 16:
-            _t24 = _context26.v;
+            _t25 = _context26.v;
             _context26.n = 19;
             break;
           case 17:
@@ -3319,21 +3373,21 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               rebuildIcon
             });
           case 18:
-            _t24 = _context26.v;
+            _t25 = _context26.v;
           case 19:
-            _t23 = _t24;
+            _t24 = _t25;
           case 20:
-            _t22 = _t23;
+            _t23 = _t24;
           case 21:
-            result = _t22;
+            result = _t23;
             notice = incomplete ? 'بدأ اختيار أحدث 100 عنصر ينقصه البيانات أو الأيقونة؛ يكتمل الجزء الناقص فقط.' : full ? 'بدأ تحديث بيانات العناصر مع الاحتفاظ بالأجزاء العربية وبيانات الممثلين الموجودة.' : rebuildIcon ? 'بدأ تحديث البيانات وترجمتها؛ بعدها يعاد إنشاء الأيقونة بالاسم العربي. يظهر التقدم والنتيجة في سجل المزامنة.' : 'بدأت مزامنة ' + (result.total || ((_ids = ids) === null || _ids === void 0 ? void 0 : _ids.length) || 0) + ' عنصر، من الأحدث إلى الأقدم؛ تتحدث حالة البطاقات أثناء العمل.';
             render([]);
             _context26.n = 23;
             break;
           case 22:
             _context26.p = 22;
-            _t25 = _context26.v;
-            notice = _t25.message;
+            _t26 = _context26.v;
+            notice = _t26.message;
             render([]);
           case 23:
             _context26.p = 23;
@@ -3405,7 +3459,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   document.head.append(deleteStyle);
   window.zainDeleteItem = function () {
     var _ref15 = _asyncToGenerator(_regenerator().m(function _callee24(id, request) {
-      var response, value, _iterator18, _step18, row, _t26;
+      var response, value, _iterator18, _step18, row, _t27;
       return _regenerator().w(function (_context27) {
         while (1) switch (_context27.p = _context27.n) {
           case 0:
@@ -3429,7 +3483,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             return _context27.a(2, response);
           case 5:
             _context27.p = 5;
-            _t26 = _context27.v;
+            _t27 = _context27.v;
             deletingItems.delete(String(id));
             _iterator18 = _createForOfIteratorHelper(cards());
             try {
@@ -3442,7 +3496,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             } finally {
               _iterator18.f();
             }
-            notice = 'لم يكتمل الحذف: ' + _t26.message;
+            notice = 'لم يكتمل الحذف: ' + _t27.message;
             render([]);
             return _context27.a(2, new Response(JSON.stringify({
               msg: 'error'
@@ -3568,7 +3622,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   function _mount() {
     _mount = _asyncToGenerator(_regenerator().m(function _callee37() {
       var _host2;
-      var target, _host, data, title, activityBox, dash, fields, field, note, selected, allLabel, allBox, syncAll, _iterator38, _step38, root, label, box, message, payload, _loop11, _i6, _arr6, live, missing, log, _t39;
+      var target, _host, data, title, activityBox, dash, fields, field, note, selected, allLabel, allBox, syncAll, _iterator38, _step38, root, label, box, message, payload, _loop11, _i7, _arr7, live, missing, log, _t40;
       return _regenerator().w(function (_context42) {
         while (1) switch (_context42.p = _context42.n) {
           case 0:
@@ -3693,16 +3747,16 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             message.setAttribute('role', 'status');
             message.textContent = data.status.error || data.status.phase;
             _loop11 = _regenerator().m(function _loop11() {
-              var _arr6$_i, action, text, button;
+              var _arr7$_i, action, text, button;
               return _regenerator().w(function (_context41) {
                 while (1) switch (_context41.n) {
                   case 0:
-                    _arr6$_i = _slicedToArray(_arr6[_i6], 2), action = _arr6$_i[0], text = _arr6$_i[1];
+                    _arr7$_i = _slicedToArray(_arr7[_i7], 2), action = _arr7$_i[0], text = _arr7$_i[1];
                     button = document.createElement('button');
                     button.textContent = text;
                     button.style.cssText = 'padding:10px 18px;border:0;border-radius:18px;background:#218a64;color:white;margin:6px;cursor:pointer';
                     button.onclick = _asyncToGenerator(_regenerator().m(function _callee36() {
-                      var result, _t38;
+                      var result, _t39;
                       return _regenerator().w(function (_context40) {
                         while (1) switch (_context40.p = _context40.n) {
                           case 0:
@@ -3721,8 +3775,8 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                             break;
                           case 3:
                             _context40.p = 3;
-                            _t38 = _context40.v;
-                            message.textContent = _t38.message;
+                            _t39 = _context40.v;
+                            message.textContent = _t39.message;
                           case 4:
                             _context40.p = 4;
                             button.disabled = false;
@@ -3738,15 +3792,15 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                 }
               }, _loop11);
             });
-            _i6 = 0, _arr6 = [['testEverything', 'اختبار الاتصال'], ['saveEverything', 'حفظ إعدادات المزامنة']];
+            _i7 = 0, _arr7 = [['testEverything', 'اختبار الاتصال'], ['saveEverything', 'حفظ إعدادات المزامنة']];
           case 6:
-            if (!(_i6 < _arr6.length)) {
+            if (!(_i7 < _arr7.length)) {
               _context42.n = 8;
               break;
             }
             return _context42.d(_regeneratorValues(_loop11()), 7);
           case 7:
-            _i6++;
+            _i7++;
             _context42.n = 6;
             break;
           case 8:
@@ -3773,7 +3827,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             break;
           case 9:
             _context42.p = 9;
-            _t39 = _context42.v;
+            _t40 = _context42.v;
           case 10:
             _context42.p = 10;
             busy = false;
@@ -3881,7 +3935,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     clear.textContent = 'مسح السجل السابق';
     clear.style.cssText = 'margin-inline-start:10px;padding:6px 12px;background:#9f3f4b;color:white;border:0;border-radius:6px;cursor:pointer';
     clear.onclick = _asyncToGenerator(_regenerator().m(function _callee32() {
-      var _t35;
+      var _t36;
       return _regenerator().w(function (_context36) {
         while (1) switch (_context36.p = _context36.n) {
           case 0:
@@ -3899,8 +3953,8 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             break;
           case 4:
             _context36.p = 4;
-            _t35 = _context36.v;
-            clear.textContent = _t35.message;
+            _t36 = _context36.v;
+            clear.textContent = _t36.message;
           case 5:
             _context36.p = 5;
             clear.disabled = false;
@@ -3955,7 +4009,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
       download.textContent = 'ملف مساعد لإضافة المسارات غير المفهرسة فقط';
       download.style.cssText = 'padding:10px 16px;background:#218a64;color:white;border:0;border-radius:8px;cursor:pointer';
       download.onclick = _asyncToGenerator(_regenerator().m(function _callee33() {
-        var result, url, link, _t36;
+        var result, url, link, _t37;
         return _regenerator().w(function (_context37) {
           while (1) switch (_context37.p = _context37.n) {
             case 0:
@@ -3982,8 +4036,8 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               break;
             case 3:
               _context37.p = 3;
-              _t36 = _context37.v;
-              download.textContent = _t36.message;
+              _t37 = _context37.v;
+              download.textContent = _t37.message;
             case 4:
               _context37.p = 4;
               download.disabled = false;
@@ -4022,7 +4076,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
         var copy = document.createElement('button');
         copy.textContent = 'نسخ المسار';
         copy.onclick = _asyncToGenerator(_regenerator().m(function _callee34() {
-          var _t37;
+          var _t38;
           return _regenerator().w(function (_context38) {
             while (1) switch (_context38.p = _context38.n) {
               case 0:
@@ -4050,7 +4104,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
                 break;
               case 4:
                 _context38.p = 4;
-                _t37 = _context38.v;
+                _t38 = _context38.v;
                 input.focus();
                 input.select();
                 copy.textContent = 'المسار محدد؛ اضغط Ctrl+C';
@@ -4079,7 +4133,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   function _refreshStatus() {
     _refreshStatus = _asyncToGenerator(_regenerator().m(function _callee38() {
       var _host3;
-      var current, _data, s, activityBox, icon, now, _t40;
+      var current, _data, s, activityBox, icon, now, _t41;
       return _regenerator().w(function (_context43) {
         while (1) switch (_context43.p = _context43.n) {
           case 0:
@@ -4113,7 +4167,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             break;
           case 5:
             _context43.p = 5;
-            _t40 = _context43.v;
+            _t41 = _context43.v;
             if (current === host && current.isConnected) {
               current.querySelector('#zain-everything-live').textContent = 'تعذر تحديث حالة المتابعة؛ ستعاد المحاولة';
               activityBox = current.querySelector('#zain-everything-activity');

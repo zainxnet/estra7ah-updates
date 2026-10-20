@@ -79,6 +79,14 @@ module.exports=function createUiCompat({interfaceDir}){
 
  // Apply the same footer to every bundled public, admin and login page.
  if(fs.existsSync(jsDir))for(const name of fs.readdirSync(jsDir).filter(n=>n.endsWith('.js'))){const route='/static/js/'+name,source=(transformed.get(route)||fs.readFileSync(path.join(jsDir,name))).toString();const text=require('./agreement.cjs')(require('./branding.cjs').javascript(source));if(text!==source)transformed.set(route,Buffer.from(text));}
+ // The server owns manual promotion/cancellation; retain the legacy fallback.
+ for(const [name,count] of [['0.537afed0.chunk.js',4],['0.dbd8f5ef.chunk.js',4],['0.de7f3ca5.chunk.js',4],['12.04ea1ede.chunk.js',1],['12.6ba95d6e.chunk.js',1],['26.3832c395.chunk.js',1],['26.9957fb3d.chunk.js',1]]){
+  const route='/static/js/'+name,file=path.join(interfaceDir,route.slice(1));if(!fs.existsSync(file))continue;
+  let matches=0,text=(transformed.get(route)||fs.readFileSync(file)).toString();
+  text=text.replace(/parseInt\((\w+)\.item\.createdAt\)\s*\+\s*259200\s*>\s*parseInt\(\+new Date\s*\/\s*1e3\)/g,(old,item)=>{matches++;return '(typeof '+item+'.item.isNew==="boolean"?'+item+'.item.isNew:('+old+'))';});
+  if(matches!==count)throw Error('New badge adapter target changed: '+name);
+  transformed.set(route,Buffer.from(text));
+ }
  const bridgeScript=`(function(){'use strict';window.zainCapabilities=Object.freeze(${JSON.stringify(capabilities)});window.zainDashboardBridge={subscribe:function(callback){var stopped=false,timer,controller;async function poll(){if(stopped)return;controller=new AbortController();var timeout=setTimeout(function(){controller.abort()},5000);try{var response=await fetch('/admin/api/getBandwidth',{credentials:'same-origin',cache:'no-store',signal:controller.signal});if(response.ok){var result=await response.json();if(!stopped&&Array.isArray(result.samples))callback(result.samples)}}catch(error){}finally{clearTimeout(timeout);if(!stopped)timer=setTimeout(poll,document.hidden?10000:2000)}}poll();return function(){stopped=true;clearTimeout(timer);if(controller)controller.abort()}}}})();`;
  const folderTargets=[['18.a1e28c2f.chunk.js','66a764b8188d5d3f0540833f21913ed0600c702972f85f9acd6ef8a61e3ce231'],['20.56691b34.chunk.js','0e9216d8219d15011f910e0e0babaa5c7258da7af0b063639b56ef7a0e161f43'],['30.73cc7841.chunk.js','5552ead862e2e19bb380586c1ca131a285613e2a2a2345bc82c69f2a0f6d56c2']];
  for(const [name,hash]of folderTargets){const route='/static/js/'+name,file=path.join(interfaceDir,route.slice(1));if(!fs.existsSync(file))continue;const source=fs.readFileSync(file);if(crypto.createHash('sha256').update(source).digest('hex')!==hash)throw Error('Folder UI changed: '+name);transformed.set(route,Buffer.from(require('./branding.cjs').javascript(source.toString()).replace(/window\.nw&&window\.nw\.Shell\.openItem\(([A-Za-z])\)/g,'window.zainOpenFolder($1)')));}

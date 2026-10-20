@@ -28,7 +28,7 @@ const types = { ".webp": "image/webp", '.html': 'text/html; charset=utf-8', '.js
 const pick = (o, keys) => Object.fromEntries(keys.filter(k => o[k] !== undefined).map(k => [k, o[k]]));
 const safeFile = f => pick(f, ['id', 'filename', 'itemId', 'type']);
 const publicCatalog=require('./public-catalog.cjs'),catalogItems=require('./catalog-items.cjs');
-const safeItem = item => {const x=sharedCatalog?.view(item)||item;return x ? { ...pick(x, ['id', 'name', 'type', 'inItem', 'views', 'downloads', 'sectionId', 'createdAt', 'latestEpisodeAt', 'content', 'pathSize']),createdAt:x.latestEpisodeAt?Math.max(Number(x.createdAt)||0,Number(x.latestEpisodeAt)-86400):x.createdAt,type:publicCatalog.publicType(x.type), files: (x.files || []).map(safeFile) } : null;};
+const safeItem = item => {const x=sharedCatalog?.view(item)||item;return x ? { ...pick(x, ['id', 'name', 'type', 'inItem', 'views', 'downloads', 'sectionId', 'createdAt', 'latestEpisodeAt', 'content', 'pathSize']),createdAt:x.latestEpisodeAt?Math.max(Number(x.createdAt)||0,Number(x.latestEpisodeAt)-86400):x.createdAt,isNew:require('./item-newness.cjs').isNew(x),type:publicCatalog.publicType(x.type), files: (x.files || []).map(safeFile) } : null;};
 const detailItem = x => x ? {...safeItem(x),content:publicCatalog.detailContent((sharedCatalog?.view(x)||x).content), ...(settings.estra7ah_type === 'caffe' ? {path:'/zain/folder/'+encodeURIComponent(x.id)} : {})} : null;
 const safeSection = x => x ? pick(x, ['id', 'name', 'views', 'in_section', 'type', 'downloadActive', 'order', 'linkedId', 'is_hidden', 'NumOfEps', 'createdAt', 'updatedAt', 'isVIP', 'star']) : null;
 function monitorSnapshot() {
@@ -407,6 +407,7 @@ const server = http.createServer(async (req, res) => {
     if(route==='/zain/navigation')return respond(res,require('./navigation.cjs')(sections,settings.home_sections));
     if(route==='/zain/database-maintenance.js')return stream(req,res,path.join(__dirname,'database-maintenance.compat.js'));
     if(route==='/zain/admin-enhancements.js')return stream(req,res,path.join(__dirname,'admin-enhancements.compat.js'));
+    if(route==='/zain/public-carousel.js')return stream(req,res,path.join(__dirname,'public-carousel.compat.js'));
     if (route === '/zain/exclusive-logo') {const id=url.searchParams.get('id'),file=items.has(id)&&exclusiveArtwork.logoFile(id);if(!file)return respond(res,{},404);return stream(req,res,file);}
     if (route === '/zain/exclusive-image') {const id=url.searchParams.get('id'),file=items.has(id)&&exclusiveArtwork.file(id);if(!file)return respond(res,{},404);return stream(req,res,file);}
     if (route === '/zain/public-details.js') return stream(req,res,path.join(__dirname,'public-details.compat.js'));
@@ -428,7 +429,7 @@ const server = http.createServer(async (req, res) => {
       let html = await fs.promises.readFile(path.join(web, 'index.html'), 'utf8');
       html = html.replace('</head>','<meta name="estra7ah-version" content="'+release.version+'"></head>');
       html = html.replace('<title>Estra7ah Manager</title>', '<title>استراحة زين</title>').replace('<head>', '<head><script>window.estra7ahserver=location.hostname;window.estra7ahport=location.port||80;</script><script src="/zain/browser-polyfills.js"></script><script src="/zain/dashboard-bridge.js"></script>');
-      html=html.replace('</body>','<link rel="prefetch" href="/static/js/12.41b0cf3e.chunk.js" as="script"><link rel="prefetch" href="/static/css/12.24adbb42.chunk.css" as="style"><script defer src="/zain/desktop-bridge.js"></script><script defer src="/zain/folder-client.js"></script><script defer src="/zain/public-details.js?v=4"></script><script defer src="/zain/artwork-refresh.js"></script><script defer src="/zain/exclusive-hero.js?v=2"></script><script defer src="/zain/admin-enhancements.js"></script><script defer src="/zain/exclusive.js?v=3"></script></body>');
+      html=html.replace('</body>','<link rel="prefetch" href="/static/js/12.41b0cf3e.chunk.js" as="script"><link rel="prefetch" href="/static/css/12.24adbb42.chunk.css" as="style"><script defer src="/zain/desktop-bridge.js"></script><script defer src="/zain/folder-client.js"></script><script defer src="/zain/public-details.js?v=4"></script><script defer src="/zain/artwork-refresh.js"></script><script defer src="/zain/exclusive-hero.js?v=2"></script><script defer src="/zain/admin-enhancements.js"></script><script defer src="/zain/public-carousel.js"></script><script defer src="/zain/exclusive.js?v=3"></script></body>');
       if (route === '/admin' || route.startsWith('/admin/')) html = html.replace('</body>', '<script defer src="/zain/admin-status.js"></script><script defer src="/zain/database-maintenance.js"></script></body>');
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).end(req.method === 'HEAD' ? '' : html); return;
     }

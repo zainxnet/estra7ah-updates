@@ -182,6 +182,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   for(const {card}of cards()){const reload=card.querySelector('.lni-reload')?.closest('.ic'),host=reload?.parentElement;if(!host)continue;host.classList.add('zain-item-tools');reload.classList.add('zain-manual-sync');for(const control of host.querySelectorAll('.ic'))if(control!==reload&&!control.classList.contains('zain-plus'))control.classList.add('zain-more-action');
    if(!host.querySelector('.zain-plus')){const plus=el('button','+');plus.type='button';plus.className='ic zain-plus';plus.title='خيارات العنصر';plus.setAttribute('aria-label','خيارات العنصر');plus.setAttribute('aria-expanded','false');host.appendChild(plus);}
    if(!host.querySelector('.zain-trailer')){const trailer=el('button','↓');trailer.type='button';trailer.className='ic zain-more-action zain-trailer';trailer.title='تحميل إعلان داخل مجلد المحتوى';trailer.setAttribute('aria-label','تحميل إعلان');host.appendChild(trailer);}
+   for(const [action,label,symbol,color]of [['markItemNew','إضافة إلى الجديد','↑','#22864c'],['cancelItemNew','إلغاء الجديد','↶','#a96b29']])if(!host.querySelector('[data-zain-new="'+action+'"]')){const button=el('button',symbol);button.type='button';button.className='ic zain-more-action zain-new-action';button.dataset.zainNew=action;button.title=label;button.setAttribute('aria-label',label);button.style.cssText='background:'+color+';color:white;border:0;cursor:pointer';host.appendChild(button);}
   }
   const buttons=Array.from(document.querySelectorAll('.items-cont .admin-fancy-button'));
   const full=buttons.find(b=>b.dataset.zainSync==='full'||/مزامنة كل العناصر الحالية/.test(b.textContent));
@@ -199,10 +200,17 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
   return jobs.some(j=>['queued','running'].includes(j.status));
  }
  document.addEventListener('click',async event=>{
-  const plus=event.target.closest?.('.zain-plus'),trailer=event.target.closest?.('.zain-trailer');
-  if(!plus&&!trailer){if(!event.target.closest?.('.zain-item-tools'))closeItemMenus();return;}
+  const plus=event.target.closest?.('.zain-plus'),trailer=event.target.closest?.('.zain-trailer'),newAction=event.target.closest?.('[data-zain-new]');
+  if(!plus&&!trailer&&!newAction){if(!event.target.closest?.('.zain-item-tools'))closeItemMenus();return;}
   event.preventDefault();event.stopImmediatePropagation();
   if(plus){const host=plus.parentElement;closeItemMenus(host);const open=host.classList.toggle('zain-open');plus.setAttribute('aria-expanded',String(open));return;}
+  if(newAction){
+   const card=newAction.closest('.item'),id=cardId(card);if(!id||newAction.disabled)return;
+   const controls=Array.from(card.querySelectorAll('[data-zain-new]'));controls.forEach(button=>button.disabled=true);
+   try{const result=await api(newAction.dataset.zainNew+'/'+encodeURIComponent(id),{});notice=result.message;closeItemMenus();render([]);}
+   catch(error){notice=error.message;render([]);}finally{controls.forEach(button=>button.disabled=false);nextPoll=0;poll();}
+   return;
+  }
   const id=cardId(trailer.closest('.item'));if(!id||trailer.disabled)return;trailer.disabled=true;
   try{await api('downloadTrailer',{id});notice='أضيف الإعلان إلى قائمة التنزيل؛ يظهر التقدم والنتيجة هنا وفي سجل الأحداث.';closeItemMenus();render([]);}
   catch(e){notice=e.message;render([]);}finally{trailer.disabled=false;nextPoll=0;poll();}
