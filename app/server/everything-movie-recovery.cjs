@@ -16,12 +16,13 @@ module.exports=function({db,movieState}){
   // One stable representative video per movie, including quality subfolders.
   if(old&&old.relative.toLowerCase()!==relative.toLowerCase())return;
   const signature=String(file.size)+':'+String(file.date_modified);
-  if(!old||old.signature!==signature){put.run(root.id,folder,relative,signature,now,'candidate');return;}
-  if(now-old.seen<30000||!(Number(file.size)>0))return;
+  if(!old||old.signature!==signature){put.run(root.id,folder,relative,signature,now,'candidate');return 'waiting';}
+  if(now-old.seen<30000||!(Number(file.size)>0))return 'waiting';
   const id='movie-recovery-'+crypto.createHash('sha256').update(root.id+'\0'+folder).digest('hex');
   const event={id,relative,size:Number(file.size),detectedAt:Math.floor(now/1000),recovery:true};
   db.prepare('INSERT OR IGNORE INTO pending(id,root,relative,payload) VALUES(?,?,?,?)').run(id,root.id,relative,JSON.stringify(event));
   put.run(root.id,folder,relative,signature,old.seen,'queued');
+  return 'queued';
  }
  function finish(root,events){for(const event of events)if(event.recovery)db.prepare('UPDATE movie_recovery SET status=? WHERE root=? AND folder=?').run('done',root.id,event.relative.split('/')[0].toLowerCase());}
  return {consider,finish};

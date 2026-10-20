@@ -2,7 +2,8 @@
 const path=require('node:path'),{fork}=require('node:child_process'),safe=require('./episode-path.cjs');
 
 // Called only for stable files discovered by the automatic Everything monitor.
-module.exports=async function({root,events,services,items,byMediaPath,byFilePath,folderOnly=false,updateItems,commit,movieState,stopping=()=>false,onEvent=()=>{}}){
+module.exports=async function({root,events,services,items,byMediaPath,byFilePath,folderOnly=false,updateItems,commit,movieState,stopping=()=>false,onEvent=()=>{},onProgress=()=>{}}){
+ onProgress('checking','جارٍ مقارنة الملفات المرشحة بالمكتبة في القسم «'+root.name+'»');
  const discardKnownEpisodes=()=>{
   if(root.kind==='movies')return;
   const known=events.filter(event=>require('./everything-known-video.cjs')({root,event,items,byMediaPath,byFilePath})),skip=new Set(known);
@@ -13,6 +14,7 @@ module.exports=async function({root,events,services,items,byMediaPath,byFilePath
  events=eligible();if(!events.length)return {added:0};
  discardKnownEpisodes();if(!events.length)return {added:0};
  const relative=path.posix.dirname(safe.relative(events[0].relative));if(relative==='.')return;
+ onProgress('probe','جارٍ التحقق من اكتمال نسخ الملفات في «'+relative+'» — القسم «'+root.name+'»');
  const probe=await new Promise((resolve,reject)=>{
   const child=fork(path.join(__dirname,'episode-probe.cjs'),[],{windowsHide:true,stdio:['ignore','ignore','ignore','ipc']});
   let finished=false;
@@ -48,6 +50,7 @@ module.exports=async function({root,events,services,items,byMediaPath,byFilePath
  // Probe the actual file directory; update the containing movie, even for a quality subfolder.
  const scanRelative=root.kind==='movies'?events[0].relative.split('/')[0]:relative;
  const job=services.startSync(root.sectionIds[0],'quick',{root:root.path,relative:scanRelative});
+ onProgress('sync','جارٍ المزامنة السريعة للقسم «'+root.name+'» لوجود ملفات جديدة في «'+scanRelative+'»'+(previousMovie==='present'?'؛ تحديث ملفات الفيلم مع الحفاظ على ترتيبه':''));
  for(;;){
   if(stopping())throw Error('الخادم يتوقف');
   const state=services.syncJobs().find(j=>j.id===job.jobId);
@@ -56,6 +59,7 @@ module.exports=async function({root,events,services,items,byMediaPath,byFilePath
  }
  // A new format/quality file refreshes playback files, not the age of a movie
  // that was already in the catalogue. Series still advance on new episodes.
+ onProgress('saving','اكتمل فحص مجلد المحتوى؛ جارٍ حفظ نتيجة المزامنة للقسم «'+root.name+'»');
  const changed=previousMovie==='present'?0:require('./episode-activity.cjs').apply({root,events,items,byMediaPath,updateItems});await commit();
  if(previousMovie==='present'){
   onEvent('مراقبة Everything: حُدّثت ملفات الفيلم الموجود: '+scanRelative+'؛ دون تغيير ترتيبه أو اعتباره فيلمًا جديدًا');
