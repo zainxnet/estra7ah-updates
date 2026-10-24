@@ -21,12 +21,14 @@ module.exports=async function({root,events,services,items,byMediaPath,byFilePath
   const done=(error,value)=>{if(finished)return;finished=true;clearTimeout(timer);child.kill();error?reject(error):resolve(value);};
   const timer=setTimeout(()=>done(Error('انتهت مهلة فحص مجلد المحتوى')),8000);
   child.on('error',done);child.on('exit',()=>done(Error('توقف فحص مجلد المحتوى')));
-  child.on('message',m=>m.error?done(Error('المسار غير متاح')):done(null,m.entries));child.send({root:root.path,relative});
+  child.on('message',m=>m.error?done(Error('تعذر الوصول إلى المجلد: '+m.error)):done(null,m.entries));child.send({root:root.path,relative});
  });
  if(events.some(e=>{
   if(path.posix.dirname(safe.relative(e.relative))!==relative)return true;
-  const f=probe.find(f=>f.name===path.posix.basename(e.relative));
-  return !f||f.size!==e.size||Date.now()-f.mtime<30000;
+  const f=probe.find(f=>f.name.toLowerCase()===path.posix.basename(e.relative).toLowerCase());
+  // An index can retain a pre-copy size forever. Verify the actual file on each retry.
+  if(f&&f.size>0&&Date.now()-f.mtime>=30000){e.size=f.size;return false;}
+  return true;
  }))throw Error('الملف غير جاهز');
  // Compact catalogues intentionally omit video records. For an existing show,
  // reject a delayed index entry when both on-disk dates predate monitoring.
@@ -51,7 +53,9 @@ module.exports=async function({root,events,services,items,byMediaPath,byFilePath
  const scanRelative=root.kind==='movies'?events[0].relative.split('/')[0]:relative;
  const job=services.startSync(root.sectionIds[0],'quick',{root:root.path,relative:scanRelative});
  onProgress('sync','جارٍ المزامنة السريعة للقسم «'+root.name+'» لوجود ملفات جديدة في «'+scanRelative+'»'+(previousMovie==='present'?'؛ تحديث ملفات الفيلم مع الحفاظ على ترتيبه':''));
+ const deadline=Date.now()+5*60000;
  for(;;){
+  if(Date.now()>deadline){services.cancelSync?.(job.jobId);throw Error('انتهت مهلة المزامنة المحددة للمجلد؛ ستعاد المحاولة');}
   if(stopping())throw Error('الخادم يتوقف');
   const state=services.syncJobs().find(j=>j.id===job.jobId);
   if(state&&!['queued','running'].includes(state.status)){if(state.status!=='completed'||state.warnings)throw Error('تعذر فحص مجلد المحتوى');break;}
