@@ -15,7 +15,7 @@ const configFile = path.join(data, 'server-config.json');
 const config = fs.existsSync(configFile) ? JSON.parse(fs.readFileSync(configFile, 'utf8')) : { port: 80, bind: '0.0.0.0' };
 const port = config.port;
 let gemini;
-let ready = false, startupError = '', startupMessage='جار فتح قاعدة الاستراحة',startupInfo={}, sections = [], settings = {}, admin, services, content, operations, artwork, scanArtwork, uiCompat, speed, itemAdmin, backups, broadcast, metadata, trailers, folderIcons, posters, actorImages, exclusiveArtwork, everythingSync;
+let ready = false, startupError = '', startupMessage='جار فتح قاعدة الاستراحة',startupInfo={}, sections = [], settings = {}, admin, services, content, operations, artwork, scanArtwork, uiCompat, speed, itemAdmin, backups, broadcast, metadata, trailers, automaticTrailers, folderIcons, posters, actorImages, exclusiveArtwork, everythingSync;
 const responseCache=require('./browse-cache.cjs')();let catalogRevision=0,topCacheRevision=-1,topCache=[],monitorCache=null,monitorCacheAt=0;const normalizedNames=new WeakMap();
 let items = new Map(), children = new Map(), sectionItems = new Map(), files = new Map();
 let byMediaPath = new Map(), scannedAliases = new Map();
@@ -124,7 +124,7 @@ function mergeScanned(rows, automatic=true) {
   if(automatic)itemAdmin?.observe(observed);
   itemAdmin?.apply(observed);
   // The scanner publishes immediately; metadata and cover downloads use their own queue.
-  if(automatic){const ids=quick?added:rows.map(x=>scannedAliases.get(x.id)||x.id);metadata?.enqueueMissing(ids);folderIcons?.enqueue(ids,{retry:quick});}
+  if(automatic){const ids=quick?added:rows.map(x=>scannedAliases.get(x.id)||x.id);metadata?.enqueueMissing(ids);folderIcons?.enqueue(ids,{retry:quick});automaticTrailers?.enqueue(added);}
 }
 const startupTick=()=>new Promise(resolve=>setImmediate(resolve));
 async function mergeScannedBatches(rows,range=null){
@@ -440,7 +440,7 @@ const server = http.createServer(async (req, res) => {
 });
 let stopping = false;
 const closeServer=require('./shutdown.cjs')({
- cleanup:[()=>everythingSync?.close(),()=>admin?.recordEvent('إيقاف خادم الاستراحة','warning'),()=>backups?.close(),()=>metadata?.close(),()=>trailers?.close(),()=>folderIcons?.close(),()=>broadcast?.close(),()=>artwork?.close(),()=>scanArtwork?.close(),()=>services?.close(),()=>operations?.close(),()=>catalogStore.close?.()],
+ cleanup:[()=>automaticTrailers?.close(),()=>everythingSync?.close(),()=>admin?.recordEvent('إيقاف خادم الاستراحة','warning'),()=>backups?.close(),()=>metadata?.close(),()=>trailers?.close(),()=>folderIcons?.close(),()=>broadcast?.close(),()=>artwork?.close(),()=>scanArtwork?.close(),()=>services?.close(),()=>operations?.close(),()=>catalogStore.close?.()],
  close:()=>new Promise(resolve=>{server.close(resolve);server.closeIdleConnections?.();}),
  forceClose:()=>server.closeAllConnections(),exit:code=>process.exit(code),report:message=>console.error(message)
 });
@@ -493,6 +493,7 @@ server.listen(port, config.bind, async () => {
     extensions.push(metadata);
     trailers=require('./trailers.cjs')({base,getItem:id=>{const item=items.get(id);return item?require('./movie-folder.cjs')(sharedCatalog.view(item),sectionRow(item.sectionId)):null;},getKey:()=>admin.getMetadataKey()||source.settings?.api_key||'',onEvent:(msg,type)=>admin.recordEvent(msg,type,'trailer')});
     extensions.push(trailers);
+    automaticTrailers=require('./automatic-trailers.cjs')({dir:data,getItem:id=>items.get(id),trailers,canRun:()=>ready&&!stopping&&!updateClosing&&!backups?.isBusy()&&![...services.syncJobs(),...(metadata?.jobs()||[])].some(j=>['queued','running'].includes(j.status)),onEvent:(msg,type)=>admin.recordEvent(msg,type,'trailer')});
     operations = require('./operations.cjs')({ dir: data, items, sections, services, readEvents: admin.readEvents, clearEvents: admin.clearEvents, metadata,recordEvent:admin.recordEvent });
     extensions.push(operations);
     const movieState=require('./everything-movie-state.cjs')({items,byMediaPath,scannedAliases,isDeleted:(sectionId,folder,id)=>itemAdmin.isManuallyDeletedMovie(sectionId,folder,id)});
