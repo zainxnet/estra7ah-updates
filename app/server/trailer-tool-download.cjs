@@ -15,7 +15,9 @@ module.exports=async function remote(url,limit,{fetcher=fetch,idleMs=90000,total
     const response=await fetcher(current,{headers:{'User-Agent':'Estra7ah-Zain-ToolUpdater',Accept:'application/vnd.github+json'},redirect:'manual',signal:controller.signal});touch();
     if([301,302,303,307,308].includes(response.status)){await response.body?.cancel();current=new URL(response.headers.get('location'),current);continue;}
     if(!response.ok){await response.body?.cancel();const error=Error('تعذر جلب تحديث الأداة من GitHub (رمز '+response.status+')');if(response.status!==429&&response.status<500)error.permanent=true;throw error;}
-    const total=Number(response.headers.get('content-length'))||0;
+    // Fetch decodes compressed bodies; Content-Length describes compressed bytes only.
+    const encoding=response.headers.get('content-encoding');
+    const total=encoding&&encoding!=='identity'?0:Number(response.headers.get('content-length'))||0;
     if(total>limit){await response.body?.cancel();throw permanent('حجم تحديث الأداة يتجاوز الحد المسموح');}
     let size=0;const chunks=[];
     for await(const part of response.body){touch();size+=part.length;if(size>limit){controller.abort();throw permanent('حجم تحديث الأداة يتجاوز الحد المسموح');}chunks.push(part);onProgress({attempt,size,total});}
