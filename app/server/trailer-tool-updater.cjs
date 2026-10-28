@@ -6,18 +6,13 @@ const hash=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 const versionOK=v=>/^\d{4}\.\d{2}\.\d{2}(?:\.\d+)?$/.test(v);
 function compare(a,b){const aa=a.split('.').map(Number),bb=b.split('.').map(Number);for(let i=0;i<Math.max(aa.length,bb.length);i++)if((aa[i]||0)!==(bb[i]||0))return (aa[i]||0)-(bb[i]||0);return 0;}
 function version(file){return new Promise((resolve,reject)=>execFile(file,['--ignore-config','--no-plugin-dirs','--no-remote-components','--version'],{windowsHide:true,timeout:15000,maxBuffer:65536,encoding:'utf8'},(error,stdout)=>{const v=String(stdout||'').trim();if(error||!versionOK(v))return reject(Error('تعذر قراءة إصدار أداة الإعلان الحالية'));resolve(v);}));}
-async function remote(url,limit=MAX){
- let current=new URL(url);const allowed=new Set(['api.github.com','github.com','release-assets.githubusercontent.com','objects.githubusercontent.com']);
- for(let n=0;n<5;n++){
-  if(current.protocol!=='https:'||current.username||current.password||!allowed.has(current.hostname))throw Error('رفض مصدر غير رسمي لتحديث الأداة');
-  const r=await fetch(current,{headers:{'User-Agent':'Estra7ah-Zain-ToolUpdater',Accept:'application/vnd.github+json'},redirect:'manual',signal:AbortSignal.timeout(120000)});
-  if([301,302,303,307,308].includes(r.status)){await r.body?.cancel();current=new URL(r.headers.get('location'),current);continue;}
-  if(!r.ok){await r.body?.cancel();throw Error('تعذر جلب تحديث الأداة من GitHub (رمز '+r.status+')');}
-  if(Number(r.headers.get('content-length'))>limit){await r.body?.cancel();throw Error('حجم تحديث الأداة يتجاوز الحد المسموح');}
-  let size=0;const chunks=[];for await(const part of r.body){size+=part.length;if(size>limit)throw Error('حجم تحديث الأداة يتجاوز الحد المسموح');chunks.push(part);}return Buffer.concat(chunks);
- }
- throw Error('تعذر الوصول إلى تنزيل الأداة الرسمي');
-}
+let lastProgress=0;
+const remote=(url,limit=MAX)=>require('./trailer-tool-download.cjs')(url,limit,{totalMs:limit<=2*1024*1024?120000:1200000,onProgress:value=>{
+ if(require.main!==module)return;
+ if(value.retry){process.stderr.write('إعادة محاولة تنزيل أداة الإعلان ('+value.attempt+'/3)؛ النسخة الحالية محفوظة\n');return;}
+ if(limit<=2*1024*1024||Date.now()-lastProgress<5000)return;lastProgress=Date.now();
+ process.stderr.write('تنزيل أداة الإعلان: '+(value.size/1024/1024).toFixed(1)+' ميجابايت'+(value.total?' من '+(value.total/1024/1024).toFixed(1)+' ('+Math.floor(value.size/value.total*100)+'%)':'')+'\n');
+}});
 function validateRelease(release){
  const v=release?.tag_name,asset=release?.assets?.find(a=>a.name==='yt-dlp.exe');
  if(!versionOK(v)||release.draft||release.prerelease||!asset||!Number.isInteger(asset.size)||asset.size<1024||asset.size>MAX||!/^sha256:[a-f0-9]{64}$/.test(asset.digest||''))throw Error('بيانات تحديث الأداة الرسمية غير مكتملة أو غير صالحة');
