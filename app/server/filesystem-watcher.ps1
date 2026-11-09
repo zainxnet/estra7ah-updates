@@ -17,9 +17,9 @@ public static class ZainWatcherHost {
   Root root=(Root)state;
   try {
    var w=new FileSystemWatcher(root.path); w.IncludeSubdirectories=true; w.NotifyFilter=NotifyFilters.FileName|NotifyFilters.DirectoryName|NotifyFilters.Size|NotifyFilters.LastWrite;w.InternalBufferSize=32768;
-   FileSystemEventHandler changed=(s,e)=>Send(new {kind="change",id=root.id,path=e.FullPath});
+   FileSystemEventHandler changed=(s,e)=>Send(new {kind="change",id=root.id,path=e.FullPath,action=e.ChangeType.ToString()});
    w.Created+=changed;w.Changed+=changed;w.Deleted+=changed;
-   w.Renamed+=(s,e)=>{Send(new {kind="change",id=root.id,path=e.FullPath});Send(new {kind="change",id=root.id,path=e.OldFullPath});};
+   w.Renamed+=(s,e)=>{Send(new {kind="change",id=root.id,path=e.FullPath,action="Renamed"});Send(new {kind="change",id=root.id,path=e.OldFullPath,action="Deleted"});};
    w.Error+=(s,e)=>{lock(root){if(root.watcher==w){root.watcher=null;root.retry=DateTime.UtcNow.AddSeconds(60);}}Send(new {kind="error",id=root.id,error=e.GetException().GetType().Name});w.Dispose();};
    lock(root){root.watcher=w;}w.EnableRaisingEvents=true;Send(new {kind="ready",id=root.id});
   } catch(Exception e){lock(root){if(root.watcher!=null)root.watcher.Dispose();root.watcher=null;root.retry=DateTime.UtcNow.AddSeconds(60);}Send(new {kind="error",id=root.id,error=e.GetType().Name});}

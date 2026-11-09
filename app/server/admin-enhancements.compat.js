@@ -3659,9 +3659,9 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
               var direct = modeSelect.value === 'filesystem';
               for (var _i8 = 0, _arr8 = ['address', 'username', 'password', 'intervalSeconds']; _i8 < _arr8.length; _i8++) {
                 var _key3 = _arr8[_i8];
-                fields[_key3].parentElement.style.display = direct ? 'none' : 'block';
+                fields[_key3].parentElement.style.display = direct || modeSelect.value === 'hybrid' && _key3 === 'intervalSeconds' ? 'none' : 'block';
               }
-              note.textContent = direct ? 'تراقب الاستراحة المسارات المحددة مباشرة باستخدام FileSystemWatcher. أول تهيئة تسجل الموجود دون اعتباره جديدًا. تحفظ المتابعة وتراجع المجلدات بعد الانقطاع ومراجعة احتياطية يومية. لا يلزم Everything. يعمل خيار واحد فقط بعد الحفظ.' : everythingNote;
+              note.textContent = direct ? 'تراقب الاستراحة المسارات المحددة مباشرة باستخدام FileSystemWatcher. أول تهيئة تسجل الموجود دون اعتباره جديدًا. تحفظ المتابعة وتراجع المجلدات بعد الانقطاع ومراجعة احتياطية يومية. لا يلزم Everything. يعمل خيار واحد فقط بعد الحفظ.' : modeSelect.value === 'hybrid' ? 'يبدأ مراقب التغييرات أولًا، ثم يأخذ المرجع من Everything دون رفع القديم. تحفظ الإضافات أثناء التهيئة وتراجع مجلداتها بعد اكتمال المرجع. مراجعة احتياطية يومية للفهرس على صفحات محدودة؛ لا مسح دوري شامل للأقراص. يجب أن تكون المسارات مفهرسة في Everything.' : everythingNote;
             };
             field = function _field(key, label, type, value) {
               var line = document.createElement('label'),
@@ -3712,7 +3712,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
             modeLabel.style.cssText = 'display:block;margin:14px 0';
             modeSelect.name = 'syncMode';
             modeSelect.style.cssText = 'display:block;margin-top:8px;padding:10px;background:#101523;color:white;border:1px solid #52617a;border-radius:5px';
-            for (_i7 = 0, _arr7 = [['everything', 'Everything — فهرس البرنامج'], ['filesystem', 'FileSystemWatcher — مراقبة مباشرة دون Everything']]; _i7 < _arr7.length; _i7++) {
+            for (_i7 = 0, _arr7 = [['everything', 'Everything — فهرس البرنامج'], ['filesystem', 'FileSystemWatcher — مراقبة مباشرة دون Everything'], ['hybrid', 'Everything + FileSystemWatcher — مرجع سريع ومراقبة التغييرات']]; _i7 < _arr7.length; _i7++) {
               _arr7$_i = _slicedToArray(_arr7[_i7], 2), value = _arr7$_i[0], text = _arr7$_i[1];
               option = document.createElement('option');
               option.value = value;
@@ -3915,7 +3915,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
     add('الحالة: ' + (!d.enabled ? 'المتابعة متوقفة' : d.paused ? 'بانتظار العمل الجاري بالخادم' : d.busy ? data.status.phase : d.allReady ? 'اكتملت التهيئة — انتظار دورة المتابعة التالية' : 'المتابعة تعمل — لم تكتمل تهيئة جميع المسارات'));
     add('المرجع جاهز: ' + c.ready + ' من ' + c.total + ' — قيد التهيئة: ' + c.initializing + ' — لم تبدأ: ' + c.notStarted + ' — بلا نتائج: ' + c.waiting + ' — أخطاء: ' + c.error);
     add('الجاهز يشمل المسارات التي اكتمل مرجعها حتى إن حدث خطأ اتصال لاحقًا.');
-    if (data.mode === 'filesystem') add('مراقبات متصلة: ' + d.rows.filter(r => r.watchConnected).length + ' من ' + c.total + ' — مجلدات تنتظر المراجعة: ' + d.rows.reduce((n, r) => n + (r.remainingDirectories || 0), 0));
+    if (data.mode !== 'everything') add('مراقبات متصلة: ' + d.rows.filter(r => r.watchConnected).length + ' من ' + c.total + ' — مجلدات تنتظر المراجعة: ' + d.rows.reduce((n, r) => n + (r.remainingDirectories || 0), 0));
     if (d.activePath) add('المسار الجاري: ' + d.activePath);
     add('آخر فحص ناجح: ' + stamp(d.lastSuccess) + ' — آخر إضافة ناجحة: ' + stamp(d.lastAddition));
     add('الفحص التالي: ' + (!d.enabled ? 'متوقف' : d.nextCheck <= Date.now() ? 'بانتظار دوره وتوفر الخادم' : stamp(d.nextCheck)));
@@ -3938,7 +3938,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
         var r = _step35.value;
         var line = document.createElement('p');
         line.style.cssText = 'padding:8px;border-bottom:1px solid #34415a;overflow-wrap:anywhere';
-        line.textContent = r.name + ' — ' + r.path + ' — ' + (r.active ? 'يعمل الآن — ' : '') + names[r.state] + ' — المرجع ' + (r.ready ? 'مكتمل' : 'غير مكتمل') + (r.total != null ? ' — تقدم الدورة: ' + r.offset + '/' + r.total : '') + ' — آخر فحص ناجح: ' + stamp(r.lastSuccess) + (data.mode === 'filesystem' ? ' — المراقب ' + (r.watchConnected ? 'متصل' : 'يعيد الاتصال') + ' — مجلدات متبقية: ' + (r.remainingDirectories || 0) : '') + (r.error ? ' — ' + r.error : '');
+        line.textContent = r.name + ' — ' + r.path + ' — ' + (r.active ? 'يعمل الآن — ' : '') + names[r.state] + ' — المرجع ' + (r.ready ? 'مكتمل' : 'غير مكتمل') + (r.total != null ? ' — تقدم الدورة: ' + r.offset + '/' + r.total : '') + (data.mode === 'hybrid' && !r.ready ? ' — قراءة المرجع ' + (r.referencePass || 1) + ' من 2' : '') + ' — آخر فحص ناجح: ' + stamp(r.lastSuccess) + (data.mode !== 'everything' ? ' — المراقب ' + (r.watchConnected ? 'متصل' : 'يعيد الاتصال') + ' — مجلدات متبقية: ' + (r.remainingDirectories || 0) : '') + (r.error ? ' — ' + r.error : '');
         details.append(line);
       }
     } catch (err) {
