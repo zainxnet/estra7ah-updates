@@ -3912,7 +3912,7 @@ header .zain-main-link .item{margin-left:16px!important;padding-left:16px!import
       p.textContent = text;
       box.append(p);
     };
-    add('الحالة: ' + (!d.enabled ? 'المتابعة متوقفة' : d.paused ? 'بانتظار العمل الجاري بالخادم' : d.busy ? data.status.phase : d.allReady ? 'اكتملت التهيئة — انتظار دورة المتابعة التالية' : 'المتابعة تعمل — لم تكتمل تهيئة جميع المسارات'));
+    add('الحالة: ' + (!d.enabled ? 'المتابعة متوقفة' : d.paused ? 'بانتظار العمل الجاري بالخادم' : d.busy ? data.status.phase : d.allReady ? 'اكتملت التهيئة — انتظار دورة المتابعة التالية' : c.waiting > 0 && c.ready + c.waiting === c.total ? 'المراقبة تعمل — اكتملت تهيئة المسارات ذات النتائج؛ توجد مسارات بلا فيديوهات مفهرسة' : 'المتابعة تعمل — لم تكتمل تهيئة جميع المسارات'));
     add('المرجع جاهز: ' + c.ready + ' من ' + c.total + ' — قيد التهيئة: ' + c.initializing + ' — لم تبدأ: ' + c.notStarted + ' — بلا نتائج: ' + c.waiting + ' — أخطاء: ' + c.error);
     add('الجاهز يشمل المسارات التي اكتمل مرجعها حتى إن حدث خطأ اتصال لاحقًا.');
     if (data.mode !== 'everything') add('مراقبات متصلة: ' + d.rows.filter(r => r.watchConnected).length + ' من ' + c.total + ' — مجلدات تنتظر المراجعة: ' + d.rows.reduce((n, r) => n + (r.remainingDirectories || 0), 0));

@@ -21,7 +21,7 @@ module.exports=function({db,clock,request,queue,message}){
    const data=await request(config,{search,offset:state.offset,count:500});
    if(!connected.has(root.id)||db.prepare('SELECT generation FROM hybrid_scan WHERE root=?').get(root.id).generation!==state.generation)return true;
    const total=Number(data.totalResults);if(!Number.isSafeInteger(total)||total<0||!Array.isArray(data.results)||data.results.length>500)throw Error('استجابة فهرس غير صالحة');
-   if(!total){db.prepare('UPDATE hybrid_scan SET due=? WHERE root=?').run(clock()+300000,root.id);message('waiting','لا توجد نتائج فيديو في Everything لهذا المسار؛ ينتظر ظهوره ولا يعتبر أول نتيجة لاحقة محتوى جديدًا — '+root.name);return true;}
+   if(!total){db.prepare('UPDATE hybrid_scan SET total=0,offset=0,due=? WHERE root=?').run(clock()+300000,root.id);message('waiting','لا توجد نتائج فيديو في Everything لهذا المسار؛ ينتظر ظهوره ولا يعتبر أول نتيجة لاحقة محتوى جديدًا — '+root.name);return true;}
    if((state.offset>0&&state.total!==total)||(!data.results.length&&state.offset<total)){reset(root);message('retry','تغيّر فهرس Everything أثناء القراءة؛ ستعاد مطابقة المرجع — '+root.name);return true;}
    db.exec('BEGIN');try{
     for(const file of data.results){if(file.type!=='file'||!safe.eligible(file.name)||path.win32.basename(file.name)!==file.name)continue;
