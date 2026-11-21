@@ -38,7 +38,7 @@ function monitorSnapshot() {
   const sync=active?{running:jobs.filter(job=>job.status==='running').length,queued:jobs.filter(job=>job.status==='queued').length,section:(sections.find(section=>String(section.id)===String(active.sectionId))||{}).name||'',status:active.status,files:Number(active.files)||0,directories:Number(active.scannedDirectories)||0,warnings:Number(active.warnings)||0}: {running:0,queued:jobs.filter(job=>job.status==='queued').length};
   monitorCache={sync,icons:folderIcons?.status()||null,metadata:activeMetadata?{running:metadataJobs.filter(job=>job.status==='running').length,queued:metadataJobs.filter(job=>job.status==='queued').length,processed:Number(activeMetadata.processed)||0,total:Number(activeMetadata.total)||0,status:activeMetadata.status}: {running:0,queued:metadataJobs.filter(job=>job.status==='queued').length},backup:backups?.monitor?.()||null,network:{...(operations?.monitor?.()||{}),...(speed?.monitor?.()||{})},disk,warnings:admin?.monitor?.()||[],sampledAt:now};monitorCacheAt=now;return monitorCache;
 }function respond(res, body, status = 200) { if (!res.destroyed) res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }).end(JSON.stringify(body)); }
-function normalize(value) { return String(value || '').trim().replace(/\s+/g, ' ').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/[ؤئ]/g, 'ء').replace(/ى/g, 'ي').toLowerCase(); }
+function normalize(value) { return String(value || '').normalize('NFKC').replace(/[\u064B-\u065F\u0670\u0640]/g, '').replace(/[٠-٩]/g,c=>String(c.charCodeAt(0)-1632)).replace(/[۰-۹]/g,c=>String(c.charCodeAt(0)-1776)).replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/[ؤئ]/g, 'ء').replace(/ى/g, 'ي').toLowerCase().replace(/[^\p{L}\p{N}|]+/gu,' ').trim().replace(/\s+/g,' '); }
 function list(rows, start, count) { const at = Math.max(0, Number(start) || 0); return rows.slice(at, at + Math.min(200, Math.max(1, Number(count) || 100))); }
 function updateItems(rows) {
   catalogRevision++;
@@ -163,7 +163,7 @@ function normalizedName(item){let cached=normalizedNames.get(item);if(!cached||c
 function searchKeys(query){
   const text=String(query||'');
   // Only the explicit spaced separator opts in to searching alternative names.
-  if(!text.includes(' | '))return [normalize(query)];
+  if(!text.includes(' | ')){const key=normalize(query);return key||!text.trim()?[key]:[];}
   return [...new Set(text.slice(0,1200).split(' | ',6).map(value=>normalize(value.trim().slice(0,200))).filter(Boolean))];
 }
 let searchRevision=-1,searchCatalog=[];
@@ -309,7 +309,7 @@ async function api(req, res, parts) {
     case 'getSecType': return reply(safeSection(sectionRow(a[0])) || {});
     case 'getItems': case 'getItemsFiltered': {
       let rows = [...(sectionItems.get(a[2]) || [])].map(id => items.get(id)).filter(catalogItems.visible);if(sharedCatalog)rows=sharedCatalog.unique(rows).map(row=>sharedCatalog.view(row));
-      const query = normalize(a.slice(6).join('/')); if (query && !['undefined', 'null'].includes(query)) rows = rows.filter(x => normalizedName(x).includes(query));
+      const rawQuery=a.slice(6).join('/'),query=normalize(rawQuery); if(rawQuery.trim()&&!['undefined','null'].includes(query)) rows=rows.filter(x=>query&&normalizedName(x).includes(query));
       if (a[4] && !['all', 'undefined'].includes(a[4])) rows = rows.filter(x => String(x.content?.year) === a[4]);
       if (a[3] && !['all', 'undefined'].includes(a[3])) rows = rows.filter(x => require('./genre-filter.cjs').matches(x,a[3]));
       const order = a[5] || 'createdAt'; rows.sort((x, y) => order.includes('name') || order === 'alpha' ? x.name.localeCompare(y.name, 'ar') : order.includes('year') ? (+y.content?.year || 0) - (+x.content?.year || 0) : order.includes('rating') ? (+y.content?.imdb_ratings || 0) - (+x.content?.imdb_ratings || 0) : require('./episode-activity.cjs').time(y)-require('./episode-activity.cjs').time(x));

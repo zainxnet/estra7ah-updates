@@ -56,6 +56,13 @@ module.exports=function createUiCompat({interfaceDir}){
   text=text.replaceAll(request,'(window.zainDeleteItem?window.zainDeleteItem('+local+',function(){return '+request+'}):'+request+')');
   transformed.set(route,Buffer.from(text));
  }
+ // Encode section search arguments before the browser interprets #, ? or %.
+ for(const name of ['11.f5a0c79c.chunk.js','34.6df4d1c7.chunk.js','34.ff1c389a.chunk.js']){
+  const route='/static/js/'+name,file=path.join(interfaceDir,route.slice(1));if(!fs.existsSync(file))continue;
+  let text=(transformed.get(route)||fs.readFileSync(file)).toString();
+  for(const endpoint of ['getItems','getItemsFiltered']){const old='"'+endpoint+'/"+e.join("/")';if(text.split(old).length!==2)throw Error('Section search adapter changed: '+name);text=text.replace(old,'"'+endpoint+'/"+e.map(encodeURIComponent).join("/")');}
+  transformed.set(route,Buffer.from(text));
+ }
  // Restore each search's query, results and scroll when returning from a detail.
  for(const name of ['12.41b0cf3e.chunk.js','12.fe8e7055.chunk.js']){const route='/static/js/'+name,file=path.join(interfaceDir,route.slice(1));if(!fs.existsSync(file))continue;const text=(transformed.get(route)||fs.readFileSync(file)).toString();transformed.set(route,Buffer.from(require('./search-history.cjs').adapt(text)));}
  // The backup form uses Axios, so its success/failure notifications must be
