@@ -104,7 +104,9 @@ t.default=function(){
  React.useEffect(function(){
   mounted.current=true;store.activate(snapshot);if(input.current)input.current.value=snapshot.query;store.restore(snapshot);
   if(snapshot.query)search(snapshot.query);
-  return function(){mounted.current=false;generation.current++;clearTimeout(timer.current);store.deactivate(snapshot);};
+  function selected(event){var text=event.detail&&event.detail.query;if(typeof text!=='string'||text.length>1200||!input.current)return;input.current.value=text;clearTimeout(timer.current);store.change(snapshot,text);setGroups([]);search(text);}
+  window.addEventListener('zain-search-select',selected);
+  return function(){window.removeEventListener('zain-search-select',selected);mounted.current=false;generation.current++;clearTimeout(timer.current);store.deactivate(snapshot);};
  },[]);
  return jsx.jsxs('div',{children:[jsx.jsx(Header.a,{}),jsx.jsxs('div',{className:'search-items-count ',children:[jsx.jsx('div',{className:'bg-all'}),jsx.jsx('div',{className:'search-bar',children:jsx.jsx(Grid.Grid,{fluid:true,children:jsx.jsx(Grid.Row,{children:jsx.jsx(Grid.Col,{xs:12,md:12,children:jsx.jsx(Input.a,{localref:input,defaultValue:snapshot.query,title:'ادخل كلمة للبحث',type:'text',required:false,icon:'search',name:'',onChange:change,style:{width:'90%'}})})})})}),busy&&groups.length===0&&jsx.jsx('div',{style:{padding:20},children:'يتم البحث ...'}),error&&jsx.jsx('div',{role:'alert',style:{padding:20},children:error}),groups.map(function(row){return jsx.jsx(Rows.a,{size:'small',data:{title:row.groupName,icon:'pin'},items:row.items,type:'movie',image:'ItemImage/',centerIcon:'play'},row.groupName);})]}),jsx.jsx('div',{style:{clear:'both'}})]});
 }}`;

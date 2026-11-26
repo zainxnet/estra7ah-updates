@@ -7,8 +7,8 @@ const exact=(row,query)=>names(row).some(name=>normal(name)===normal(query));
 const segment=(row,query)=>normal(query).split(' ').length>=4&&names(row).some(name=>String(name).split(/[:：]|\s[-–—]\s/).some(part=>normal(part)===normal(query)));
 const candidate=(row,kind)=>({id:row.id,kind,title:row.title||row.name||'',original:row.original_title||row.original_name||'',date:date(row),overview:String(row.overview||'').slice(0,650),poster:/^\/[a-zA-Z0-9_.-]+$/.test(row.poster_path||'')?row.poster_path:''});
 const failure=(message,status)=>Object.assign(Error(message),{status});
-module.exports=async function matchTitle({query,year,kind,api}){
- const choose=(rows,type)=>{const unique=[...new Map(rows.map(row=>[row.id,row])).values()];if(unique.length>1)throw Object.assign(failure('توجد عدة أعمال بهذا الاسم والسنة؛ اختر العمل الصحيح من نتائج المزامنة',409),{matches:unique.slice(0,20).map(row=>candidate(row,type))});return unique.length?{id:unique[0].id,kind:type}:null;};
+module.exports=async function matchTitle({query,year,kind,api,autoSelect=false}){
+ const choose=(rows,type)=>{const unique=[...new Map(rows.map(row=>[row.id,row])).values()];if(unique.length>1&&autoSelect){unique.sort((a,b)=>Number(exact(b,query))-Number(exact(a,query))||Number(b.vote_count||0)-Number(a.vote_count||0)||Number(b.popularity||0)-Number(a.popularity||0)||Number(a.id)-Number(b.id));return {id:unique[0].id,kind:type};}if(unique.length>1)throw Object.assign(failure('توجد عدة أعمال بهذا الاسم والسنة؛ اختر العمل الصحيح من نتائج المزامنة',409),{matches:unique.slice(0,20).map(row=>candidate(row,type))});return unique.length?{id:unique[0].id,kind:type}:null;};
  async function search(type){
   const params={query,language:'en-US',include_adult:'false'};if(year&&type==='movie')params.year=year;
   const found=await api('search/'+type,params),rows=new Map((found.results||[]).map(row=>[row.id,row]));
